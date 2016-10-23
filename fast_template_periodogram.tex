@@ -1,0 +1,464 @@
+\documentclass[notitlepage]{article}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage[margin=0.5in]{geometry}
+\title{Fast template periodogram}
+\author{John Hoffman}
+
+
+\newcommand{\todo}[1]{{\bf #1}}
+\newcommand{\Order}[1]{\mathcal{O}\left(#1\right)}
+\newcommand{\Cc}[1][n]{\widetilde{C}}
+\newcommand{\Ss}[1][n]{\widetilde{S}}
+\newcommand{\CCc}[1][nm]{\widetilde{CC}}
+\newcommand{\SSs}[1][nm]{\widetilde{SS}}
+\newcommand{\CS}[1][nm]{\widetilde{CS}}
+\newcommand{\YC}[1][n]{\widetilde{YC}}
+\newcommand{\YS}[1][n]{\widetilde{YS}}
+\newcommand{\Xs}{X_s}
+\newcommand{\Xc}{X_c}
+\newcommand{\Xst}{X_{s, \tau_0}}
+\newcommand{\Xct}{X_{c, \tau_0}}
+\newcommand{\Ybar}{\bar{y}}
+\newcommand{\YY}{YY}
+\newcommand{\dM}{\partial_bM}
+\newcommand{\hatYC}[1][n]{\widehat{YC}}
+\newcommand{\hatYS}[1][n]{\widehat{YS}}
+\newcommand{\hatCS}[1][nm]{\widehat{CS}}
+\newcommand{\hatCC}[1][nm]{\widehat{CC}}
+\newcommand{\hatSS}[1][nm]{\widehat{SS}}
+\newcommand{\somt}[1][n]{\sin{{#1}\omega t}}
+\newcommand{\comt}[1][m]{\cos{{#1}\omega t}}
+
+\newcommand{\iprod}[2]{\left<#1, #2\right>}
+\newcommand{\oprod}[2]{#1 \otimes #2}
+
+\newcommand{\dA}{(\partial_b A)}
+\newcommand{\dB}{(\partial_b B)}
+
+\begin{document}
+\maketitle
+
+\section{Notes}
+
+Jake, this is an active document that I've been working on. At one point it was the rough draft
+of the paper (hence the introduction), but at this point it's more or less a personal log 
+during my attempts to derive the fast 
+template periodogram. I would ignore everything else except for the math...
+
+I want to know if you have any suggestions/corrections/tips for speeding up this derivation 
+process. I am not familiar with Mathematica; would you recommend that I start using
+Mathematica or some other program to perform the simplification?
+
+\section{Introduction}
+
+We seek a particular closed-form solution to the periodogram 
+
+\begin{equation}
+p(\omega)\equiv \frac{\chi^2 - \chi^2_0}{\chi^2_0}
+\end{equation}
+
+where
+
+\begin{equation}
+\chi^2 \equiv \sum_i \frac{\left(y_i - y(t_i)\right)^2}{\sigma_i^2}
+\end{equation}
+
+for data $y_i$ measured at times $t_i$ with uncertainty $\sigma_i$ with 
+respect to a best-fit model $y(t)$. 
+
+The $0$ subscript in $\chi^2_0$ denotes the $\chi^2$ value for a
+ model consisting of only a constant factor, i.e., $y(t) = c$ for some $c\in\mathbb{R}$. 
+
+In the canonical case (Lomb-Scargle), $y_{\rm LS}(t) = a \cos\omega t + b\sin\omega t$, which was extended by
+\todo{citation for general lsp} to include a constant offset:
+
+\begin{equation}
+\hat{y}_{\rm GLS}(t) = a\cos\omega t + b\sin\omega t + c
+\end{equation}
+
+This was extended further by \todo{citation for multi-harmonic LSP} to include additional subharmonics
+of $\omega$:
+
+\begin{equation}
+\hat{y}(t) = c + \sum_{h=1}^{H} \left(a_h\cos h\omega t + b_h\sin h\omega t \right).
+\end{equation}
+
+Where $H$ is the number of harmonics to be considered. In this case, there are $2H + 1$ free parameters
+to be constrained. While capable of overcoming some of the problems 
+typical of the original and generalized versions of the Lomb-Scargle
+periodogram (poor ability to constrain non-sinusoidal shapes, etc.), the extra free parameters
+reduce the detectability of low amplitude signals in noisy data.
+
+Template periodograms, on the other hand, allow for a more generalized model $\hat{y}(t|\vec{\theta})$, where
+$\vec{\theta}$ is the vector of free-parameters for the model. When searching for a known signal-shape
+in noisy data, template periodograms do as well as, or better than, LSP/GLSP algorithms, since they
+reduce the number of free parameters by constraining the shape of the signal. They are also optimized
+for finding signals with shapes similar to that of the template.
+
+However, the disadvantage of template periodograms as they have so far been expressed, 
+is that slower and more computationally expensive calculations are needed to produce 
+the periodogram compared with the standard LSP/GLSP. The (G)LSP can be improved from an 
+$\Order{N^2}$ calculation to an $\Order{N\log N}$ calculation \todo{find nlogn lsp citation}
+by utilizing FFT's to accelerate the computation of various sums. A similar speedup can be
+gained for \todo{to be continued...}
+
+
+\section{derivations}
+
+The model $\hat{y}(t)$ associated with the template $M(t)$ is:
+
+\begin{equation}
+\hat{y}(t) = aM(t - \tau) + c,
+\end{equation}
+
+where $a$, $\tau$, and $c$ are all free parameters with real values. If we express $M(t)$ as a Fourier
+series, we have that
+
+\begin{equation}
+M(t|\omega) = \sum_{n=1}^H \left[c_n\cos n\omega t + s_n\sin n \omega t\right]
+\end{equation}
+
+Where $H$ is $\infty$ in general, but for sufficiently smooth templates, can be
+reduced to a finite (and ideally small) natural number, $H\lesssim 10$. 
+
+The Fourier components $c_n$ and $s_n$ are assumed to be real-valued 
+and should be normalized in some convenient way.
+
+Furthermore, it is convenient to replace $\tau$ with $b\equiv\cos\omega\tau$. As such, $M(t - \tau)$ becomes
+
+\begin{align}
+M(t|\underbrace{a, b, c}_{\vec{\theta}}, \omega) = \sum_n^H &\underbrace{\left[c_nT_n(b) \mp s_nU_{n-1}(b)\sqrt{1 - b^2}\right]}_{g_n(b|c_n, s_n)}\comt[n]\\
+					&+\underbrace{\left[s_nT_n(b) \pm c_nU_{n-1}(b)\sqrt{1 - b^2}\right]}_{g_n(b|s_n, -c_n)}\somt[n],
+\end{align}
+
+where $T_n(x)$ is the Chebyshev polynomial of the $n$-th kind; recall $\cos nx = T_n(\cos x)$. The presence
+of the $\pm$ ambiguity arises because $\sin\omega\tau$ can have either a positive or negative sign, and this
+is independent of the value or sign of $b$. The problem is thus split into two cases, and the periodogram value
+is $\max(P_+, P_-)$, where $P_+$ is the periodogram value for the case when $\sin\omega\tau \geq 0$ and $P_-$
+is the periodogram value for $\sin\omega\tau < 0$.
+
+We can further define
+$A_n(b) \equiv g_n(b|c_n, s_n)$ and $B_n(b) \equiv g_n(b|s_n, -c_n)$.
+
+At a given frequency $\omega$, we seek the free parameters $\vec{\theta} = \{a, b, c\}$ that minimize $\chi^2(\vec{\theta})$
+for the Fourier-expanded template.
+
+We can use the nature of the optimal solution, namely that 
+\begin{equation}
+\partial_{\theta_i}\chi^2(\vec{\theta}_{\rm best}) = 0\,\,\,\,\forall \theta_i 
+\end{equation}
+
+to generate a system of three equations (with three ``unknowns'': $a$, $b$, $c$):
+
+\begin{eqnarray}
+0 &=& \partial_{a} \chi^2 = 2W\sum_i w_i \left(y_i - \hat{y}(t_i | \vec{\theta})\right)M(t_i | \vec{\theta}, \omega)\\
+0 &=& \partial_{b} \chi^2 = 2W\sum_i w_i \left(y_i - \hat{y}(t_i | \vec{\theta})\right)\left.\frac{\partial M(t | \vec{\theta}, \omega)}{\partial b} \right|_{t=t_i}\\
+0 &=& \partial_{c} \chi^2 = 2W\sum_i w_i \left(y_i - \hat{y}(t_i | \vec{\theta})\right)
+\end{eqnarray}
+
+For shorthand, we will hereafter refer to $M(t_i|\vec{\theta}, \omega)$ as $M_i$.
+
+We will also write things in terms of matrices, vectors, and inner-products:
+
+\begin{equation}
+\iprod{x}{y} \equiv \sum_{i=1}^N x_i y_i
+\end{equation}
+
+The inner product will always denote a summation over all observations. The
+template $M$ can now be expressed as
+
+\begin{equation}
+M(t) = A^T\Xc + B^T\Xs
+\end{equation}
+
+where $\Xc = \left[\cos{\omega t}, \cos{2\omega t}, ..., \cos{H\omega t} \right]$ and
+$\Xs = \left[\sin{\omega t}, \sin{2\omega t}, ..., \sin{H\omega t}\right]$.
+
+\begin{equation}
+\partial_bM(t) = \dA^T\Xc + \dB^T\Xs
+\end{equation}
+
+Where $\dA$ and $\dB$ are appropriate applications of
+
+\begin{equation}
+g'_n(b|p, q) \equiv \partial_b g_n(b|p, q) = n\left(pU_{n-1}(b) \pm q\frac{T_n(b)}{\sqrt{1 - b^2}}\right).
+\end{equation}
+
+We can now rewrite the system of equations in terms of inner products:
+
+\begin{eqnarray}
+0 &=& \partial_{a} \chi^2 = 2W\left(\iprod{w}{yM} - \iprod{w}{\hat{y}M}\right)\\
+0 &=& \partial_{b} \chi^2 = 2aW\left(\iprod{w}{y\dM} - \iprod{w}{\hat{y}\dM}\right)\\
+0 &=& \partial_{c} \chi^2 = 2W\left(\iprod{w}{y} - \iprod{w}{\hat{y}}\right)
+\end{eqnarray}
+
+The next set of vectors, matrices, and scalars are pre-computed sums that will be solved efficiently with (non-equispaced) fast Fourier transforms:
+
+\begin{eqnarray}
+\Cc   &\equiv& \iprod{w}{\Xc}\\
+\Ss   &\equiv& \iprod{w}{\Xs}\\
+\CCc &\equiv& \iprod{w}{\oprod{\Xc}{\Xc}}\\
+\SSs &\equiv& \iprod{w}{\oprod{\Xs}{\Xs}}\\
+\CS &\equiv&  \iprod{w}{\oprod{\Xc}{\Xs}}\\
+\YC  &\equiv& \iprod{w}{y\Xc}\\
+\YS  &\equiv& \iprod{w}{y\Xs}\\
+\Ybar &\equiv& \iprod{w}{y}\\
+\YY &\equiv& \iprod{w}{y^2}
+\end{eqnarray}
+
+We will assume that $\Ybar = 0$, by computing $\Ybar$ from observations
+and then substituting $y_i - \Ybar$ for $y_i$.
+
+\subsection{first eqn}
+
+\begin{align}
+0 &= \partial_{a} \chi^2 = 2W\left(\iprod{w}{yM} - \iprod{w}{\hat{y}M}\right)\\
+\iprod{w}{yM} &= \iprod{w}{\hat{y}M} \\
+\iprod{w}{y(A^T\Xc + B^T\Xs)} &= \iprod{w}{(aM + c)M} \\
+A^T\iprod{w}{y\Xc} + B^T\iprod{w}{y\Xs} &= a\iprod{w}{M^2} + c\iprod{w}{M}\\
+A^T\YC + B^T \YS &= a\iprod{w}{A^T\oprod{\Xc}{\Xc}A + 2A^T\oprod{\Xc}{\Xs}B + B^T\oprod{\Xs}{\Xs}} + c\iprod{w}{A^T\Xc + B^T\Xs}\\
+&= a\big(A^T\iprod{w}{\oprod{\Xc}{\Xc}}A + 2A^T\iprod{w}{\oprod{\Xc}{\Xs}}B \\
+&\qquad\quad + B^T\iprod{w}{\oprod{\Xs}{\Xs}}B\big) + c\big(A^T\iprod{w}{\Xc} + B^T\iprod{w}{\Xs}\big)\\
+&= a(A^T\CCc A + 2A^T\CS B + B^T\SSs B) + c(A^T\Cc + B^T\Ss)
+\end{align}
+
+\subsection{2nd eqn}
+
+\begin{align}
+0 &= \partial_{b} \chi^2 = 2W(\iprod{w}{y\dM} - \iprod{w}{\hat{y}\dM})\\
+\iprod{w}{y\dM} &= \iprod{w}{\hat{y}\dM}\\
+\iprod{w}{y\dA^T\Xc} + \iprod{w}{y\dB^T\Xs} &= a\iprod{w}{M\dM} + c\iprod{w}{\dM}\\
+\dA^T\YC + \dB^T\YS &= a\big(\iprod{w}{A^T\oprod{\Xc}{\Xc}\dA} + \iprod{w}{A^T\oprod{\Xc}{\Xs}\dB} \\
+					&\qquad\quad + \iprod{w}{B^T\oprod{\Xs}{\Xc}\dA} + \iprod{w}{B^T\oprod{\Xs}{\Xs}\dB}\big)\\
+					&\qquad\quad + c\big(\iprod{w}{\dA^T\Xc} + \iprod{w}{\dB^T\Xs}\big)\\
+					&= a\big(A^T\CCc \dA + A^T\CS\dB + \dA^T\CS B + B^T\SSs \dB\big) \\
+					&\qquad\quad + c\big(\dA^T\Cc + \dB^T\Ss\big)
+\end{align}
+
+\subsection{3rd eqn}
+
+\begin{align}
+0 &= \partial_{c} \chi^2 = 2W(\iprod{w}{y} - \iprod{w}{\hat{y}})\\
+\underbrace{\iprod{w}{y}}_{\Ybar=0} &= a\iprod{w}{M} + c\underbrace{\iprod{w}{1}}_{W=1}\\
+c &= -a\left(A^T\Cc + B^T\Ss\right)
+\end{align}
+
+
+\subsection{combining eq. 1 and 3}
+\begin{align}
+A^T\YC + B^T \YS &= a(A^T\CCc A + 2A^T\CS B + B^T\SSs B) + c(A^T\Cc + B^T\Ss)\\
+&= a(A^T\CCc A + 2A^T\CS B + B^T\SSs B) - a(A^T\Cc + B^T\Ss)^2\\
+&= a\left(A^T\CCc A + 2A^T\CS B + B^T\SSs B - \left(A^T\oprod{\Cc}{\Cc}A + 2A^T\oprod{\Cc}{\Ss}B + B^T\oprod{\Ss}{\Ss}B\right)\right)\\
+&= a\left(A^T\underbrace{(\CCc - \oprod{\Cc}{\Cc})}_{\equiv \hatCC}A + 2A^T\underbrace{(\CS - \oprod{\Cc}{\Ss})}_{\equiv \hatCS}B + B^T\underbrace{(\SSs - \oprod{\Ss}{\Ss})}_{\equiv\hatSS}B\right)\\
+a &= \frac{A^T\YC + B^T \YS}{A^T\hatCC A + 2A^T\hatCS B + B^T\hatSS B}
+\end{align}
+
+\subsection{combining eq. 2 and 3}
+\begin{align}
+\dA^T\YC + \dB^T\YS &= a\big(A^T\CCc \dA + A^T\CS\dB + \dA^T\CS B + B^T\SSs\dB\big) \\
+					&\qquad\quad + c\big(\dA^T\Cc + \dB^T\Ss\big)\\
+					&= a\bigg(A^T\CCc \dA + A^T\CS\dB + \dA^T\CS B + B^T\SSs\dB\\
+					&\qquad\quad - \left(A^T\Cc + B^T\Ss\right)\left(\dA^T\Cc + \dB^T\Ss\right)\bigg)\\
+					&=a\bigg(A^T\CCc \dA + A^T\CS\dB + \dA^T\CS B + B^T\SSs \dB\\
+					&\qquad\quad - \left(A^T\oprod{\Cc}{\Cc}\dA + A^T\oprod{\Cc}{\Ss}\dB + \dA^T\oprod{\Cc}{\Ss}B + B^T\oprod{\Ss}{\Ss}\dB \right)\bigg)\\
+					&=a\left(A^T\hatCC \dA + A^T\hatCS\dB + \dA^T\hatCS B + B^T\hatSS \dB\right)\\
+			   a    &= \frac{\dA^T\YC + \dB^T\YS}{A^T\hatCC \dA + A^T\hatCS\dB + \dA^T\hatCS B + B^T\hatSS \dB}
+\end{align}
+
+\subsection{Solutions as roots of a polynomial in $b$}
+The final expression depending only on a single free parameter ($b$) is then
+
+\begin{align}
+a = \frac{\dA^T\YC + \dB^T\YS}{A^T\hatCC \dA + A^T\hatCS\dB + \dA^T\hatCS B + B^T\hatSS \dB} &= \frac{A^T\YC + B^T \YS}{A^T\hatCC A + 2A^T\hatCS B + B^T\hatSS B}\\
+\left(\dA^T\YC + \dB^T\YS\right)\left(A^T\hatCC A + 2A^T\hatCS B + B^T\hatSS B\right) &= \left(A^T\YC + B^T \YS\right)\\
+																					&\qquad\quad \times \left(A^T\hatCC \dA + A^T\hatCS\dB\right. \\
+																					&\qquad\quad\quad + \left.\dA^T\hatCS B + B^T\hatSS \dB\right)
+\end{align}
+
+After simplification, this becomes
+
+\begin{align*}
+0 &= A^T\left(\YC\left(A^T\hatCC + B^T\hatCS^T\right) - \hatCC^TA\YC^T\right)\dA\\
+  &\quad + B^T\left(\YS\left(A^T\hatCC + B^T\hatCS^T\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YC^T\right)\dA\\
+  &\quad + A^T\left(\YC\left(A^T\hatCS + B^T\hatSS\right) - \hatCC^T A \YS^T\right)\dB\\
+  &\quad + B^T\left(\YS\left(A^T\hatCS + B^T\hatSS\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YS^T\right)\dB
+\end{align*}
+
+Ultimately, this expression should reduce to a single polynomial in $b$, since all components of $A$ and $B$ are polynomials in $b$, ignoring factors of $\sqrt{1 - b^2}$ which can be removed in the final expression with some simple algebra. The optimization of the parameters, then, reduces to finding the zeros of an order $\sim 3H - 1$ polynomial, which can be done numerically.
+
+At this point, I haven't derived the coefficients of this polynomial, but for now we can treat the final expression as a black-box function and numerically find the zeros (albeit probably much more slowly than if we knew the polynomial coefficients).
+
+The final expression of the periodogram has yet to be derived.
+
+\subsubsection{derivation of polynomial}
+
+\begin{align*}
+0 &= A_i\YC^iA_j\hatCC^j_k\dA^k + A_i\YC^iB_j(\hatCS^T)^j_k\dA^k - A_i\hatCC^i_j A^j\YC_k\dA^k\\
+  &\quad + B_i\YS^iA_j\hatCC^j_k\dA^k + B_i\YS^iB_j(\hatCS^T)^j_k\dA^k - 2B_i(\hatCS^T)^i_jA^j\YC_k\dA^k - B_i(\hatSS^T)^i_jB^j\YC_k\dA^k\\
+  &\quad + A_i\YC^iA_j\hatCS^j_k\dB^k + A_i\YC^iB_j\hatSS^j_k\dB^k - A_i(\hatCC^T)^i_j A^j\YS_k\dB^k\\
+  &\quad + B_i\YS^iA_j\hatCS^j_k\dB^k + B_i\YS^iB_j\hatSS^j_k\dB^k - 2B_i(\hatCS^T)^i_jA^j\YS_k\dB^k - B_i(\hatSS^T)^i_jB^j\YS_k\dB^k\\
+0 &= A_iA_j\dA_k\YC^i\hatCC^{jk} + A_iB_j\dA_k\YC^i\hatCS^{kj} - A_iA_j\dA_k\YC^k\hatCC^{ij}\\
+  &\quad + B_iA_j\dA_k\YS^i\hatCC^{jk} + B_iB_j\dA_k\YS^i\hatCS^{kj} - 2B_iA_j\dA_k\hatCS^{ji}\YC^k - B_iB_j\dA_k\hatSS^{ij}\YC^k\\
+  &\quad + A_iA_j\dB_k\YC^i\hatCS^{jk} + A_iB_j\dB_k\YC^i\hatSS^{jk} - A_iA_j\dB_k\hatCC^{ij}\YS^k\\
+  &\quad + B_iA_j\dB_k\YS^i\hatCS^{jk} + B_iB_j\dB_k\YS^i\hatSS^{jk} - 2B_iA_j\dB_k\hatCS^{ji}\YS^k - B_iB_j\dB_k\hatSS^{ij}\YS^k\\
+0 &= \underbrace{A_iA_j\dA_k\left(\YC^i\hatCC^{jk} -  \YC^k\hatCC^{ij}\right)}_{0} + A_iA_j\dB_k\left(\YC^i\hatCS^{jk} - \YS^k\hatCC^{ij}\right)\\
+  &\quad + A_iB_j\dA_k\left(\YC^i\hatCS^{kj} + \YS^j\hatCC^{ik}\right) + A_iB_j\dB_k\left( \YC^i\hatSS^{jk} + \YS^j\hatCS^{ik}\right)\\
+  &\quad + B_iB_j\dA_k\left(\YS^i\hatCS^{kj} - \YC^k\hatSS^{ij}\right) + \underbrace{B_iB_j\dB_k\left(\YS^i\hatSS^{jk} - \YS^k\hatSS^{ij}\right)}_{0}\\
+0 &= A_iA_j\dB_k\left(\YC^i\hatCS^{jk} - \YS^k\hatCC^{ij}\right) + A_iB_j\dA_k\left(\YC^i\hatCS^{kj} + \YS^j\hatCC^{ik}\right)\\
+  &\quad + A_iB_j\dB_k\left( \YC^i\hatSS^{jk} + \YS^j\hatCS^{ik}\right) + B_iB_j\dA_k\left(\YS^i\hatCS^{kj} - \YC^k\hatSS^{ij}\right)
+%0 &= A^T\left(\YC\left(A^T\hatCC + B^T\hatCS^T\right) - \hatCC^TA\YC^T\right)\dA\\
+%  &\quad + B^T\left(\YS\left(A^T\hatCC + B^T\hatCS^T\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YC^T\right)\dA\\
+%  &\quad + A^T\left(\YC\left(A^T\hatCS + B^T\hatSS\right) - \hatCC^T A \YS^T\right)\dB\\
+%  &\quad + B^T\left(\YS\left(A^T\hatCS + B^T\hatSS\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YS^T\right)\dB
+\end{align*}
+
+Let's simplify things a bit with polynomial algebra for polynomials on the interval $[-1, 1]$;
+
+\begin{eqnarray}
+p(x) &=& p_0 + p_1x + p_2x^2 + ... + p_nx^n\\
+     &=& \vec{p}^T \vec{x}_n
+\end{eqnarray}
+
+Where we define $\vec{x}_n = [ x^0, x^1, ..., x^n ]$ and $\vec{p} = [ p_0, p_1, ..., p_n ]$.
+
+Define a binary function $\star$ to denote the product of two polynomials:
+
+\begin{eqnarray}
+(p\star q)(x) &=& p_0\left(\vec{q}^T\vec{x}_m\right)x^0 + p_1\left(\vec{q}^T\vec{x}_m\right)x^1 + ... + p_n\left(\vec{q}^T\vec{x}_m\right)x^n\\
+	          &=& \vec{pq}^T\vec{x}_{n+m}
+\end{eqnarray}
+
+The $A$, $B$, $\dA$, and $\dB$ vectors can be expressed as
+
+\begin{equation}
+P_n^{\alpha} = p_n^{\alpha}
+\end{equation}
+
+\section{Obtaining an expression for the periodogram}
+
+\begin{align*}
+p(\omega) &\equiv 1 - \chi^2_{\rm opt}(\omega) / \chi^2_0
+\end{align*}
+
+Next we obtain an expression for $\chi^2_0$:
+\begin{align*}
+\partial_c \chi^2_0 &= -2W\iprod{w}{y - \hat{y}}\\
+	      \underbrace{\iprod{w}{y}}_{=\Ybar=0} &= \underbrace{\iprod{w}{\hat{y}=c}}_{=c}\\
+	        c = \hat{y} &= 0\\
+	        \chi^2_0 &= W\iprod{w}{y^2}\\
+	        \chi^2_0 &= \YY
+\end{align*}
+
+Then obtain an expression for $\chi^2_{\rm opt}(\omega)$, recalling that:
+
+\begin{equation}
+c = -a\iprod{w}{M}
+\end{equation}
+
+and
+
+\begin{equation}
+a = \frac{\iprod{w}{yM}}{\iprod{w}{M^2} - \iprod{w}{M}^2}
+\end{equation}
+
+\begin{align*}
+\chi^2_{\rm opt}(\omega) &= W\iprod{w}{(y - aM - c)^2}\\
+&= \iprod{w}{y^2 - 2y(aM + c) + (aM + c)^2}\\
+&= \iprod{w}{y^2 - 2ayM - 2cy + a^2M^2 + 2acM + c^2}\\
+&= \iprod{w}{y^2} - 2a\iprod{w}{yM} - 2c\underbrace{\iprod{w}{y}}_{=0} + a^2\iprod{w}{M^2} + 2ac\iprod{w}{M} + c^2\underbrace{\iprod{w}{1}}_{=1}\\
+&= \YY - 2a\iprod{w}{yM} + a^2\iprod{w}{M^2} + 2ac\iprod{w}{M} + c^2\\
+&= \YY - 2a\iprod{w}{yM} + a^2\iprod{w}{M^2} - 2a^2\iprod{w}{M}^2 + a^2\iprod{w}{M}^2\\
+&= \YY - 2a\iprod{w}{yM} + a^2\left(\iprod{w}{M^2} - \iprod{w}{M}^2\right)\\
+&= \YY - \left(\frac{\iprod{w}{yM}^2}{\iprod{w}{M^2} - \iprod{w}{M}^2}\right)
+\end{align*}
+
+From this we obtain the final expression for the periodogram:
+
+\begin{eqnarray}
+p(\omega) &=& 1 - \frac{\chi^2_{\rm opt}(\omega)}{\chi^2_0}\\
+		&=& 1 - \frac{1}{\YY}\left(\YY - \left(\frac{\iprod{w}{yM}^2}{\iprod{w}{M^2} - \iprod{w}{M}^2}\right)\right)\\
+		&=& \frac{1}{\YY}\left(\frac{\iprod{w}{yM}^2}{\iprod{w}{M^2} - \iprod{w}{M}^2}\right)\\
+		&=& \frac{1}{\YY}\left(\frac{ A^T(\oprod{\YC}{\YC})A + 2A^T(\oprod{\YC}{\YS})B + B^T(\oprod{\YS}{\YS})B}{ A^T(\CCc - \oprod{\Cc}{\Cc}) A + 2A^T(\CS - \oprod{\Cc}{\Ss}) B + B^T(\SSs - \oprod{\Ss}{\Ss}) B }\right)
+\end{eqnarray}
+
+
+\subsection{Does this reduce to the original LSP when $H=1$?}
+When $H = 1$, everything becomes scalar-valued and we can set $\hatCS$ to zero (see Zechmeister \& Kurster) by setting $t_i \rightarrow t_i - \tau_0$, where $\tau_0$ is implicitly defined as
+
+\begin{equation}
+\tan2\omega\tau_0 = \frac{2\hatCS}{\hatCC - \hatSS}.
+\end{equation}
+
+The $\Xc$ and $\Xs$ then become $\Xct\equiv\cos{\omega(t - \tau_0)}$ and $\Xst\equiv\sin{\omega(t-\tau_0)}$, and all sums involving inner and outer products of $X_s$ and $X_c$ are redefined with respect to this $\tau_0$. We can then set $c_n = c_1 = 1$ and $s_n = s_1 = 0$, and thus $A\rightarrow b$ and $B\rightarrow\pm\sqrt{1 - b^2}$.
+
+We can then solve the equation to obtain $b$:
+
+\begin{align*}
+0 &= A^T\left(\YC\left(A^T\hatCC + B^T\hatCS^T\right) - \hatCC^TA\YC^T\right)\dA\\
+  &\quad + B^T\left(\YS\left(A^T\hatCC + B^T\hatCS^T\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YC^T\right)\dA\\
+  &\quad + A^T\left(\YC\left(A^T\hatCS + B^T\hatSS\right) - \hatCC^T A \YS^T\right)\dB\\
+  &\quad + B^T\left(\YS\left(A^T\hatCS + B^T\hatSS\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YS^T\right)\dB\\
+  &= A\dA\left(A\left(\YC\times\hatCC\right) - A\left(\YC\times\hatCC\right)\right) + B\dA\left(A\left(\YS\times\hatCC\right) - B\left(\YC\times\hatSS\right)\right) \\
+  &\quad + A\dB\left(B\left(\YC\times\hatSS\right) - A\left(\YS\times\hatCC\right)\right) + B\dB\left(B\left(\YS\times\hatSS\right) - B\left(\YS\times\hatSS\right)\right)\\
+  &= B\dA\left(A\left(\YS\times\hatCC\right) - B\left(\YC\times\hatSS\right)\right)+ A\dB\left(B\YC\times\hatSS - A\left(\YS\times\hatCC\right)\right)\\
+  &= AB\dA\left(\YS\times\hatCC\right) - B^2\dA\left(\YC\times\hatSS\right) + AB\dB\left(\YC\times\hatSS\right) - A^2\dB\left(\YS\times\hatCC\right)\\
+  &= \left(b\times\left(\pm\sqrt{1-b^2}\right)\times1\right)\left(\YS\times\hatCC\right) - \left(\left(1-b^2\right)\times 1\right)\left(\YC\times\hatSS\right) \\
+  &\quad + \left(b\times\pm\sqrt{1-b^2}\times\left( \mp \frac{b}{\sqrt{1-b^2}}\right)\right)\left(\YC\times\hatSS\right) - b^2\times\left(\mp \frac{b}{\sqrt{1-b^2}}\right)\left(\YS\times\hatCC\right)\\
+  &= \pm\left(b\sqrt{1 - b^2}\right)\left(\YS\times\hatCC\right) - \left(1 - b^2\right)\left(\YC\times\hatSS\right)\\
+  &\quad - b^2\left(\YC\times\hatSS\right) \pm \left(\frac{b^3}{\sqrt{1-b^2}}\right)\left(\YS\times\hatCC\right)\\
+  &= \pm b\left(\sqrt{1 - b^2} + \frac{b^2}{\sqrt{1-b^2}}\right)\left(\YS\times\hatCC\right) - \left(\YC\times\hatSS\right)\\
+  &= \pm \left(\frac{b}{\sqrt{1 - b^2}}\right)\left(\YS\times\hatCC\right) - \left(\YC\times\hatSS\right)\\
+(1 - b^2)\left(\YC\times\hatSS\right)^2  &= b^2\left(\YS\times\hatCC\right)^2
+\end{align*}
+
+And we obtain
+
+\begin{eqnarray}
+A = b &=& \pm\frac{|\YC\times\hatSS|}{\sqrt{\left(\YC\times\hatSS\right)^2 +\left(\YS\times\hatCC\right)^2}}\\
+B = \pm\sqrt{1 - b^2} &=& \pm\frac{|\YS\times\hatCC|}{\sqrt{\left(\YC\times\hatSS\right)^2 +\left(\YS\times\hatCC\right)^2}}.
+\end{eqnarray}
+
+Plugging these values into the expression for the periodogram, we find
+
+
+\begin{eqnarray}
+p(\omega) &=& \frac{1}{\YY}\left(\frac{ A^2(\YC)^2 + 2AB(\YC)(\YS) + B^2(\YS)^2}{ A^2(\hatCC) + B^2(\hatSS)}\right)\\
+		  &=& \frac{1}{\YY}\left(\frac{ \left(\frac{A}{B}\right)^2(\YC)^2 + 2\frac{A}{B}(\YC)(\YS) + (\YS)^2}{ \left(\frac{A}{B}\right)^2(\hatCC) + (\hatSS)}\right)\\
+		  &=& \frac{1}{\YY}\left(\frac{ \left|\frac{\YC\times\hatSS}{\YS\times\hatCC}\right|^2(\YC)^2 \pm 2\left|\frac{\YC\times\hatSS}{\YS\times\hatCC}\right|(\YC\times\YS) + (\YS)^2}{ \left|\frac{\YC\times\hatSS}{\YS\times\hatCC}\right|^2(\hatCC) + (\hatSS)}\right)\\
+		  &=& \frac{1}{\YY}\left(\frac{ \YC^4\times(\hatSS)^2 \pm 2\left(\YC\times\YS\right)^2\times|\hatSS\times\hatCC| + \YS^4\times(\hatCC)^2}{ \YC^2\times\hatSS^2\times\hatCC + \YS^2\times\hatCC^2\times\hatSS}\right)\\
+		  &=& \frac{1}{\YY\times\hatCC\times\hatSS}\left(\frac{ \YC^4\times(\hatSS)^2 \pm 2\left(\YC\YS\right)^2\times\left|\hatSS\times\hatCC\right| + \YS^4\times(\hatCC)^2}{ \YC^2\times\hatSS + \YS^2\times\hatCC}\right)\\
+		  &=& \frac{1}{\YY\times\hatCC\times\hatSS}\left(\frac{ \left(\YC^2\times\left|\hatSS\right| \pm \YS^2\times\left|\hatCC\right|\right)^2}{ \YC^2\times\hatSS + \YS^2\times\hatCC}\right)
+\end{eqnarray}
+
+The $\pm$ ambiguity can be resolved here; we want the \emph{maximal} value of $p(\omega)$, and thus we replace $\pm$ with $+$:
+
+\begin{eqnarray}
+p(\omega) &=& \frac{1}{\YY\times\hatCC\times\hatSS}\left(\frac{ \left(\YC^2\times\left|\hatSS\right| + \YS^2\times\left|\hatCC\right|\right)^2}{ \YC^2\times\hatSS + \YS^2\times\hatCC}\right)
+\end{eqnarray}
+
+Since 
+
+\begin{eqnarray}
+\hatSS &=& \iprod{w}{\left(\sin{\omega t} - \iprod{w}{\sin{\omega t}}\right)^2} = {\rm Var}(\sin{\omega t_i}) > 0\\
+\hatCC &=& \iprod{w}{\left(\cos{\omega t} - \iprod{w}{\cos{\omega t}}\right)^2} = {\rm Var}(\cos{\omega t_i}) > 0,
+\end{eqnarray}
+
+the periodogram reduces to the original GLS:
+
+\begin{eqnarray}
+p(\omega) &=& \frac{1}{\YY}\left(\frac{\YC^2}{\hatCC} + \frac{\YS^2}{\hatSS}\right).
+\end{eqnarray}
+
+%\section{Implementation}
+
+%\subsection{Computing coefficients of polynomial}
+
+%\subsection{Root finding}
+
+%Using \texttt{numpy.roots} uses about $\sim 10^{-5}$ seconds per frequency.
+
+%\subsection{Summations using NFFT}
+
+
+\end{document}
