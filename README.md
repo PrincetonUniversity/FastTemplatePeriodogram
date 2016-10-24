@@ -64,16 +64,20 @@ Updates
 Timing
 ------
 	
-  * CASE: 7 harmonics, 60 observations, 500 frequencies (len of ffts = 4 * H * Nf and 2 * H * Nf)
-      3.1E-3 s / freq for root finding
-	     * roots for both positive/negative sin(omega*tau)
-	     * 7.5E-4 s for computing coefficients of "PseudoPolynomial"
-	     * 1.5E-4 s for computing final polynomial
-	     * 5.9E-4 s for finding roots of polynomial
-      5.9E-4 to compute amplitudes at each real zero
-	     * To enforce amplitude > 0 (flipping the template over isn't allowed)
-      2.6E-4 to evaluate periodogram at each real zero for which A > 0
-      2.0E-4 s / freq for summations
+* CASE: 7 harmonics, 60 observations, 500 frequencies (len of ffts = `4 * H * Nf` and `2 * H * Nf`)
+	* 3.1E-3 s / freq for root finding
+		* roots for both positive/negative sin(omega*tau)
+		* 7.5E-4 s for computing coefficients of "PseudoPolynomial"
+		* 1.5E-4 s for computing final polynomial
+		* 5.9E-4 s for finding roots of polynomial
+	* 5.9E-4 s / freq to compute amplitudes at each real zero
+		* To enforce amplitude > 0 (flipping the template over isn't allowed)
+	* 2.6E-4 s / freq to evaluate periodogram at each real zero for which A > 0
+	* 2.0E-4 s / freq for summations
+
+**Compared with gatspy** 
+
+![timing](timing/timing.png "Timing compared to gatspy RRLyraeTemplateModeler")
 
 NOTES
 -----
