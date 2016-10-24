@@ -313,27 +313,47 @@ The final expression of the periodogram has yet to be derived.
 %  &\quad + B^T\left(\YS\left(A^T\hatCS + B^T\hatSS\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YS^T\right)\dB
 \end{align*}
 
-Let's simplify things a bit with polynomial algebra for polynomials on the interval $[-1, 1]$;
+The full expression of this polynomial is 
 
-\begin{eqnarray}
-p(x) &=& p_0 + p_1x + p_2x^2 + ... + p_nx^n\\
-     &=& \vec{p}^T \vec{x}_n
-\end{eqnarray}
 
-Where we define $\vec{x}_n = [ x^0, x^1, ..., x^n ]$ and $\vec{p} = [ p_0, p_1, ..., p_n ]$.
+\newcommand{\cna}{c_n^{\alpha}}
+\newcommand{\cmb}{c_m^{\beta}}
+\newcommand{\ckg}{c_k^{\gamma}}
+\newcommand{\sna}{s_n^{\alpha}}
+\newcommand{\smb}{s_m^{\beta}}
+\newcommand{\skg}{s_k^{\gamma}}
 
-Define a binary function $\star$ to denote the product of two polynomials:
+\newcommand{\Tn}{T_n(b)}
+\newcommand{\Tm}{T_m(b)}
+\newcommand{\Tk}{T_k(b)}
 
-\begin{eqnarray}
-(p\star q)(x) &=& p_0\left(\vec{q}^T\vec{x}_m\right)x^0 + p_1\left(\vec{q}^T\vec{x}_m\right)x^1 + ... + p_n\left(\vec{q}^T\vec{x}_m\right)x^n\\
-	          &=& \vec{pq}^T\vec{x}_{n+m}
-\end{eqnarray}
+\newcommand{\Un}{U_{n-1}(b)}
+\newcommand{\Um}{U_{m-1}(b)}
+\newcommand{\Uk}{U_{k-1}(b)}
 
-The $A$, $B$, $\dA$, and $\dB$ vectors can be expressed as
+\begin{align*}
+\frac{1}{k}A^\alpha_n A^{\beta}_m \partial_b A_k^{\gamma} &= \cna\cmb\ckg \Tn\Tm\Uk + \sna\smb\ckg\left(1-b^2\right)\Un\Um\Uk \\
+		&\quad - \sna\cmb\skg\Un\Tm\Tk - \cna\smb\skg\Tn\Um\Tk \\
+		&\quad + q\frac{1}{\sqrt{1 - b^2}}\left[\cna\cmb\skg\Tn\Tm\Tk + \left(1-b^2\right)\left( \sna\smb\skg\Un\Um\Uk \right.\right.\\
+		&\quad \left.\left. - \sna\cmb\skg\Un\Tm\Uk - \cna\smb\ckg\Tn\Um\Uk \right)\right],
+\end{align*}
 
-\begin{equation}
-P_n^{\alpha} = p_n^{\alpha}
-\end{equation}
+where $c_i^{\alpha}$ is $c_i$ if $\alpha=0$ and $s_i$ if $\alpha=1$, and $s_i^\alpha$ is $s_i$ if $\alpha=0$ and $-c_i$ if $\alpha=1$.
+
+My feeling is that there are more efficient ways to evaluate the 
+coefficients by taking advantage of properties of Chebyshev 
+polynomials (product rules, etc.).
+
+In the python implementation (as of Oct 24, 2016), the coefficients 
+of this polynomial are precomputed for a given template, since
+they only depend on $c_n$ and $s_n$. They are stored in 8 
+4-dimensional arrays of shape $(H, H, H, 3*H - 1)$. 
+The 8 arrays are needed because there are 4 products ($A_nA_m\dB_k$, 
+$A_nB_m\dA_k$, $A_nB_m\dB_k$, $B_nB_m\dA_k$) that are evaluated for 
+both the positive/negative $\sin\omega\tau$ cases, where 
+$b\equiv \cos\omega\tau$. The computational time and memory 
+requirement for this scales as $H^4$, and that puts practical
+constraints on the size of $H$.
 
 \section{Obtaining an expression for the periodogram}
 
