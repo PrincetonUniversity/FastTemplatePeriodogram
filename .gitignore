@@ -64,3 +64,8 @@ target/
 .idea/*
 tools/repos
 Untitled*.ipynb
+
+
+# LaTeX
+*.aux
+*.pdf
