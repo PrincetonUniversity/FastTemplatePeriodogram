@@ -1,0 +1,19 @@
+Last updated: Oct 31, 2016; John Hoffman; jah5@princeton.edu
+
+To contribute to this project, you will need to install several libraries/programs.
+
+See the [github page](https://github.com/PrincetonUniversity/FastTemplatePeriodogram) for more details and for the latest version.
+
+* [NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) <= 3.2.4
+	* Requires [FFTW3](http://www.fftw.org)
+		* For FFTW3, use `./configure --enable-threads --enable-openmp` to make sure you have the multithreaded FFTW3 libraries
+	* Install NFFT using `./configure --enable-openmp && make && sudo make install`
+* [pyNFFT](https://pypi.python.org/pypi/pyNFFT)
+	* Do not run `pip install pynfft`; this will not work.
+	* First install NFFT (version <= 3.2.4)
+	* Then run `pip download pynfft && tar xvf pyNFFT-<VERSION>-tar.gz && cd pyNFFT-<VERSION>/`
+	* From this directory, you may need to manually edit the `setup.py` file to add relevant directories to `include_dirs` (like `/usr/local/include`)
+	* Run `python setup.py install` once this is done.
+* [gatspy](https://pypi.python.org/pypi/gatspy)
+	* Python library, for unit testing. Includes `N^2` template periodogram
+* The 

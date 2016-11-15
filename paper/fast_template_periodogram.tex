@@ -302,11 +302,11 @@ The final expression of the periodogram has yet to be derived.
   &\quad + B_iA_j\dA_k\YS^i\hatCC^{jk} + B_iB_j\dA_k\YS^i\hatCS^{kj} - 2B_iA_j\dA_k\hatCS^{ji}\YC^k - B_iB_j\dA_k\hatSS^{ij}\YC^k\\
   &\quad + A_iA_j\dB_k\YC^i\hatCS^{jk} + A_iB_j\dB_k\YC^i\hatSS^{jk} - A_iA_j\dB_k\hatCC^{ij}\YS^k\\
   &\quad + B_iA_j\dB_k\YS^i\hatCS^{jk} + B_iB_j\dB_k\YS^i\hatSS^{jk} - 2B_iA_j\dB_k\hatCS^{ji}\YS^k - B_iB_j\dB_k\hatSS^{ij}\YS^k\\
-0 &= \underbrace{A_iA_j\dA_k\left(\YC^i\hatCC^{jk} -  \YC^k\hatCC^{ij}\right)}_{0} + A_iA_j\dB_k\left(\YC^i\hatCS^{jk} - \YS^k\hatCC^{ij}\right)\\
+0 &= A_iA_j\dA_k\left(\YC^i\hatCC^{jk} -  \YC^k\hatCC^{ij}\right) + A_iA_j\dB_k\left(\YC^i\hatCS^{jk} - \YS^k\hatCC^{ij}\right)\\
   &\quad + A_iB_j\dA_k\left(\YC^i\hatCS^{kj} + \YS^j\hatCC^{ik}\right) + A_iB_j\dB_k\left( \YC^i\hatSS^{jk} + \YS^j\hatCS^{ik}\right)\\
-  &\quad + B_iB_j\dA_k\left(\YS^i\hatCS^{kj} - \YC^k\hatSS^{ij}\right) + \underbrace{B_iB_j\dB_k\left(\YS^i\hatSS^{jk} - \YS^k\hatSS^{ij}\right)}_{0}\\
-0 &= A_iA_j\dB_k\left(\YC^i\hatCS^{jk} - \YS^k\hatCC^{ij}\right) + A_iB_j\dA_k\left(\YC^i\hatCS^{kj} + \YS^j\hatCC^{ik}\right)\\
-  &\quad + A_iB_j\dB_k\left( \YC^i\hatSS^{jk} + \YS^j\hatCS^{ik}\right) + B_iB_j\dA_k\left(\YS^i\hatCS^{kj} - \YC^k\hatSS^{ij}\right)
+  &\quad + B_iB_j\dA_k\left(\YS^i\hatCS^{kj} - \YC^k\hatSS^{ij}\right) + B_iB_j\dB_k\left(\YS^i\hatSS^{jk} - \YS^k\hatSS^{ij}\right)\\
+%0 &= A_iA_j\dB_k\left(\YC^i\hatCS^{jk} - \YS^k\hatCC^{ij}\right) + A_iB_j\dA_k\left(\YC^i\hatCS^{kj} + \YS^j\hatCC^{ik}\right)\\
+%  &\quad + A_iB_j\dB_k\left( \YC^i\hatSS^{jk} + \YS^j\hatCS^{ik}\right) + B_iB_j\dA_k\left(\YS^i\hatCS^{kj} - \YC^k\hatSS^{ij}\right)
 %0 &= A^T\left(\YC\left(A^T\hatCC + B^T\hatCS^T\right) - \hatCC^TA\YC^T\right)\dA\\
 %  &\quad + B^T\left(\YS\left(A^T\hatCC + B^T\hatCS^T\right) - \left(2\hatCS^T A + \hatSS^T B\right)\YC^T\right)\dA\\
 %  &\quad + A^T\left(\YC\left(A^T\hatCS + B^T\hatSS\right) - \hatCC^T A \YS^T\right)\dB\\
@@ -344,13 +344,13 @@ My feeling is that there are more efficient ways to evaluate the
 coefficients by taking advantage of properties of Chebyshev 
 polynomials (product rules, etc.).
 
-In the python implementation (as of Oct 24, 2016), the coefficients 
+In the python implementation (as of Nov 15, 2016), the coefficients 
 of this polynomial are precomputed for a given template, since
-they only depend on $c_n$ and $s_n$. They are stored in 8 
-4-dimensional arrays of shape $(H, H, H, 3*H - 1)$. 
-The 8 arrays are needed because there are 4 products ($A_nA_m\dB_k$, 
+they only depend on $c_n$ and $s_n$. They are stored in 12 
+4-dimensional arrays of shape $(H, H, H, 6*H - 2)$. 
+The 12 arrays are needed because there are 6 products ($A_nA_m\dB_k$, 
 $A_nB_m\dA_k$, $A_nB_m\dB_k$, $B_nB_m\dA_k$) that are evaluated for 
-both the positive/negative $\sin\omega\tau$ cases, where 
+both components of the ``pseudo-polynomial'', where 
 $b\equiv \cos\omega\tau$. The computational time and memory 
 requirement for this scales as $H^4$, and that puts practical
 constraints on the size of $H$.
