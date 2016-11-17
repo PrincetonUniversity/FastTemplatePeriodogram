@@ -284,7 +284,7 @@ class FastTemplateModeler(object):
 			args = (self.x, self.y, self.err, template.cn, template.sn)
 			kwargs = dict(ofac       = self.params['ofac'], 
 						  hfac       = self.params['hfac'], 
-						  polytens   = template.ptensors, 
+						  ptensors   = template.ptensors, 
 						  pvectors   = template.pvectors, 
 						  omegas     = self.omegas, 
 						  summations = self.summations, 

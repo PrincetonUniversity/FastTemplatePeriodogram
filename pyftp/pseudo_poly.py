@@ -338,7 +338,7 @@ def get_polynomial_vectors(cn, sn, sgn=1):
 
 
 
-def compute_zeros(ptensors, summations, loud=False):
+def compute_zeros(ptensors, sums, loud=False):
 	""" 
 	Compute frequency-dependent polynomial coefficients, 
 	then find real roots 
@@ -363,7 +363,6 @@ def compute_zeros(ptensors, summations, loud=False):
 	"""
 	t0 = None
 	if loud: t0 = time()
-	C, S, YC, YS, CCh, CSh, SSh = summations
 
 	AAdAp, AAdAq, \
 	AAdBp, AAdBq, \
@@ -373,23 +372,18 @@ def compute_zeros(ptensors, summations, loud=False):
 	BBdBp, BBdBq = ptensors
 
 	H = len(AAdAp)
-	YC = YC[:H]
-	YS = YS[:H]
-	CCh = CCh[:H][:H]
-	SSh = SSh[:H][:H]
-	CSh = CSh[:H][:H]
 
 	if loud:
 		dt = time() - t0
 		print "   ", dt, " seconds for bookkeeping"
 
 	if loud: t0 = time()
-	Kaada = np.einsum('i,jk->ijk', YC, CCh) - np.einsum('k,ij->ijk', YC, CCh)
-	Kaadb = np.einsum('i,jk->ijk', YC, CSh) - np.einsum('k,ij->ijk', YS, CCh)
-	Kabda = np.einsum('i,kj->ijk', YC, CSh) + np.einsum('j,ik->ijk', YS, CCh)
-	Kabdb = np.einsum('i,jk->ijk', YC, SSh) + np.einsum('j,ik->ijk', YS, CSh)
-	Kbbda = np.einsum('i,kj->ijk', YS, CSh) - np.einsum('k,ij->ijk', YC, SSh)
-	Kbbdb = np.einsum('i,jk->ijk', YS, SSh) - np.einsum('k,ij->ijk', YS, SSh)
+	Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CCh[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.CCh[:H,:H])
+	Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CSh[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.CCh[:H,:H])
+	Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CSh[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CCh[:H,:H])
+	Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SSh[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CSh[:H,:H])
+	Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CSh[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.SSh[:H,:H])
+	Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SSh[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.SSh[:H,:H])
 	
 	if loud: 
 		dt = time() - t0
