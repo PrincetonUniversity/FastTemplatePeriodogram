@@ -7,10 +7,10 @@ import fast_template_periodogram as ftp
 from scipy.optimize import curve_fit
 import cPickle as pickle
 
-def LMfit(x, y, err, cn, sn, w, positive=True):
+def LMfit(x, y, err, cn, sn, omega, sgn=1):
 	""" fits a, b, c with Levenberg-Marquardt """
 
-	ffunc = lambda X, *pars : ftp.fitfunc(X, positive, w, cn, sn, *pars)
+	ffunc = lambda X, *pars : ftp.fitfunc(X, sgn, omega, cn, sn, *pars)
 	p0 = [ np.std(y), 0.0, np.mean(y) ]
 	bounds = ([0, -1, -np.inf], [ np.inf, 1, np.inf])
 	popt, pcov = curve_fit(ffunc, x, y, sigma=err, p0=p0, 
@@ -20,25 +20,25 @@ def LMfit(x, y, err, cn, sn, w, positive=True):
 
 	return a, b, c
 
-def rms_resid_over_rms(CN, SN, Tt, Yt):
+def rms_resid_over_rms(cn, sn, Tt, Yt):
 	# This is fairly slow; is there a better way to get best fit pars?
-	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, CN, SN, 2 * np.pi, positive=True)
-	Ym = ftp.fitfunc(Tt, True, 2 * np.pi, CN, SN, a, b, c)
+	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, cn, sn, 2 * np.pi, positive=True)
+	Ym = ftp.fitfunc(Tt, 1, 2 * np.pi, cn, sn, a, b, c)
 
 	S = sqrt(np.mean(np.power(Yt, 2)))
 
 	Rp = sqrt(np.mean(np.power(Ym - Yt, 2))) / S
 
-	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, CN, SN, 2 * np.pi, positive=False)
-	Ym = ftp.fitfunc(Tt, False, 2 * np.pi, CN, SN, a, b, c)
+	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, cn, sn, 2 * np.pi, positive=False)
+	Ym = ftp.fitfunc(Tt, -1, 2 * np.pi, cn, sn, a, b, c)
 
 	Rn = sqrt(np.mean(np.power(Ym - Yt, 2))) / S
 	return min([ Rn, Rp ])
 
 rms = lambda x : sqrt(np.mean(np.power(x, 2)))
 
-def match_up_truncated_template(CN, SN, Tt, Yt):
-	Ym = ftp.fitfunc(Tt, True, 2 * np.pi, CN, SN, 2.0, 0.0, 0.0)
+def match_up_truncated_template(cn, sn, Tt, Yt):
+	Ym = ftp.fitfunc(Tt, 1, 2 * np.pi, cn, sn, 2.0, 0.0, 0.0)
 
 	# Align the maxima of truncated and full templates
 	di = np.argmax(Ym) - np.argmax(Yt)
@@ -52,8 +52,8 @@ def match_up_truncated_template(CN, SN, Tt, Yt):
 	# Keep the best fit
 	return Ym[np.argmin( [ rms(Y - Yt) for Y in Ym ] )]
 
-def rms_resid_over_rms_fast(CN, SN, Tt, Yt):
-	Ym = match_up_truncated_template(CN, SN, Tt, Yt)
+def rms_resid_over_rms_fast(cn, sn, Tt, Yt):
+	Ym = match_up_truncated_template(cn, sn, Tt, Yt)
 	return rms(Yt - Ym) / rms(Yt)
 
 def approximate_template(Tt, Yt, errfunc=rms_resid_over_rms, stop=1E-2, nharmonics=None):
@@ -121,8 +121,8 @@ class Template(object):
 		self.stop = stop
 		self.nharmonics = nharmonics
 		self.errfunc = errfunc
-		self.cn = None
-		self.sn = None
+		self.cn = cn
+		self.sn = sn
 		self.pvectors = None
 		self.ptensors = None
 		self.template_id = template_id
@@ -134,20 +134,26 @@ class Template(object):
 		return (not self.fname is None and os.path.exists(self.fname))
 
 	def precompute(self):
-		self.cn, self.sn = approximate_template(self.phase, self.y, 
+		if self.cn is None:
+			self.cn, self.sn = approximate_template(self.phase, self.y, 
 			                            stop=self.stop, errfunc=self.errfunc, 
 										nharmonics=self.nharmonics)
+			self.best_fit_y = match_up_truncated_template(self.cn, self.sn, self.phase, self.y)
 
+			self.rms_resid_over_rms = rms(self.best_fit_y - self.y) / rms(self.y)
+		elif self.phase is None:
+			nph = 100
+			self.phase = np.linspace(0, 1 + 1./nph, nph)
+			self.y = ftp.fitfunc(self.phase, 1, 2 * np.pi, self.cn, self.sn, 2.0, 0.0, 1.0)
+			
+			self.best_fit_y = self.y
+			self.rms_resid_over_rms = 0.0
 
 		self.nharmonics = len(self.cn)
 
 		self.pvectors = ftp.get_polynomial_vectors(self.cn, self.sn, sgn=1)
 
 		self.ptensors = ftp.compute_polynomial_tensors(*self.pvectors)
-
-		self.best_fit_y = match_up_truncated_template(self.cn, self.sn, self.phase, self.y)
-
-		self.rms_resid_over_rms = rms(self.best_fit_y - self.y) / rms(self.y)
 
 		return self
 
@@ -259,7 +265,16 @@ class FastTemplateModeler(object):
 		self.x = x
 		self.y = y
 		self.err = err
+		
+		# Set all old values to none
 		self.summations = None
+		self.freqs_ = None
+		self.best_template_id = None
+		self.best_template = None
+		self.best_model_params = None
+		self.periodogram_ = None
+		self.model_params_ = None
+		self.periodogram_all_templates_ = None
 		return self
 
 	def compute_sums(self):
@@ -279,6 +294,7 @@ class FastTemplateModeler(object):
 		#if self.summations is None:
 		#	self.compute_sums()
 		loud = False if not 'loud' in self.params else self.params['loud']
+		
 		all_ftps = []
 		for template_id, template in self.templates.iteritems():
 			args = (self.x, self.y, self.err, template.cn, template.sn)
@@ -291,13 +307,30 @@ class FastTemplateModeler(object):
 						  YY         = self.YY, 
 						  ybar       = self.ybar, 
 						  w          = self.w,
-						  loud       = loud)
-			all_ftps.append(ftp.fastTemplatePeriodogram(*args, **kwargs))	
-
-		freqs, ftps = zip(*all_ftps)
-		FREQS = freqs[0]
+						  loud       = loud,
+						  return_best_fit_pars=True)
+			all_ftps.append((template_id, ftp.fastTemplatePeriodogram(*args, **kwargs)))
+		
+		template_ids, all_ftps_ = zip(*all_ftps)
+		freqs, ftps, modelpars = zip(*all_ftps_)
+		freqs = freqs[0]
+		
+		self.periodogram_ = np.array([ max([ f[i] for f in ftps ]) for i in range(len(freqs)) ])
+		self.freqs_ = freqs
+		self.periodogram_all_templates_ = zip(template_ids, ftps)
+		self.model_params_ = zip(template_ids, modelpars)
 
 		# Periodogram is the maximum periodogram value at each frequency
-		return FREQS,  np.array([ max([ f[i] for f in ftps ]) for i in range(len(FREQS)) ])
+		return self.freqs_, self.periodogram_
 
+	def get_best_model(self, **kwargs):
 
+		ibest = np.argmax(self.periodogram_)
+		tbest = np.argmax([ f[ibest] for t, f in self.periodogram_all_templates_ ])
+
+		self.best_freq = self.freqs_[ibest]
+		self.best_template_id, self.best_model_params = self.model_params_[tbest]
+		self.best_model_params = self.best_model_params[ibest]
+		self.best_template = self.templates[self.best_template_id]
+		
+		return self.best_template, self.best_model_params

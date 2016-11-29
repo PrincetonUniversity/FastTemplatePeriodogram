@@ -2,8 +2,9 @@ from time import time
 import numpy as np
 from math import * 
 from gatspy.periodic import RRLyraeTemplateModeler
+from gatspy.periodic.template_modeler import BaseTemplateModeler
 import gatspy.datasets as datasets
-import pyftp.rrlyr_modeler as rrlm
+from pyftp.modeler import Template, FastTemplateModeler, rms_resid_over_rms_fast
 
 ofac = 5
 hfac = 1
@@ -14,14 +15,40 @@ Ns = [ 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 300, 500, 1000, 2000, 5000  ]
 
 # Get template from Gatspy
 rrl_templates = datasets.rrlyrae.fetch_rrlyrae_templates()
-ftp_template_id = rrl_templates.ids[0] #'100r' # very non-sinusoidal
+ftp_template_id = '100r' # very non-sinusoidal
 Ttemp, Ytemp = rrl_templates.get_template(ftp_template_id)
+
+class GatspyTemplateModeler(BaseTemplateModeler):
+        """
+        Convenience class for the gatspy BaseTemplateModeler
+        """
+        def __init__(self, templates=None, **kwargs):
+                self.ftp_templates = None
+
+                if not templates is None:
+                        if isinstance(templates, dict):
+                                self.ftp_templates = templates.copy()
+                        elif isinstance(templates, list):
+                                self.ftp_templates = { t.template_id : t for t in templates }
+                        else:
+                                self.ftp_templates = { 0 : templates }
+                BaseTemplateModeler.__init__(self, **kwargs)
+
+
+        def _template_ids(self):
+                return self.ftp_templates.keys()
+
+        def _get_template_by_id(self, template_id):
+                assert(template_id in self.ftp_templates)
+                t = self.ftp_templates[template_id]
+
+                return t.phase, t.y
 
 
 # Load template or generate new one from gatspy template
-fname = '../saved_templates/%s_stop%.3e.pkl'%(ftp_template_id, stop)
-ftp_template = rrlm.Template(fname=fname, template_id=ftp_template_id, 
-	                         stop=stop, errfunc=rrlm.rms_resid_over_rms_fast)
+fname = 'saved_templates/%s_stop%.3e.pkl'%(ftp_template_id, stop)
+ftp_template = Template(fname=fname, template_id=ftp_template_id, 
+	                 stop=stop, errfunc=rms_resid_over_rms_fast)
 
 if ftp_template.is_saved() and not redo:
 	print "loading template"
@@ -35,11 +62,12 @@ else:
 	ftp_template.save()
 
 templates = [ ftp_template ]
-ftpmodel = rrlm.FastTemplateModeler(ofac=ofac, hfac=hfac)
+print len(ftp_template.cn), " harmonics"
+ftpmodel = FastTemplateModeler(ofac=ofac, hfac=hfac)
 ftpmodel.add_templates(templates)
 
 # initialize gatspy template modeler 
-gmodel = rrlm.GatspyTemplateModeler(templates=templates)
+gmodel = GatspyTemplateModeler(templates=templates)
 
 for N in Ns:
 
@@ -52,7 +80,7 @@ for N in Ns:
 	
 
 
-	# Time the FTP rrlyrae modeler
+	# Time the FTP modeler
 	t0 = time()
 	ftpmodel.fit(x, y, err).compute_sums()
 	freqs, per = ftpmodel.periodogram()

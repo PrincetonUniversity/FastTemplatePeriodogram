@@ -1,7 +1,7 @@
 from modeler import FastTemplateModeler, Template, approximate_template, rms_resid_over_rms_fast
 import cPickle as pickle
 import gatspy.datasets.rrlyrae as rrl
-
+import os
 
 def get_rrlyr_templates(template_fname=None, errfunc=rms_resid_over_rms_fast, 
 	                    stop=1E-2, filts='r', nharmonics=None, redo=False):
@@ -13,6 +13,7 @@ def get_rrlyr_templates(template_fname=None, errfunc=rms_resid_over_rms_fast,
 	in a pickled file given by template_fname if template_fname
 	is not None.
 	"""
+	
 	# Obtain RR Lyrae templates
 	templates = rrl.fetch_rrlyrae_templates()
 	
@@ -32,7 +33,7 @@ def get_rrlyr_templates(template_fname=None, errfunc=rms_resid_over_rms_fast,
 			                            nharmonics=nharmonics, stop=stop).precompute() \
 		                            for ID, T, Y in zip(IDs, Ts, Ys) }
 		if not template_fname is None:
-			pickle.dump(ftp_templates, open(template_fname, 'rb'))
+			pickle.dump(ftp_templates, open(template_fname, 'wb'))
 
 	return ftp_templates
 
@@ -65,7 +66,7 @@ class FastRRLyraeTemplateModeler(FastTemplateModeler):
 		rms(trunc(template) - template) / rms(template) < stop
 	nharmonics: None or int, optional (default: None)
 		Keep a constant number of harmonics
-	fname: str, optional
+	template_fname: str, optional
 		Filename to load/save template
 	errfunc: callable, optional (default: rms_resid_over_rms)
 		A function returning some measure of error resulting
@@ -75,10 +76,11 @@ class FastRRLyraeTemplateModeler(FastTemplateModeler):
 		Recompute templates even if they are saved
 
 	"""
-	def __init__(self, filts='r', **kwargs):
-		self.filts = filts
-		self.params['filts'] = self.filts
+	def __init__(self, filts='r', redo=False, **kwargs):
 		FastTemplateModeler.__init__(self, **kwargs)
+		self.filts = filts
+		self.params['redo'] = redo
+		self.params['filts'] = self.filts
 		self._load_templates()
 
 	def _load_templates(self):

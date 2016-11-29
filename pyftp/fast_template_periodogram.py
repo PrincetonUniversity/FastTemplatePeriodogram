@@ -30,6 +30,8 @@ from pseudo_poly import compute_polynomial_tensors,\
 Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS', 
                                         'CCh', 'CSh', 'SSh'])
 
+ModelFitParams = namedtuple('ModelFitParams', [ 'a', 'b', 'c', 'sgn' ])
+
 # shortcuts for the Chebyshev polynomials
 Un = lambda n, x : eval_chebyu(n, x) if n >= 0 else 0
 Tn = lambda n, x : eval_chebyt(n, x) if n >= 0 else 0
@@ -218,7 +220,7 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
 def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1, 
                               pvectors=None, ptensors=None,
                               omegas=None, summations=None, YY=None, w=None, 
-                              ybar=None, loud=False):
+                              ybar=None, loud=False, return_best_fit_pars=False):
 
     H = len(cn)
     
@@ -242,6 +244,7 @@ def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         print "*", dt / len(omegas), " s / freqs to get summations"
 
     FTP = np.zeros(len(omegas))
+    best_fit_pars = []
 
     # Iterate through frequency values (sums contains C, S, YC, ...)
     for i, (omega, sums) in enumerate(zip(omegas, summations)):
@@ -264,6 +267,7 @@ def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
         # Pz is the list of p_+(w), p_-(w) values at each zero
         Pz = []
+        fit_pars = []
         for z in zeros:
             for sgn in [ -1, 1 ]:
                 A = Avec(z, cn, sn, sgn=sgn)
@@ -277,6 +281,11 @@ def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1,
                 # skip negative amplitude solutions
                 if amplitude < 0: continue
                 
+		# record the best-fit parameters for this template 
+                if return_best_fit_pars:
+                    c = -amplitude * (np.dot(A, sums.C[:H]) + np.dot(B, sums.S[:H]))
+                    fit_pars.append(ModelFitParams(a=amplitude, b=z, c=c, sgn=sgn))
+               
                 Pz.append(amplitude * AYCBYS / YY)
 
         if loud and i == 0:
@@ -284,7 +293,12 @@ def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1,
             print "*", dt, " s / freq to investigate each zero"
 
         # Periodogram value is the global max of P_{-} and P_{+}.
-        FTP[i] = 0 if len(Pz) == 0 else max(Pz)
-        
-    return omegas / (2 * np.pi), FTP
+        j = None if len(Pz) == 0 else np.argmax(Pz)
+        FTP[i] = 0 if j is None else Pz[j]
+        if return_best_fit_pars:
+            best_fit_pars.append((0,0,0) if j is None else fit_pars[j])
+    if not return_best_fit_pars:
+        return omegas / (2 * np.pi), FTP
+    else:
+        return omegas / (2 * np.pi), FTP, best_fit_pars
     

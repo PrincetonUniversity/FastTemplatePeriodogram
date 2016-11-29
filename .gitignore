@@ -65,7 +65,13 @@ target/
 tools/repos
 Untitled*.ipynb
 
+# vim backups
+*.swp
 
 # LaTeX
 *.aux
 *.pdf
+
+# misc
+timing/saved_templates/
+.DS_Store

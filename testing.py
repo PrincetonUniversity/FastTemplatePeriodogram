@@ -224,7 +224,7 @@ if __name__ == '__main__':
 	axt.set_title('ID = %s, H = %d'%(ftp_template_id, template.nharmonics))
 	axt.text(0.5, 0.05, '$\\left<\\left(\\hat{T} - T\\right)^2\\right>^{1/2}'\
 						'/\\left<T^2\\right>^{1/2}=%.5f$'%(template.rms_resid_over_rms), transform=axt.transAxes, ha='center', va='bottom')
-
+	axt.invert_yaxis()
 
 	f.savefig('plots/accuracy_corr_with_gatspy.png')
 	plt.show()
