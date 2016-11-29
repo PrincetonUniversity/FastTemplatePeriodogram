@@ -87,6 +87,7 @@ for N in Ns:
 	dt_ftp = time() - t0
 
 	periods = np.power(freqs, -1)[::-1]
+	print float(len(periods))/float(len(x))
 
 	# Time the Gatspy template modeler
 	t0 = time()
