@@ -265,38 +265,49 @@ def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1,
             print "*", dt, " s / freqs to get zeros"
             t0 = time()
 
-        # Pz is the list of p_+(w), p_-(w) values at each zero
-        Pz = []
-        fit_pars = []
-        for z in zeros:
-            for sgn in [ -1, 1 ]:
-                A = Avec(z, cn, sn, sgn=sgn)
-                B = Bvec(z, cn, sn, sgn=sgn)
+        # pz is periodogram value given b
+        bfpars = None
+        max_pz = None
+         
+        for bz in zeros:
+            for sgn_ in [ -1, 1 ]:
+                A = Avec(bz, cn, sn, sgn=sgn_)
+                B = Bvec(bz, cn, sn, sgn=sgn_)
 
                 AYCBYS = np.dot(A, sums.YC[:H]) + np.dot(B, sums.YS[:H])
+                ACBS   = np.dot(A, sums.C[:H])  + np.dot(B, sums.S[:H])
 
                 # Obtain amplitude for a given b=cos(wtau) and sign(sin(wtau))
-                amplitude = get_a_from_b(z, cn, sn, sums, A=A, B=B, AYCBYS=AYCBYS)
+                amplitude = get_a_from_b(bz, cn, sn, sums, A=A, B=B, AYCBYS=AYCBYS)
+
+                pz = amplitude * AYCBYS / YY
+   
+                #if return_best_fit_pars:
+                c = ybar - amplitude * ACBS
+                
+                #if abs(omega / (2 * np.pi) - 10) / 10. < 0.01:
+                #    print amplitude, z, c, sgn_, pz
 
                 # skip negative amplitude solutions
                 if amplitude < 0: continue
                 
-		# record the best-fit parameters for this template 
-                if return_best_fit_pars:
-                    c = -amplitude * (np.dot(A, sums.C[:H]) + np.dot(B, sums.S[:H]))
-                    fit_pars.append(ModelFitParams(a=amplitude, b=z, c=c, sgn=sgn))
+                # record the best-fit parameters for this template 
+                if max_pz is None or pz > max_pz:
+                    if return_best_fit_pars:
+                        bfpars = ModelFitParams(a=amplitude, b=bz, c=c, sgn=sgn_)
+                    max_pz = pz
                
-                Pz.append(amplitude * AYCBYS / YY)
 
         if loud and i == 0:
             dt = time() - t0
             print "*", dt, " s / freq to investigate each zero"
 
         # Periodogram value is the global max of P_{-} and P_{+}.
-        j = None if len(Pz) == 0 else np.argmax(Pz)
-        FTP[i] = 0 if j is None else Pz[j]
+        FTP[i] = max_pz
         if return_best_fit_pars:
-            best_fit_pars.append((0,0,0) if j is None else fit_pars[j])
+            best_fit_pars.append(bfpars)
+            #if abs(omega / (2 * np.pi) - 10.0) / 10.0 < 0.001:
+            #    print bfpars
     if not return_best_fit_pars:
         return omegas / (2 * np.pi), FTP
     else:

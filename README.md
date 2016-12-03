@@ -1,12 +1,12 @@
 Fast Template Periodogram
 =========================
 
-John Hoffman, 2016
-jah5@princeton.edu
+John Hoffman, Jake Vanderplas
+(c) 2016
 
 Description
 -----------
-The Fast Template Periodogram extends the Generalised Lomb Scargle
+The Fast Template Periodogram extends the Generalised Lomb-Scargle
 periodogram ([Zechmeister and Kurster 2009](http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:0901.2573])) 
 for arbitrary (periodic) signal shapes. A template is first approximated
 by a truncated Fourier series of length `H`. The Nonequispaced Fast Fourier Transform
@@ -14,35 +14,59 @@ by a truncated Fourier series of length `H`. The Nonequispaced Fast Fourier Tran
 to efficiently compute frequency-dependent sums.
 
 Because the FTP is a non-linear extension of the GLS, the zeros of 
-a polynomial of order ~`6H` must be computed at each frequency.
+a polynomial of order `~6H` must be computed at each frequency.
 
 The [gatspy](http://www.astroml.org/gatspy/) library has an implementation of
 both single and multiband template fitting, however this implementation
 uses non-linear least-squares fitting to compute the optimal parameters 
 (amplitude, phase, constant offset) of the template fit at each frequency. That
-process scales as `N*Nfreq`, where `N` is the number of observations and
-`Nfreq` is the number of frequencies at which to calculate the periodogram.
+process scales as `N_obs*N_f`, where `N` is the number of observations and
+`N_f` is the number of frequencies at which to calculate the periodogram.
 
-However, the template periodogram, expressed as a truncated Fourier series,
-can be derived exactly, with the caveat that the optimal solution is a root 
-of a polynomial of order ~`6*H`.
+This process is extremely slow. [Sesar et al. (2016)]() applied a similar
+template fitting procedure to multiband Pan-STARRS photometry and found that
+(1) template fitting was signicantly more accurate for estimating periods
+of RR Lyrae stars, but that (2) it required a substantial amount of 
+computational resources to perform these fits.
 
-This method then scales as `N * H * log(N * H)`, assuming `N` ~ `Nfreq`. 
-For small problems (N~Nfreq <~ 200), the fast template periodogram is only marginally
-faster than the slow `N*Nfreq` algorithms, and for very small problems may actually be slower.
+However, if the templates are sufficiently smooth (or can be adequately 
+approximated by a sufficiently smooth template) the template can be
+represented by a short truncated Fourier series of length `H`. Using this 
+representation, the optimal parameters (amplitude, phase, offset) 
+of the template can then be found exactly after finding the roots of 
+a polynomial at each trial frequency.
 
-However, for time series with large amounts of data (HATNet has ~10,000 observations
-per source), the non-linear template modeler is computationally impractical (~28 hours of 
-computation time for `N=10,000`), while the fast template periodogram takes about 7 minutes
-in its current state.
+The coefficients of these polynomials involve sums that can be efficiently
+computed with (non-equispaced) fast Fourier transforms. These sums
+can be computed in `HN_f log(HN_f)` time.
 
-**Important Note**: in its current state, the FTP now scales as `N`. Though that
-may sound like a good thing, it's really because the asymptotically `HNlogHN` part
-of the algorithm is subdominant until N is ridiculously high (>> 1,000,000) (assuming the number
-of frequencies scales linearly with N). 
+In its current state, the root-finding procedure is the rate limiting step.
+This unfortunately means that for now the fast template periodogram scales as 
+`N_f*(H^4)`. We are working to reduce the computation time so that the entire 
+procedure scales as `HN_f log(HN_f)` for reasonable values of `H` (`< 10`).
 
-Basically, the polynomial root finding part is taking up most of the time. That's
-constant time per frequency, and there are `N_f \propto N` frequencies.
+However, even for small cases where `H=6` and `N_obs=10`, this procedure is 
+about twice as fast as the `gatspy` template modeler. And, the speedup over
+`gatspy` grows linearly with `N_obs`! 
+
+
+How is this different than the multi-harmonic periodogram?
+----------------------------------------------------------
+
+
+The multi-harmonic periodogram ([Schwarzenberg-Czerny (1996)]()) is another 
+extension of Lomb-Scargle that fits a truncated Fourier series to the data 
+at each trial frequency. This is nice if you have a strong non-sinusoidal signal 
+and a large dataset. This algorithm can also be made to scale as
+`HN_f logHN_f` ([Palmer 2009]()).
+
+However, the multi-harmonic periodogram is fundementally different than template fitting. 
+In template fitting, the relative amplitudes and phases of the Fourier series are *fixed*. 
+In a multi-harmonic periodogram, the relative amplitudes and phases of the Fourier series are 
+*free parameters*. These extra free parameters mean that (1) you need a larger
+number of observations `N_obs` to reach the same signal to noise, and (2) you are
+more likely to detect a multiple of the true frequency. For a discussion of this
+effect and other periodograms, see [Vanderplas et al. (2015)]().
 
 Requirements
 ------------
@@ -58,54 +82,82 @@ Requirements
 	* RRLyrae modeler needs this to obtain templates
 	* Used to check accuracy/performance of the FTP
 
+
+Example usage
+-------------
+
+```python
+from pyftp import modeler
+import numpy as np
+
+# define your template by its Fourier coefficients
+cn = np.array([ 1.0, 0.5, 0.2 ])
+sn = np.array([ 1.0, -0.2, 0.5 ])
+
+# create a Template object
+template = modeler.Template(cn=cn, sn=sn)
+
+# Precompute some quantities for speed
+template.precompute()
+
+# create a FastTemplateModeler
+model = modeler.FastTemplateModeler()
+
+# get some data
+t, mag, err = get_your_data()
+
+# feed the data to the modeler
+model.fit(t, mag, err)
+
+# get your template periodogram!
+# ofac -- the oversampling factor: df = 1 / (ofac * (max(t) - min(t)))
+# hfac -- the nyquist factor: f_max = hfac * N_obs / (max(t) - min(t))
+freqs, periodogram = model.periodogram(ofac=20, hfac=1)
+
+# What are the parameters of the best fit?
+template, params = model.get_best_model()
+# NOTE: this procedure has a known bug. Amplitude values are correct
+# but phase and offset values are wrong. See the 'issues' tab for more information
+```
+
+There is also a built-in RR Lyrae modeler that pulls RR Lyrae templates 
+from Gatspy (templates are from Sesar et al. 2011).
+
+```python
+
+from pyftp import rrlyrae
+
+# create a FastTemplateModeler
+model = rrlyrae.FastRRLyraeTemplateModeler(filts='r')
+
+# get some data
+t, mag, err = get_your_data()
+
+# feed the data to the modeler
+model.fit(t, mag, err)
+
+# get your template periodogram!
+freqs, periodogram = model.periodogram(ofac=20, hfac=1)
+
+```
+
+  
+
 Updates
 -------
-* [Nov 15, 2016; jah] Large commit, organizational changes, additional documentation
-* [Oct 26, 2016; jah] Order of magnitude improvements
-	* Now use `np.einsum` instead of `np.tensordot`
-	* Reduced number of computations by storing values that are re-used later
-	* Reduced number of function calls
-* Template periodogram python implementation now works
 
-* Speed has been improved by:
-	* computing template-specific quantities before-hand
-	* more efficient root finding by computing coefficients of polynomial
-		* However, memory requirements (and speed) scale as ~H ** 4
-		* PseudoPolynomial class for bookkeeping and code simplification
-		* This is still the slowest process for small cases N <~ 200
+* See the [issues]() section for known bugs! You can also submit bugs through this interface.
 
 Timing
 ------
-
-* UPDATE (10/26/2016); CASE: 7 harmonics, 60 observations, 
-	* 4.9E-4 s / freq to get zeros
-		* 6.1E-5  s / freq to make constants
-		* 9.8E-5  s / freq to make coefficients of pseudo-polynomial
-		* 1.1E-4  s / freq to get final polynomial
-		* 1.7E-4  s / freq to find roots of polynomial
-	* 2.3E-4 s / freq to investigate each zero + store periodogram values
-	* 2.1E-4 s / freq for summations
-
-* CASE: 7 harmonics, 60 observations, 500 frequencies (len of ffts = `4 * H * Nf` and `2 * H * Nf`)
-	* 3.1E-3 s / freq for root finding
-		* roots for both positive/negative sin(omega*tau)
-		* 7.5E-4 s for computing coefficients of "PseudoPolynomial"
-		* 1.5E-4 s for computing final polynomial
-		* 5.9E-4 s for finding roots of polynomial
-	* 5.9E-4 s / freq to compute amplitudes at each real zero
-		* To enforce amplitude > 0 (flipping the template over isn't allowed)
-	* 2.6E-4 s / freq to evaluate periodogram at each real zero for which A > 0
-	* 2.0E-4 s / freq for summations
-
-**Compared with gatspy** 
 
 ![timing](plots/timing.png "Timing compared to gatspy RRLyraeTemplateModeler")
 
 Accuracy
 --------
 
-Compared with the Gatspy template modeler, the FTP performs as expected. For large values
-of `p(freq)`, the FTP correlates strongly with the Gatspy template algorithm; however,
+Compared with the Gatspy template modeler, the FTP provides improved accuracy as well as speed. 
+For large values of `p(freq)`, the FTP correlates strongly with the Gatspy template algorithm; however,
 since Gatspy uses non-linear function fitting (Levenberg-Marquardt), the predicted value for
 `p(freq)` may not be optimal if the data is poorly modeled by the template. FTP, on the other 
 hand, solves for the optimal solution directly, and thus tends to find equally good or 
@@ -114,35 +166,25 @@ better solutions when `p(freq)` is small.
 ![corrwithgats](plots/accuracy_corr_with_gatspy.png "Correlation to gatspy")
 ![accuracy](plots/accuracy_gtgatspy.png "Accuracy compared to gatspy")
 
-You can see this in the correlation between Gatspy and FTP. For some frequencies, the
-Gatspy modeler finds no improvement over a constant fit (`p(freq) = 0`). However, 
-For these frequencies, the FTP finds consistently better solutions, causing the pileup
-at `p(freq, gatspy) = 0`. 
+For some frequencies, the Gatspy modeler finds no improvement over a constant fit 
+(`p(freq) = 0`). However, for these frequencies, the FTP consistently finds better 
+solutions, causing the pileup at `p(freq, gatspy) = 0`. 
 
 At frequencies where the template models the data at least moderately well (`p(freq) ~> 0.01`),
 the Gatspy modeler and the FTP are in good agreement.
 
-Assuming, then, that the FTP performs better than the Gatspy template modeler, we can
-ask how many harmonics are necessary to include in order to accurately estimate the periodogram.
+Assuming, then, that the FTP is indeed producing the "correct" periodogram, we can then
+ask how many harmonics we must use in order to achieve an estimate of the periodogram to
+a given accuracy.
 
 ![accuracynharm](plots/accuracy_gtH10.png)
 
-I've chosen '100r' from the Cesar et al RR Lyrae templates as an example of a relatively non-sinusoidal
-template. So even for this case, you can get away with using `~H=5` for roughly 1% accuracy.
+I've chosen '100r' from the [Sesar et al. 2011]() RR Lyrae templates somewhat arbitrarily as an
+example of a relatively non-sinusoidal template. Even for this case, you can get away with 
+using `~H=5` for roughly 1% accuracy in the periodogram. 
 
+TODO
+----
 
-Notes
------
-
-* For portability and eventual coding in C (and later CUDA), it might
-  make sense to do root-finding directly with our own implementation.
-	* May also be faster -- np.roots computes eigenvalues of 
-          companion matrix but maybe there are more optimal methods in our case?
-	
-* For testing against the gatspy template periodogram, there's an RR Lyrae modeler 
-  included in FastTemplatePeriodgram.py that uses the same templates as the gatspy
-  RRLyrae modeler.
-	* Our implementation is (now) generally faster than the gatspy RRLyrae 
-          template modeler for small cases and when using a reasonable number of 
-          harmonics (~6ish). Not by much, however.
+* Extending this to a multiband template periodogram is a top priority after 
 

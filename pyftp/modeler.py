@@ -312,7 +312,7 @@ class FastTemplateModeler(object):
 			all_ftps.append((template_id, ftp.fastTemplatePeriodogram(*args, **kwargs)))
 		
 		template_ids, all_ftps_ = zip(*all_ftps)
-		freqs, ftps, modelpars = zip(*all_ftps_)
+		freqs, ftps, modelpars  = zip(*all_ftps_)
 		freqs = freqs[0]
 		
 		self.periodogram_ = np.array([ max([ f[i] for f in ftps ]) for i in range(len(freqs)) ])
@@ -329,7 +329,11 @@ class FastTemplateModeler(object):
 		tbest = np.argmax([ f[ibest] for t, f in self.periodogram_all_templates_ ])
 
 		self.best_freq = self.freqs_[ibest]
+		#print self.best_freq
 		self.best_template_id, self.best_model_params = self.model_params_[tbest]
+	
+ 		#for par in self.best_model_params[ibest]:
+		#	print par
 		self.best_model_params = self.best_model_params[ibest]
 		self.best_template = self.templates[self.best_template_id]
 		

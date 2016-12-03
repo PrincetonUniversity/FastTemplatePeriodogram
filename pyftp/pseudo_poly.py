@@ -419,9 +419,10 @@ def compute_zeros(ptensors, sums, loud=False):
 
 	if loud: t0 = time()
 
-	c = max(np.absolute(P))
-	c = 1./c if c > 0 else 1.0
-	if P[-1] < 0: c *= -1
+	#c = max(np.absolute(P))
+	#c = 1./c if c > 0 else 1.0
+	#if P[-1] < 0: c *= -1
+	c = 1.0
 	R = pol.polyroots(np.array(P) * c)
 	#R = sturm_zeros(P, -1, 1)
 	if loud:
