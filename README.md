@@ -23,7 +23,7 @@ uses non-linear least-squares fitting to compute the optimal parameters
 process scales as `N_obs*N_f`, where `N` is the number of observations and
 `N_f` is the number of frequencies at which to calculate the periodogram.
 
-This process is extremely slow. [Sesar et al. (2016)]() applied a similar
+This process is extremely slow. [Sesar et al. (2016)](https://arxiv.org/abs/1611.08596) applied a similar
 template fitting procedure to multiband Pan-STARRS photometry and found that
 (1) template fitting was signicantly more accurate for estimating periods
 of RR Lyrae stars, but that (2) it required a substantial amount of 
@@ -33,7 +33,7 @@ However, if the templates are sufficiently smooth (or can be adequately
 approximated by a sufficiently smooth template) the template can be
 represented by a short truncated Fourier series of length `H`. Using this 
 representation, the optimal parameters (amplitude, phase, offset) 
-of the template can then be found exactly after finding the roots of 
+of the template fit can then be found exactly after finding the roots of 
 a polynomial at each trial frequency.
 
 The coefficients of these polynomials involve sums that can be efficiently
@@ -66,7 +66,8 @@ In a multi-harmonic periodogram, the relative amplitudes and phases of the Fouri
 *free parameters*. These extra free parameters mean that (1) you need a larger
 number of observations `N_obs` to reach the same signal to noise, and (2) you are
 more likely to detect a multiple of the true frequency. For a discussion of this
-effect and other periodograms, see [Vanderplas et al. (2015)]().
+effect, possible remedies with Tikhonov regularization, and an illuminating review
+of periodograms in general, see [Vanderplas et al. (2015)](http://adsabs.harvard.edu/abs/2015ApJ...812...18V).
 
 Requirements
 ------------
@@ -102,6 +103,9 @@ template.precompute()
 
 # create a FastTemplateModeler
 model = modeler.FastTemplateModeler()
+
+# add the template(s) to your modeler
+model.add_templates([ template ])
 
 # get some data
 t, mag, err = get_your_data()
@@ -141,12 +145,12 @@ freqs, periodogram = model.periodogram(ofac=20, hfac=1)
 
 ```
 
-  
-
+ 
 Updates
 -------
 
-* See the [issues]() section for known bugs! You can also submit bugs through this interface.
+* See the [issues](https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues) 
+section for known bugs! You can also submit bugs through this interface.
 
 Timing
 ------

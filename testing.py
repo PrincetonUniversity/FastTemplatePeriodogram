@@ -188,14 +188,14 @@ if __name__ == '__main__':
 	axp.text(0.05, 0.95, "R=%.5f"%(pearsonr(pg, p)[0]), 
 		transform=axp.transAxes, ha='left', va='top')
 
-	axp.set_title("N=%d, sinusoid"%(N))
+	axp.set_title("signal: N=%d, sinusoid"%(N))
 	template.add_plot_to_axis(axt)
 	axt.set_xlabel('phase')
 	axt.set_ylabel('y')
 	axt.set_xlim(0, 1)
 	axt.set_ylim(0, 1)
 	#axt.legend(loc='best', fontsize=9)
-	axt.set_title('ID = %s, H = %d'%(ftp_template_id, template.nharmonics))
+	axt.set_title('template: "%s", H=%d'%(ftp_template_id, template.nharmonics))
 	#axt.text(0.5, 0.05, '$\\left<\\left(\\hat{T} - T\\right)^2\\right>^{1/2}'\
 	#					'/\\left<T^2\\right>^{1/2}=%.5f$'%(template.rms_resid_over_rms), transform=axt.transAxes, ha='center', va='bottom')
 	axt.invert_yaxis()
