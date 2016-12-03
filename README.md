@@ -190,5 +190,6 @@ using `~H=5` for roughly 1% accuracy in the periodogram.
 TODO
 ----
 
-* Extending this to a multiband template periodogram is a top priority after 
+* Extending this to a multiband template periodogram is a top priority after fixing bugs and
+  providing adequate documentation!
 
