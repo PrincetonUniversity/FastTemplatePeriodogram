@@ -6,10 +6,10 @@ John Hoffman, Jake Vanderplas
 
 Description
 -----------
-The Fast Template Periodogram extends the Generalised Lomb-Scargle
+The Fast Template Periodogram extends the Generalized Lomb-Scargle
 periodogram ([Zechmeister and Kurster 2009](http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:0901.2573])) 
 for arbitrary (periodic) signal shapes. A template is first approximated
-by a truncated Fourier series of length `H`. The Nonequispaced Fast Fourier Transform
+by a truncated Fourier series of length `H`. The Non-equispaced Fast Fourier Transform
 [NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) is used
 to efficiently compute frequency-dependent sums.
 
@@ -25,7 +25,7 @@ process scales as `N_obs*N_f`, where `N` is the number of observations and
 
 This process is extremely slow. [Sesar et al. (2016)](https://arxiv.org/abs/1611.08596) applied a similar
 template fitting procedure to multiband Pan-STARRS photometry and found that
-(1) template fitting was signicantly more accurate for estimating periods
+(1) template fitting was significantly more accurate for estimating periods
 of RR Lyrae stars, but that (2) it required a substantial amount of 
 computational resources to perform these fits.
 
@@ -54,13 +54,13 @@ How is this different than the multi-harmonic periodogram?
 ----------------------------------------------------------
 
 
-The multi-harmonic periodogram ([Schwarzenberg-Czerny (1996)]()) is another 
+The multi-harmonic periodogram ([Schwarzenberg-Czerny (1996)](http://iopscience.iop.org/article/10.1086/309985/meta)) is another 
 extension of Lomb-Scargle that fits a truncated Fourier series to the data 
 at each trial frequency. This is nice if you have a strong non-sinusoidal signal 
 and a large dataset. This algorithm can also be made to scale as
-`HN_f logHN_f` ([Palmer 2009]()).
+`HN_f logHN_f` ([Palmer 2009](http://iopscience.iop.org/article/10.1088/0004-637X/695/1/496/meta)).
 
-However, the multi-harmonic periodogram is fundementally different than template fitting. 
+However, the multi-harmonic periodogram is fundamentally different than template fitting. 
 In template fitting, the relative amplitudes and phases of the Fourier series are *fixed*. 
 In a multi-harmonic periodogram, the relative amplitudes and phases of the Fourier series are 
 *free parameters*. These extra free parameters mean that (1) you need a larger
@@ -83,6 +83,73 @@ Requirements
 	* RRLyrae modeler needs this to obtain templates
 	* Used to check accuracy/performance of the FTP
 
+Installation
+------------
+These instructions assume a `*nix` operating system (i.e. Mac, Linux, BSD, etc.). 
+
+#### If you have a **Mac** operating system
+
+* I have not tested the default `clang` compilers; I would highly recommend 
+  installing [macports]() and installing `gcc` compilers.
+	`sudo port install gcc`
+* After this, you may need to 'select' the gcc compilers: run 
+    `sudo port select --list gcc`
+  then pick the option that is not "none" by running 
+    `sudo port select --set gcc mp-gcc6`
+  where `mp-gcc6` is the option besides `none` (it may be different if you 
+  install another version).
+* If you run into any other trouble or find other dependencies, please let us know!
+
+#### Installing FFTW3
+
+* First download the FFTW3 [source](http://www.fftw.org), (the latest version should be fine, I have `3.3.5` on my machine)
+* Unzip the downloaded `.tar.gz` file
+* `./configure --enable-openmp --enable-threads` from inside the directory
+* `sudo make install`
+
+#### Installing NFFT
+
+* Download [NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) **version <= 3.2.4** (NOT the latest version)
+* unzip `.tar.gz` file
+* `./configure --enable-openmp --with-fftw3-includedir=/usr/local/include --with-fftw3-libdir=/usr/local/lib`
+	* optionally, use `--with-window=gaussian`, which should be faster (I haven't actually tested this).
+* `sudo make install`
+
+#### Installing pyNFFT
+* `pip download pynfft`
+* unzip `.tar.gz` file
+* open the `setup.py` file in a text editor, add `/usr/local/include` to the `include_dirs` variable; i.e., change
+	```python
+	# Define utility functions to build the extensions
+	def get_common_extension_args():
+	    import numpy
+	    common_extension_args = dict(
+	        libraries=['nfft3_threads', 'nfft3', 'fftw3_threads', 'fftw3', 'm'],
+	        library_dirs=[],
+	        include_dirs=[numpy.get_include()], #THIS LINE
+	```
+
+	to 
+
+	```python
+	# Define utility functions to build the extensions
+	def get_common_extension_args():
+	    import numpy
+	    common_extension_args = dict(
+	        libraries=['nfft3_threads', 'nfft3', 'fftw3_threads', 'fftw3', 'm'],
+	        library_dirs=[],
+	        include_dirs=[numpy.get_include(), '/usr/local/include'], #added /usr/local/include
+	```
+
+* then `python setup.py install`.
+
+#### Installing gatspy
+* `pip install gatspy` should work!
+
+#### Installing this code
+* `git clone https://github.com/PrincetonUniversity/FastTemplatePeriodogram.git`
+* Change into the newly created `FastTemplatePeriodogram` directory
+* `python setup.py install`
 
 Example usage
 -------------
@@ -120,15 +187,12 @@ freqs, periodogram = model.periodogram(ofac=20, hfac=1)
 
 # What are the parameters of the best fit?
 template, params = model.get_best_model()
-# NOTE: this procedure has a known bug. Amplitude values are correct
-# but phase and offset values are wrong. See the 'issues' tab for more information
 ```
 
 There is also a built-in RR Lyrae modeler that pulls RR Lyrae templates 
-from Gatspy (templates are from Sesar et al. 2011).
+from Gatspy (templates are from [Sesar et al. (2010)](http://iopscience.iop.org/article/10.1088/0004-637X/708/1/717/meta)).
 
 ```python
-
 from pyftp import rrlyrae
 
 # create a FastTemplateModeler
@@ -183,9 +247,9 @@ a given accuracy.
 
 ![accuracynharm](plots/accuracy_gtH10.png)
 
-I've chosen '100r' from the [Sesar et al. 2011]() RR Lyrae templates somewhat arbitrarily as an
-example of a relatively non-sinusoidal template. Even for this case, you can get away with 
-using `~H=5` for roughly 1% accuracy in the periodogram. 
+I've chosen '100r' from the [Sesar et al. 2010](http://iopscience.iop.org/article/10.1088/0004-637X/708/1/717/meta) 
+RR Lyrae templates somewhat arbitrarily as an example of a relatively non-sinusoidal template. 
+Even for this case, you can get away with using `~H=5` for roughly 1% accuracy in the periodogram. 
 
 TODO
 ----

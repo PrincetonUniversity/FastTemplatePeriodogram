@@ -309,7 +309,7 @@ class FastTemplateModeler(object):
 						  w          = self.w,
 						  loud       = loud,
 						  return_best_fit_pars=True)
-			all_ftps.append((template_id, ftp.fastTemplatePeriodogram(*args, **kwargs)))
+			all_ftps.append((template_id, ftp.fast_template_periodogram(*args, **kwargs)))
 		
 		template_ids, all_ftps_ = zip(*all_ftps)
 		freqs, ftps, modelpars  = zip(*all_ftps_)

@@ -38,10 +38,10 @@ Tn = lambda n, x : eval_chebyt(n, x) if n >= 0 else 0
 
 # A and dA expressions
 Afunc    = lambda n, x, p, q, sgn=1 :      \
-            p * Tn(n  , x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x) 
+            p * Tn(n, x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x) 
 
 dAfunc   = lambda n, x, p, q, sgn=1 : \
-            n * (p * Un(n-1, x) + sgn * q * Tn(n  , x) / np.sqrt(1 -  x*x))
+            n * (p * Un(n-1, x) + sgn * q * Tn(n, x) / np.sqrt(1 -  x*x))
 
 
 
@@ -217,7 +217,7 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
     return omegas, all_computed_sums, YY, w, ybar
 
 
-def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1, 
+def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1, 
                               pvectors=None, ptensors=None,
                               omegas=None, summations=None, YY=None, w=None, 
                               ybar=None, loud=False, return_best_fit_pars=False):
@@ -268,7 +268,8 @@ def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         # pz is periodogram value given b
         bfpars = None
         max_pz = None
-         
+        tshift = (omega * x[0]) % (2 * np.pi)
+
         for bz in zeros:
             for sgn_ in [ -1, 1 ]:
                 A = Avec(bz, cn, sn, sgn=sgn_)
@@ -279,22 +280,28 @@ def fastTemplatePeriodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
                 # Obtain amplitude for a given b=cos(wtau) and sign(sin(wtau))
                 amplitude = get_a_from_b(bz, cn, sn, sums, A=A, B=B, AYCBYS=AYCBYS)
-
-                pz = amplitude * AYCBYS / YY
-   
-                #if return_best_fit_pars:
-                c = ybar - amplitude * ACBS
-                
-                #if abs(omega / (2 * np.pi) - 10) / 10. < 0.01:
-                #    print amplitude, z, c, sgn_, pz
-
+    
                 # skip negative amplitude solutions
                 if amplitude < 0: continue
-                
+
+                pz = amplitude * AYCBYS / YY
+
                 # record the best-fit parameters for this template 
                 if max_pz is None or pz > max_pz:
                     if return_best_fit_pars:
-                        bfpars = ModelFitParams(a=amplitude, b=bz, c=c, sgn=sgn_)
+                        c = ybar - amplitude * ACBS
+
+                        # Correct for the fact that we've shifted t -> t - t0
+                        # during the NFFT
+                        wtauz = np.arccos(bz) 
+                        if sgn_ < 0:
+                            if wtauz < 0:
+                                wtauz +=     np.pi - wtauz
+                            else:
+                                wtauz  = 2 * np.pi - wtauz
+                        wtauz += tshift
+
+                        bfpars = ModelFitParams(a=amplitude, b=np.cos(wtauz), c=c, sgn=int(np.sign(np.sin(wtauz))))
                     max_pz = pz
                
 
