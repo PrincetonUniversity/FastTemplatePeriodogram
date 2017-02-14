@@ -224,8 +224,8 @@ class PseudoPolynomial(object):
 		dq = pol.polyder(self.q)
 
 		
-		p = pol.polysub(pol.polymul((1, 0, -1), dp), pol.polymul((0, 2 * self.r), p))
-		q = pol.polysub(pol.polymul((1, 0, -1), dq), pol.polymul((0, 2 * self.r + 1), q))
+		p = pol.polysub(pol.polymul((1, 0, -1), dp), pol.polymul((0, 2 * self.r), self.p))
+		q = pol.polysub(pol.polymul((1, 0, -1), dq), pol.polymul((0, 2 * self.r + 1), self.q))
 		r = self.r - 1
 
 		return PseudoPolynomial(p=p, q=q, r=r)
