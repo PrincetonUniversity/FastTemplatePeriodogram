@@ -59,10 +59,12 @@ def rms_resid_over_rms_fast(cn, sn, Tt, Yt):
 def approximate_template(Tt, Yt, errfunc=rms_resid_over_rms, stop=1E-2, nharmonics=None):
 	""" Fourier transforms template, returning the first H components """
 
+	#print "fft"
 	fft = np.fft.fft(Yt[::-1])
 	
 	cn, sn = None, None
 	if not nharmonics is None and int(nharmonics) > 0:
+		#print "creating cn and sn"
 		cn, sn = zip(*[ (p.real/len(Tt), p.imag/len(Tt)) for i,p in enumerate(fft) \
 		             if i > 0 and i <= int(nharmonics) ])
 		
@@ -135,11 +137,15 @@ class Template(object):
 
 	def precompute(self):
 		if self.cn is None:
+			#print "approximating template"
 			self.cn, self.sn = approximate_template(self.phase, self.y, 
 			                            stop=self.stop, errfunc=self.errfunc, 
 										nharmonics=self.nharmonics)
+
+			#print "getting best fit y"
 			self.best_fit_y = match_up_truncated_template(self.cn, self.sn, self.phase, self.y)
 
+			#print "computing rms_resid/rms"
 			self.rms_resid_over_rms = rms(self.best_fit_y - self.y) / rms(self.y)
 		elif self.phase is None:
 			nph = 100
@@ -151,8 +157,12 @@ class Template(object):
 
 		self.nharmonics = len(self.cn)
 
+		#print "computing pvectors"
+		#print self.cn
+		#print self.sn
 		self.pvectors = ftp.get_polynomial_vectors(self.cn, self.sn, sgn=1)
 
+		#print "computing ptensors"
 		self.ptensors = ftp.compute_polynomial_tensors(*self.pvectors)
 
 		return self
@@ -329,11 +339,8 @@ class FastTemplateModeler(object):
 		tbest = np.argmax([ f[ibest] for t, f in self.periodogram_all_templates_ ])
 
 		self.best_freq = self.freqs_[ibest]
-		#print self.best_freq
 		self.best_template_id, self.best_model_params = self.model_params_[tbest]
 	
- 		#for par in self.best_model_params[ibest]:
-		#	print par
 		self.best_model_params = self.best_model_params[ibest]
 		self.best_template = self.templates[self.best_template_id]
 		

@@ -9,8 +9,10 @@ from pyftp.gatspy_template_modeler import GatspyTemplateModeler
 
 ofac = 5
 hfac = 1
-stop = 2E-2
+#stop = 2E-2
 redo = False
+nharmonics = 6
+time_gatspy = False
 
 Ns = [ 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 300, 500, 1000, 2000, 5000  ]
 
@@ -20,9 +22,9 @@ ftp_template_id = '100r' # very non-sinusoidal
 Ttemp, Ytemp = rrl_templates.get_template(ftp_template_id)
 
 # Load template or generate new one from gatspy template
-fname = 'saved_templates/%s_stop%.3e.pkl'%(ftp_template_id, stop)
+fname = 'saved_templates/%s_nh%d.pkl'%(ftp_template_id, nharmonics)
 ftp_template = Template(fname=fname, template_id=ftp_template_id, 
-	                 stop=stop, errfunc=rms_resid_over_rms_fast)
+	      nharmonics=nharmonics, errfunc=rms_resid_over_rms_fast)
 
 if ftp_template.is_saved() and not redo:
 	print "loading template"
@@ -36,12 +38,17 @@ else:
 	ftp_template.save()
 
 templates = [ ftp_template ]
-print len(ftp_template.cn), " harmonics"
+#print len(ftp_template.cn), " harmonics"
 ftpmodel = FastTemplateModeler(ofac=ofac, hfac=hfac)
 ftpmodel.add_templates(templates)
 
 # initialize gatspy template modeler 
-gmodel = GatspyTemplateModeler(templates=templates)
+gmodel = None if not time_gatspy else GatspyTemplateModeler(templates=templates)
+
+if time_gatspy:
+	print "# gatspy"
+else:
+	print "# fast template modeler (H = %d)"%(nharmonics)
 
 for N in Ns:
 
@@ -58,14 +65,17 @@ for N in Ns:
 	t0 = time()
 	ftpmodel.fit(x, y, err).compute_sums()
 	freqs, per = ftpmodel.periodogram()
-	dt_ftp = time() - t0
+	dt = time() - t0
 
-	periods = np.power(freqs, -1)[::-1]
+	if not time_gatspy:
+		print N, len(freqs), dt
 
-	# Time the Gatspy template modeler
-	t0 = time()
-	perg = gmodel.fit(x, y, err).periodogram(periods)
-	dt_gatspy = time() - t0
+	if time_gatspy:
+		periods = np.power(freqs, -1)[::-1]
+	
+		# Time the Gatspy template modeler
+		t0 = time()
+		perg = gmodel.fit(x, y, err).periodogram(periods)
+		dt = time() - t0
 
-	# print
-	print N, len(freqs), dt_ftp, dt_gatspy
+		print N, len(freqs), dt

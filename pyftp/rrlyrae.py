@@ -29,9 +29,11 @@ def get_rrlyr_templates(template_fname=None, errfunc=rms_resid_over_rms_fast,
 	      and not redo:
 		ftp_templates = pickle.load(open(template_fname, 'rb'))
 	else:
+		#print "loading ftp_templates"
 		ftp_templates = { ID : Template(phase=T, y=Y, errfunc=errfunc, 
 			                            nharmonics=nharmonics, stop=stop).precompute() \
 		                            for ID, T, Y in zip(IDs, Ts, Ys) }
+		#print "done"
 		if not template_fname is None:
 			pickle.dump(ftp_templates, open(template_fname, 'wb'))
 
@@ -76,7 +78,7 @@ class FastRRLyraeTemplateModeler(FastTemplateModeler):
 		Recompute templates even if they are saved
 
 	"""
-	def __init__(self, filts='r', redo=False, **kwargs):
+	def __init__(self, filts='ugriz', redo=False, **kwargs):
 		FastTemplateModeler.__init__(self, **kwargs)
 		self.filts = filts
 		self.params['redo'] = redo

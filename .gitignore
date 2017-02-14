@@ -73,5 +73,7 @@ Untitled*.ipynb
 *.pdf
 
 # misc
+*png
+timing/timing*txt
 timing/saved_templates/
 .DS_Store

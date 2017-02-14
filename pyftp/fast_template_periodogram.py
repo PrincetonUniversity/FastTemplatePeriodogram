@@ -220,13 +220,14 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
 def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1, 
                               pvectors=None, ptensors=None,
                               omegas=None, summations=None, YY=None, w=None, 
-                              ybar=None, loud=False, return_best_fit_pars=False):
+                              ybar=None, loud=False, return_best_fit_pars=False,
+                              allow_negative_amplitudes=True):
 
     H = len(cn)
     
     if pvectors is None:
         pvectors = get_polynomial_vectors(cn, sn, sgn=  1)
-    
+
     if ptensors is None:
         ptensors = compute_polynomial_tensors(*pvectors)
 
@@ -255,19 +256,19 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         # Get zeros of polynomial (zeros are same for both +/- sinwtau)
         zeros = compute_zeros(ptensors, sums, loud=(i==0 and loud))
 
-        # Maybe we should throw an exception/warning here...
-        if len(zeros) == 0:
-            FTP[i] = 0
-            continue
+        # Check boundaries, too
+        if not  1 in zeros: zeros.append(1)
+        if not -1 in zeros: zeros.append(-1)
         
         if loud and i == 0:
             dt = time() - t0
             print "*", dt, " s / freqs to get zeros"
             t0 = time()
 
-        # pz is periodogram value given b
         bfpars = None
         max_pz = None
+
+        # compute phase shift due to non-zero x[0]
         tshift = (omega * x[0]) % (2 * np.pi)
 
         for bz in zeros:
@@ -281,29 +282,39 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
                 # Obtain amplitude for a given b=cos(wtau) and sign(sin(wtau))
                 amplitude = get_a_from_b(bz, cn, sn, sums, A=A, B=B, AYCBYS=AYCBYS)
     
-                # skip negative amplitude solutions
-                if amplitude < 0: continue
+                # Skip negative amplitude solutions
+                if amplitude < 0 and not allow_negative_amplitudes: continue
 
+                # Compute periodogram
                 pz = amplitude * AYCBYS / YY
 
-                # record the best-fit parameters for this template 
+                # Record the best-fit parameters for this template 
                 if max_pz is None or pz > max_pz:
                     if return_best_fit_pars:
+
+                        # Get offset
                         c = ybar - amplitude * ACBS
 
                         # Correct for the fact that we've shifted t -> t - t0
                         # during the NFFT
                         wtauz = np.arccos(bz) 
                         if sgn_ < 0:
-                            if wtauz < 0:
-                                wtauz +=     np.pi - wtauz
-                            else:
-                                wtauz  = 2 * np.pi - wtauz
+                            wtauz = 2 * np.pi - wtauz
                         wtauz += tshift
 
+                        # Store best-fit parameters
                         bfpars = ModelFitParams(a=amplitude, b=np.cos(wtauz), c=c, sgn=int(np.sign(np.sin(wtauz))))
+
                     max_pz = pz
-               
+
+        if return_best_fit_pars and bfpars is None:
+            # Could not find any positive amplitude solutions ... usually means this is a poor fit,
+            # so instead of a more exhaustive search for the best positive amplitude solution, 
+            # we simply set parameters to 0 and periodogram to 0
+            FTP[i] = 0
+            bfpars = ModelFitParams(a=0, b=1, c=ybar, sgn=1)
+            raise Warning("could not find positive amplitude solution for omega = %.3e (ftp[%d])"%(omega, i))
+
 
         if loud and i == 0:
             dt = time() - t0
@@ -313,8 +324,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         FTP[i] = max_pz
         if return_best_fit_pars:
             best_fit_pars.append(bfpars)
-            #if abs(omega / (2 * np.pi) - 10.0) / 10.0 < 0.001:
-            #    print bfpars
+            
     if not return_best_fit_pars:
         return omegas / (2 * np.pi), FTP
     else:

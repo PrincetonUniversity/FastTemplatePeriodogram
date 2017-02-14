@@ -129,11 +129,12 @@ def sturm_zeros(p, a, b, acc=1E-5, zero_finder=brent_zero):
 
 class PseudoPolynomial(object):
 	""" 
-	Convenience class for doing algebra with polynomials
-	containing factors of $\sqrt{1 - x^2}$
+	Convenience class for doing algebra with rational functions
+	containing factors of $\sqrt{1 - x^2}$ and with (1 - x^2)^(-r)
+	in the denominator
 
-	PP = polynomial(coeffs_1) 
-	      + (1 - x^2)^(r + 1/2) * polynomial(coeffs_2)
+	PP = (1 - x^2)^r * [polynomial(coeffs_1) 
+	                    + (1 - x^2)^(1/2) * polynomial(coeffs_2)]
 
 	Parameters
 	----------
@@ -142,7 +143,7 @@ class PseudoPolynomial(object):
 	q : np.ndarray
 		Coefficients of polynomial (2)
 	r : int <= 0
-		Factor in $\sqrt{1 - x^2}^{r + 1/2}$.
+		Factor in $(1 - x^2)^r * (p(x) + sqrt(1 - x^2)*q(x))$.
 
 	"""
 	def __init__(self, p=None, q=None, r=None):
@@ -172,7 +173,7 @@ class PseudoPolynomial(object):
 		
 		x = 1 if p1.r == p2.r else pol.polypow((1, 0, -1), p2.r - p1.r)
 
-		p = pol.polyadd(self.p, PP.p)
+		p = pol.polyadd(p1.p, pol.polymul(x, p2.p))
 		q = pol.polyadd(p1.q, pol.polymul(x, p2.q))
 		r = p1.r
 
@@ -219,10 +220,12 @@ class PseudoPolynomial(object):
 		dPP : PseudoPolynomial
 			d(PP)/dx represented as a PseudoPolynomial
 		"""
-		p = pol.polyder(self.p)
-		q = pol.polysub(pol.polymul((1, 0, -1), 
-			                        pol.polyder(self.q)), 
-		                (2 * self.r + 1) * pol.polymul((0, 1),  self.q))
+		dp = pol.polyder(self.p)
+		dq = pol.polyder(self.q)
+
+		
+		p = pol.polysub(pol.polymul((1, 0, -1), dp), pol.polymul((0, 2 * self.r), p))
+		q = pol.polysub(pol.polymul((1, 0, -1), dq), pol.polymul((0, 2 * self.r + 1), q))
 		r = self.r - 1
 
 		return PseudoPolynomial(p=p, q=q, r=r)
@@ -238,17 +241,17 @@ class PseudoPolynomial(object):
 			same number of roots as the PP
 
 		"""
-		return  pol.polysub(pol.polymul(pol.polypow(self.p, 2), 
-			                            pol.polypow((1, 0, -1), 
-			                            	       -(2 * self.r + 1))),  
-		                    pol.polypow(self.q, 2))
+		return  pol.polysub(pol.polymul(pol.polymul(self.p, self.p), (1, 0, -1)), 
+			                pol.polymul(self.q, self.q))
 
 	def roots(self):
 		return self.root_finding_poly().roots()
 
 	def eval(self, x):
-		return pol.polyval(x, self.p) + pow(1 - x*x, self.r + 0.5) \
-		                                * pol.polyval(x, self.q)
+		a = 1./pol.polyval((1, 0, -1), -self.r)
+
+		return a * (pol.polyval(x, self.p) + sqrt(1 - x*x) \
+		                                * pol.polyval(x, self.q))
 
 
 # An (or Bn) as a PseudoPolynomial
@@ -429,4 +432,5 @@ def compute_zeros(ptensors, sums, loud=False):
 		dt = time() - t0
 		print "   ", dt, " seconds to find roots of polynomial"
 
-	return [ r.real for r in R if abs(r.imag) < 1E-6 and abs(r.real) < 1 ]
+	small = 1E-5
+	return [ min([ 1.0, abs(r.real) ]) * np.sign(r.real) for r in R if abs(r.imag) < small and abs(r.real) < 1 + small ]
