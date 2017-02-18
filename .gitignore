@@ -73,6 +73,5 @@ Untitled*.ipynb
 *.pdf
 
 # misc
-*png
 scripts/saved_results
 .DS_Store
