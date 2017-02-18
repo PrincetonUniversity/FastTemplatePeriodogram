@@ -268,7 +268,7 @@ ABpoly = lambda c, s, sgn, alpha : [ Afunc_pp(n+1, C if alpha == 0 else  S,
 
 # Hardcoded, should probably be double checked but this 
 # empirically works
-get_poly_len = lambda H : 6 * H - 2
+get_poly_len = lambda H : 6 * H + 2
 
 def pseudo_poly_tensor(P1, P2, P3):
 	""" 

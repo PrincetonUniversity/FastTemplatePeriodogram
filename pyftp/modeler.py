@@ -22,14 +22,14 @@ def LMfit(x, y, err, cn, sn, omega, sgn=1):
 
 def rms_resid_over_rms(cn, sn, Tt, Yt):
 	# This is fairly slow; is there a better way to get best fit pars?
-	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, cn, sn, 2 * np.pi, positive=True)
+	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, cn, sn, 2 * np.pi, sgn=True)
 	Ym = ftp.fitfunc(Tt, 1, 2 * np.pi, cn, sn, a, b, c)
 
 	S = sqrt(np.mean(np.power(Yt, 2)))
 
 	Rp = sqrt(np.mean(np.power(Ym - Yt, 2))) / S
 
-	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, cn, sn, 2 * np.pi, positive=False)
+	a, b, c = LMfit(Tt, Yt, np.ones(len(Tt))*0.0001, cn, sn, 2 * np.pi, sgn=False)
 	Ym = ftp.fitfunc(Tt, -1, 2 * np.pi, cn, sn, a, b, c)
 
 	Rn = sqrt(np.mean(np.power(Ym - Yt, 2))) / S
@@ -81,6 +81,8 @@ def approximate_template(Tt, Yt, errfunc=rms_resid_over_rms, stop=1E-2, nharmoni
 		cn, sn = cn[:h], sn[:h]
 	return cn, sn
 
+normfac = lambda cn, sn : 1./np.sqrt(sum([ ss*ss + cc*cc for cc, ss in zip(cn, sn) ]))
+
 class Template(object):
 	"""
 	Template class
@@ -123,20 +125,48 @@ class Template(object):
 		self.stop = stop
 		self.nharmonics = nharmonics
 		self.errfunc = errfunc
-		self.cn = cn
-		self.sn = sn
+		self.cn = None
+		self.sn = None
 		self.pvectors = None
 		self.ptensors = None
 		self.template_id = template_id
 		self.best_fit_y = None
 
+		self.cn_full = None
+		self.sn_full = None
 
+		
+		self.defined_by_ty = cn is None and sn is None
+		if self.defined_by_ty and (phase is None or y is None):
+			raise Exception("Need to define either (phase, y) or (cn, sn) for template")
+
+		if not self.defined_by_ty:
+
+			assert(not (cn is None or sn is None))
+
+			self.cn_full = np.array(cn).copy()
+			self.sn_full = np.array(sn).copy()
+
+			if nharmonics is None:
+				self.nharmonics = len(cn)
+
+			assert(self.nharmonics <= len(cn))
+
+			self.cn = self.cn_full[:self.nharmonics].copy()
+			self.sn = self.sn_full[:self.nharmonics].copy()
+
+
+			self.cn *= normfac(self.cn, self.sn)
+			self.sn *= normfac(self.cn, self.sn)
+		
 	def is_saved(self):
 
 		return (not self.fname is None and os.path.exists(self.fname))
 
 	def precompute(self):
-		if self.cn is None:
+		
+
+		if self.defined_by_ty:
 			#print "approximating template"
 			self.cn, self.sn = approximate_template(self.phase, self.y, 
 			                            stop=self.stop, errfunc=self.errfunc, 
@@ -147,15 +177,23 @@ class Template(object):
 
 			#print "computing rms_resid/rms"
 			self.rms_resid_over_rms = rms(self.best_fit_y - self.y) / rms(self.y)
-		elif self.phase is None:
-			nph = 100
-			self.phase = np.linspace(0, 1 + 1./nph, nph)
-			self.y = ftp.fitfunc(self.phase, 1, 2 * np.pi, self.cn, self.sn, 2.0, 0.0, 1.0)
-			
-			self.best_fit_y = self.y
-			self.rms_resid_over_rms = 0.0
 
-		self.nharmonics = len(self.cn)
+		else:
+
+			assert(self.nharmonics <= len(self.cn_full))
+
+			self.cn = self.cn_full[:self.nharmonics].copy()
+			self.sn = self.sn_full[:self.nharmonics].copy()
+
+			self.cn *= normfac(self.cn, self.sn)
+			self.sn *= normfac(self.cn, self.sn)
+
+			nph = 100
+			self.phase = np.linspace(0, 1, nph)
+			self.y = ftp.fitfunc(self.phase, 1, 2 * np.pi, self.cn_full, self.sn_full, 2.0, 0.0, 1.0)
+			self.best_fit_y = ftp.fitfunc(self.phase, 1, 2 * np.pi, self.cn, self.sn, 2.0, 0.0, 1.0)
+
+			self.rms_resid_over_rms = rms(self.best_fit_y - self.y) / rms(self.y)
 
 		#print "computing pvectors"
 		#print self.cn
@@ -177,14 +215,19 @@ class Template(object):
 
 	def add_plot_to_axis(self, ax):
 		ax.plot(self.phase, self.y, color='k', label="original")
-		ax.plot(self.phase, self.best_fit_y, color='r', 
-			      label="best-fit approx; rms_resid/rms=%.3e, H=%d"%(self.rms_resid_over_rms, self.nharmonics))		
+		ax.plot(self.phase, self.best_fit_y,
+			      label="truncated (H=%d)"%(self.nharmonics))
+
+	def set_nharmonics(self, nharmonics):
+		self.nharmonics = nharmonics
+		self.precompute()
+		return self
 
 	def plot(self, plt):
 		f, ax = plt.subplots()
 		self.add_plot_to_axis(ax)
 		ax.set_xlim(0, 1)
-		ax.set_ylim(0, 1)
+		#ax.set_ylim(0, 1)
 		ax.set_xlabel('phase')
 		ax.set_ylabel('y')
 		ax.set_title('"%s", stop = %.3e, H = %d'%(self.template_id, 
@@ -206,7 +249,7 @@ class FastTemplateModeler(object):
 	ofac: float, optional (default: 10)
 		oversampling factor -- higher values of ofac decrease 
 		the frequency spacing (by increasing the size of the FFT)
-	hfac: float, optional (default: 1)
+	hfac: float, optional (default: 3)
 		high-frequency factor -- higher values of hfac increase
 		the maximum frequency of the periodogram at the 
 		expense of larger frequency spacing.
@@ -233,6 +276,16 @@ class FastTemplateModeler(object):
 		self.w = None
 		self.ybar = None
 
+		defaults = dict(ofac=10, hfac=3)
+
+		# set defaults
+		for key, value in defaults.iteritems():
+			if not key in self.params:
+				self.params[key] = value
+		if 'templates' in self.params:
+			self.add_templates(self.params['templates'])
+			del self.params['templates']
+
 	def _get_template_by_id(self, template_id):
 		assert(template_id in self.templates)
 		return self.templates[template_id]
@@ -240,15 +293,41 @@ class FastTemplateModeler(object):
 	def _template_ids(self):
 		return self.templates.keys()
 
-	def add_templates(self, templates, template_ids=None):
-		
-		self.templates.update(
-					{ TEMP.template_id if not TEMP.template_id is None \
-					    else (i if template_ids is None \
-					    	      else template_ids[i]) \
-					        : TEMP for i, TEMP in enumerate(templates) })
+	def get_new_template_id(self):
+		i = 0
+		while i in self.templates:
+			i += 1
+		return i
 
-		self.max_harm = max([ T.nharmonics for T in self.templates.values() ])
+	def add_template(self, template, template_id=None):
+		if template_id is None:
+			if template.template_id is None:
+				ID = self.get_new_template_id()
+				self.templates[ID] = template
+			else:
+				self.templates[template.template_id] = template
+		else:
+			self.templates[template_id] = template
+		return self
+
+	def add_templates(self, templates, template_ids=None):
+
+		if isinstance(templates, dict):
+			for ID, template in templates.iteritems():
+				self.add_template(template, template_id=ID)
+
+		elif isinstance(templates, list):
+			if template_ids is None:
+				for template in templates:
+					self.add_template(template)
+			else:
+				for ID, template in zip(template_ids, templates):
+					self.add_template(template, template_id=ID)
+		elif not hasattr(templates, '__iter__'):
+			self.add_template(templates, template_id=template_ids)
+		else:
+			raise Exception("did not recognize type of 'templates' passed to add_templates")
+			
 		return self
 
 	def remove_templates(self, template_ids):

@@ -6,6 +6,9 @@ John Hoffman, Jake Vanderplas
 
 Description
 -----------
+
+![examples](plots/templates_and_periodograms.png "Examples")
+
 The Fast Template Periodogram extends the Generalized Lomb-Scargle
 periodogram ([Zechmeister and Kurster 2009](http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:0901.2573])) 
 for arbitrary (periodic) signal shapes. A template is first approximated
@@ -219,7 +222,24 @@ section for known bugs! You can also submit bugs through this interface.
 Timing
 ------
 
-![timing](plots/timing.png "Timing compared to gatspy RRLyraeTemplateModeler")
+![timing](plots/timing_vs_ndata.png "Timing compared to gatspy")
+
+The Fast Template Periodogram seems to do better than Gatspy
+for virtually all reasonable cases (reasonable meaning a small-ish
+number of harmonics are needed to accurately approximate the template,
+small-ish meaning less than about 10).
+
+It may be surprising that FTP appears to scale as `NH`, instead of
+`NH log NH`, but that's because the NFFT is not the limiting factor (yet).
+Most of the computation time is spent calculating polynomial coefficients,
+and this computation scales as roughly `NH^4`. 
+
+![timingnh](plots/timing_vs_nharm.png "Timing vs harmonics")
+
+The FTP scales sub-linearly to linearly with the number of harmonics `H`
+for `H < 10`, and for larger number of harmonics scales as `H^4`. This
+is the main limitation of FTP.
+
 
 Accuracy
 --------
@@ -231,12 +251,12 @@ since Gatspy uses non-linear function fitting (Levenberg-Marquardt), the predict
 hand, solves for the optimal solution directly, and thus tends to find equally good or 
 better solutions when `p(freq)` is small.
 
-![corrwithgats](plots/accuracy_corr_with_gatspy.png "Correlation to gatspy")
-![accuracy](plots/accuracy_gtgatspy.png "Accuracy compared to gatspy")
+![corrwithgats](plots/correlation_with_gatspy.png "Correlation to gatspy")
+![accuracy](plots/correlation_with_large_H.png "How many harmonics do we need?")
 
 For some frequencies, the Gatspy modeler finds no improvement over a constant fit 
-(`p(freq) = 0`). However, for these frequencies, the FTP consistently finds better 
-solutions, causing the pileup at `p(freq, gatspy) = 0`. 
+(`p_gatspy(freq) = 0`). However, for these frequencies, the FTP consistently finds better 
+solutions.
 
 At frequencies where the template models the data at least moderately well (`p(freq) ~> 0.01`),
 the Gatspy modeler and the FTP are in good agreement.
@@ -245,15 +265,10 @@ Assuming, then, that the FTP is indeed producing the "correct" periodogram, we c
 ask how many harmonics we must use in order to achieve an estimate of the periodogram to
 a given accuracy.
 
-![accuracynharm](plots/accuracy_gtH10.png)
-
-I've chosen '100r' from the [Sesar et al. 2010](http://iopscience.iop.org/article/10.1088/0004-637X/708/1/717/meta) 
-RR Lyrae templates somewhat arbitrarily as an example of a relatively non-sinusoidal template. 
-Even for this case, you can get away with using `~H=5` for roughly 1% accuracy in the periodogram. 
-
 TODO
 ----
 
 * Extending this to a multiband template periodogram is a top priority after fixing bugs and
   providing adequate documentation!
-
+* Unit testing
+* Improve performance!

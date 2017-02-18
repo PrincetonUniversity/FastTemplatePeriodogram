@@ -74,6 +74,5 @@ Untitled*.ipynb
 
 # misc
 *png
-timing/timing*txt
-timing/saved_templates/
+scripts/saved_results
 .DS_Store

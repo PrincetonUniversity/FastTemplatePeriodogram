@@ -36,7 +36,7 @@ ModelFitParams = namedtuple('ModelFitParams', [ 'a', 'b', 'c', 'sgn' ])
 Un = lambda n, x : eval_chebyu(n, x) if n >= 0 else 0
 Tn = lambda n, x : eval_chebyt(n, x) if n >= 0 else 0
 
-# A and dA expressions
+# A (or B) and dA (dB) expressions
 Afunc    = lambda n, x, p, q, sgn=1 :      \
             p * Tn(n, x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x) 
 
