@@ -16,6 +16,7 @@ from __future__ import print_function
 import sys
 import os
 from math import *
+
 from time import time
 import numpy as np
 from collections import namedtuple
@@ -90,7 +91,7 @@ def M(t, b, omega, cn, sn, sgn=1):
 def fitfunc(x, sgn, omega, cn, sn, a, b, c):
     """ aM(t - tau) + c """
     m = lambda b_ : lambda x_ : M(x_, b_, omega, cn, sn, sgn=sgn)
-    return a * np.array(map(m(b), x)) + c
+    return a * np.array(list(map(m(b), x))) + c
 
 
 def weights(err):

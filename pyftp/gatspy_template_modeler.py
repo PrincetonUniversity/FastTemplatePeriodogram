@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from gatspy.periodic.template_modeler import BaseTemplateModeler
 
 

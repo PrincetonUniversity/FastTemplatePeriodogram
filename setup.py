@@ -39,5 +39,5 @@ setup(name='pyftp',
       url='https://github.com/PrincetonUniversity/FastTemplatePeriodogram',
       package_dir={'pyftp' : './pyftp'},
       packages=['pyftp'],
-      requires=['numpy', 'scipy', 'pynfft'],
+      requires=['numpy', 'scipy', 'pynfft', 'gatspy', 'astroML', 'scikit-learn'],
 )
