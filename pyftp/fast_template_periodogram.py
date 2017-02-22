@@ -1,7 +1,7 @@
-""" 
+"""
 FAST TEMPLATE PERIODOGRAM (prototype)
 
-Uses NFFT to make the template periodogram scale as H*N log(H*N) 
+Uses NFFT to make the template periodogram scale as H*N log(H*N)
 where H is the number of harmonics in which to expand the template and
 N is the number of observations.
 
@@ -27,7 +27,7 @@ from pseudo_poly import compute_polynomial_tensors,\
                         compute_zeros
 
 
-Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS', 
+Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS',
                                         'CCh', 'CSh', 'SSh'])
 
 ModelFitParams = namedtuple('ModelFitParams', [ 'a', 'b', 'c', 'sgn' ])
@@ -38,11 +38,10 @@ Tn = lambda n, x : eval_chebyt(n, x) if n >= 0 else 0
 
 # A (or B) and dA (dB) expressions
 Afunc    = lambda n, x, p, q, sgn=1 :      \
-            p * Tn(n, x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x) 
+            p * Tn(n, x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x)
 
 dAfunc   = lambda n, x, p, q, sgn=1 : \
             n * (p * Un(n-1, x) + sgn * q * Tn(n, x) / np.sqrt(1 -  x*x))
-
 
 
 # returns vector expressions of A, B and their derivatives
@@ -59,6 +58,7 @@ dBvec       = lambda x, c, s, sgn=1 :  np.array([ \
                          dAfunc(n, x, s[n-1], -c[n-1], sgn=sgn) \
                                  for n in range(1, len(s)+1) ])
 
+
 def getAB(b, cn, sn):
     """ efficient computation of A, B vectors for both +/- sin(wtau) """
     SQ =  sqrt(1 - min([ 1-1E-8, b*b ]))
@@ -71,8 +71,9 @@ def getAB(b, cn, sn):
 
     Bp = sn * TN + cnUN
     Bn = Bp - 2 * cnUN
-    
+
     return Ap, An, Bp, Bn
+
 
 def M(t, b, omega, cn, sn, sgn=1):
     """ evaluate the shifted template at a given time """
@@ -84,10 +85,12 @@ def M(t, b, omega, cn, sn, sgn=1):
 
     return np.dot(A, Xc) + np.dot(B, Xs)
 
+
 def fitfunc(x, sgn, omega, cn, sn, a, b, c):
     """ aM(t - tau) + c """
     m = lambda b_ : lambda x_ : M(x_, b_, omega, cn, sn, sgn=sgn)
     return a * np.array(map(m(b), x)) + c
+
 
 def weights(err):
     """ converts sigma_i -> w_i \equiv (1/W) * (1/sigma_i^2) """
@@ -95,7 +98,8 @@ def weights(err):
     w/= np.sum(w)
     return w
 
-def get_a_from_b(b, cn, sn, sums, A=None, B=None, 
+
+def get_a_from_b(b, cn, sn, sums, A=None, B=None,
                  AYCBYS=None, sgn=1):
     """ return the optimal amplitude & offset for a given value of b """
 
@@ -121,8 +125,9 @@ def shift_t_for_nfft(t, ofac):
 
     return 2 * a * (t - min(t)) / r - a
 
+
 def compute_summations(x, y, err, H, ofac=5, hfac=1):
-    """ 
+    """
     Computes C, S, YC, YS, CC, CS, SS using
     pyNFFT
     """
@@ -131,7 +136,7 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
 
     # number of frequencies (+1 for 0 freq)
     N = int(floor(0.5 * len(x) * ofac * hfac))
-    
+
     # shift times to [ -1/2, 1/2 ]
     t = shift_t_for_nfft(x, ofac)
 
@@ -140,13 +145,13 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
     df = 1. / (ofac * T)
 
     omegas = np.array([ 2 * np.pi * i * df for i in range(1, N) ])
-    
+
     # compute weighted mean
     ybar = np.dot(w, y)
 
     # subtract off weighted mean
     u = np.multiply(w, y - ybar)
-    
+
     # weighted variance
     YY = np.dot(w, np.power(y - ybar, 2))
 
@@ -170,7 +175,6 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
     all_computed_sums = []
     # Now compute the summation values at each frequency
     for i in range(N-1):
-
         computed_sums = Summations(C=np.zeros(H),
                                    S=np.zeros(H),
                                    YC=np.zeros(H),
@@ -181,7 +185,7 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
 
         C_, S_ = np.zeros(2 * H), np.zeros(2 * H)
         for j in range(2 * H):
-            # This sign factor is necessary 
+            # This sign factor is necessary
             # but I don't know why.
             s = (-1 if ((i % 2)==0) and ((j % 2) == 0) else 1)
             C_[j] =  f_hat_w[(j+1)*(i+1)-1].real * s
@@ -192,14 +196,13 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
 
         for j in range(H):
             for k in range(H):
-                
                 Sn, Cn = None, None
 
                 if j == k:
                     Sn = 0
                     Cn = 1
                 else:
-                    Sn =  np.sign(k - j) * S_[int(abs(k - j)) - 1] 
+                    Sn =  np.sign(k - j) * S_[int(abs(k - j)) - 1]
                     Cn =  C_[int(abs(k - j)) - 1]
 
                 Sp = S_[j + k + 1]
@@ -213,18 +216,17 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
         computed_sums.S[:] = S_[:H]
 
         all_computed_sums.append(computed_sums)
-        
+
     return omegas, all_computed_sums, YY, w, ybar
 
 
-def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1, 
+def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
                               pvectors=None, ptensors=None,
-                              omegas=None, summations=None, YY=None, w=None, 
+                              omegas=None, summations=None, YY=None, w=None,
                               ybar=None, loud=False, return_best_fit_pars=False,
                               allow_negative_amplitudes=True):
-
     H = len(cn)
-    
+
     if pvectors is None:
         pvectors = get_polynomial_vectors(cn, sn, sgn=  1)
 
@@ -232,7 +234,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         ptensors = compute_polynomial_tensors(*pvectors)
 
     t0 = None
-    if loud: 
+    if loud:
         t0 = time()
 
     if summations is None:
@@ -240,7 +242,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         omegas, summations, YY, w, ybar = \
             compute_summations(x, y, err, H, ofac=ofac, hfac=hfac)
 
-    if loud: 
+    if loud:
         dt = time() - t0
         print "*", dt / len(omegas), " s / freqs to get summations"
 
@@ -249,8 +251,8 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
     # Iterate through frequency values (sums contains C, S, YC, ...)
     for i, (omega, sums) in enumerate(zip(omegas, summations)):
-               
-        if loud and i == 0: 
+
+        if loud and i == 0:
             t0 = time()
 
         # Get zeros of polynomial (zeros are same for both +/- sinwtau)
@@ -259,7 +261,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         # Check boundaries, too
         if not  1 in zeros: zeros.append(1)
         if not -1 in zeros: zeros.append(-1)
-        
+
         if loud and i == 0:
             dt = time() - t0
             print "*", dt, " s / freqs to get zeros"
@@ -281,14 +283,14 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
                 # Obtain amplitude for a given b=cos(wtau) and sign(sin(wtau))
                 amplitude = get_a_from_b(bz, cn, sn, sums, A=A, B=B, AYCBYS=AYCBYS)
-    
+
                 # Skip negative amplitude solutions
                 if amplitude < 0 and not allow_negative_amplitudes: continue
 
                 # Compute periodogram
                 pz = amplitude * AYCBYS / YY
 
-                # Record the best-fit parameters for this template 
+                # Record the best-fit parameters for this template
                 if max_pz is None or pz > max_pz:
                     if return_best_fit_pars:
 
@@ -297,7 +299,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
                         # Correct for the fact that we've shifted t -> t - t0
                         # during the NFFT
-                        wtauz = np.arccos(bz) 
+                        wtauz = np.arccos(bz)
                         if sgn_ < 0:
                             wtauz = 2 * np.pi - wtauz
                         wtauz += tshift
@@ -309,7 +311,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
         if return_best_fit_pars and bfpars is None:
             # Could not find any positive amplitude solutions ... usually means this is a poor fit,
-            # so instead of a more exhaustive search for the best positive amplitude solution, 
+            # so instead of a more exhaustive search for the best positive amplitude solution,
             # we simply set parameters to 0 and periodogram to 0
             FTP[i] = 0
             bfpars = ModelFitParams(a=0, b=1, c=ybar, sgn=1)
@@ -324,9 +326,8 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
         FTP[i] = max_pz
         if return_best_fit_pars:
             best_fit_pars.append(bfpars)
-            
+
     if not return_best_fit_pars:
         return omegas / (2 * np.pi), FTP
     else:
         return omegas / (2 * np.pi), FTP, best_fit_pars
-    
