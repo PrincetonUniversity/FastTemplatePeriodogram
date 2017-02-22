@@ -3,9 +3,15 @@ import sys
 from time import time
 from math import *
 import numpy as np
-import fast_template_periodogram as ftp
 from scipy.optimize import curve_fit
-import cPickle as pickle
+
+try:
+    # Python 2.x only
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
+from . import fast_template_periodogram as ftp
 
 
 def LMfit(x, y, err, cn, sn, omega, sgn=1):

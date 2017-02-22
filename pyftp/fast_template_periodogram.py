@@ -11,9 +11,10 @@ minimization (e.g. Levenberg-Marquardt) at each frequency.
 (c) John Hoffman 2016
 
 """
+from __future__ import print_function
+
 import sys
 import os
-import cmath
 from math import *
 from time import time
 import numpy as np
@@ -22,9 +23,9 @@ from scipy.special import eval_chebyt,\
                           eval_chebyu
 
 from pynfft.nfft import NFFT
-from pseudo_poly import compute_polynomial_tensors,\
-                        get_polynomial_vectors,\
-                        compute_zeros
+from .pseudo_poly import compute_polynomial_tensors,\
+                         get_polynomial_vectors,\
+                         compute_zeros
 
 
 Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS',
@@ -244,7 +245,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
     if loud:
         dt = time() - t0
-        print "*", dt / len(omegas), " s / freqs to get summations"
+        print("*", dt / len(omegas), " s / freqs to get summations")
 
     FTP = np.zeros(len(omegas))
     best_fit_pars = []
@@ -264,7 +265,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
         if loud and i == 0:
             dt = time() - t0
-            print "*", dt, " s / freqs to get zeros"
+            print("*", dt, " s / freqs to get zeros")
             t0 = time()
 
         bfpars = None
@@ -320,7 +321,7 @@ def fast_template_periodogram(x, y, err, cn, sn, ofac=10, hfac=1,
 
         if loud and i == 0:
             dt = time() - t0
-            print "*", dt, " s / freq to investigate each zero"
+            print("*", dt, " s / freq to investigate each zero")
 
         # Periodogram value is the global max of P_{-} and P_{+}.
         FTP[i] = max_pz

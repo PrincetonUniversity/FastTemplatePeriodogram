@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 from time import time
 from scipy.special import chebyu, chebyt
@@ -390,7 +392,7 @@ def compute_zeros(ptensors, sums, loud=False):
 
     if loud:
         dt = time() - t0
-        print "   ", dt, " seconds for bookkeeping"
+        print("   ", dt, " seconds for bookkeeping")
 
     if loud: t0 = time()
     Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CCh[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.CCh[:H,:H])
@@ -402,7 +404,7 @@ def compute_zeros(ptensors, sums, loud=False):
 
     if loud:
         dt = time() - t0
-        print "   ", dt, " seconds to make constants"
+        print("   ", dt, " seconds to make constants")
 
 
     # Note: the first and last einsums for both Pp and Pq might not be necessary.
@@ -424,13 +426,13 @@ def compute_zeros(ptensors, sums, loud=False):
     Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
     if loud:
         dt = time() - t0
-        print "   ", dt, " seconds to make coefficients of pseudo-polynomial"
+        print("   ", dt, " seconds to make coefficients of pseudo-polynomial")
 
     if loud: t0 = time()
     P = pol.polysub(pol.polymul((1, 0, -1), pol.polymul(Pp, Pp)), pol.polymul(Pq, Pq))
     if loud:
         dt = time() - t0
-        print "   ",dt, " seconds to get final polynomial"
+        print("   ",dt, " seconds to get final polynomial")
 
     if loud: t0 = time()
 
@@ -442,7 +444,7 @@ def compute_zeros(ptensors, sums, loud=False):
     #R = sturm_zeros(P, -1, 1)
     if loud:
         dt = time() - t0
-        print "   ", dt, " seconds to find roots of polynomial"
+        print("   ", dt, " seconds to find roots of polynomial")
 
     small = 1E-5
     return [ min([ 1.0, abs(r.real) ]) * np.sign(r.real) for r in R if abs(r.imag) < small and abs(r.real) < 1 + small ]

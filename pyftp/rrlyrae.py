@@ -1,7 +1,12 @@
-from modeler import FastTemplateModeler, Template, approximate_template, rms_resid_over_rms_fast
-import cPickle as pickle
+from .modeler import FastTemplateModeler, Template, approximate_template, rms_resid_over_rms_fast
 import gatspy.datasets.rrlyrae as rrl
 import os
+
+try:
+    # Python 2.x only
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 
 def get_rrlyr_templates(template_fname=None, errfunc=rms_resid_over_rms_fast,
