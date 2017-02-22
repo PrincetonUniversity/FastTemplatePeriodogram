@@ -4,7 +4,7 @@ import gatspy.datasets.rrlyrae as rrl
 import os
 
 def get_rrlyr_templates(template_fname=None, errfunc=rms_resid_over_rms_fast, 
-	                    stop=1E-2, filts='r', nharmonics=None, redo=False):
+	                    stop=None, filts='r', nharmonics=6, redo=False):
 	"""
 	read templates for a given filter(s) from 
 	the gatspy.datasets.rrlyrae package, approximate each 
