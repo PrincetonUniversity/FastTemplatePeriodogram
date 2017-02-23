@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 
-from ..fast_template_periodogram import M
+from .. import fast_template_periodogram as ftp
 
 import pytest
 
@@ -27,6 +27,6 @@ def test_M_basic(nterms, cos_phi, sgn, omega, rseed=42):
     sn = rand.randn(nterms)
 
     M1 = M_slow(t, cos_phi, omega, cn, sn, sgn)
-    M2 = M(t, cos_phi, omega, cn, sn, sgn)
+    M2 = ftp.M(t, cos_phi, omega, cn, sn, sgn)
 
     assert_allclose(M1, M2)
