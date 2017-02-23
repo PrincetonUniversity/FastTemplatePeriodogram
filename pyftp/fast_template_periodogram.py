@@ -27,45 +27,13 @@ from pynfft.nfft import NFFT
 from .pseudo_poly import compute_polynomial_tensors,\
                          get_polynomial_vectors,\
                          compute_zeros
+from .utils import Un, Tn, Avec, Bvec, dAvec, dBvec
 
 
 Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS',
                                         'CCh', 'CSh', 'SSh'])
 
 ModelFitParams = namedtuple('ModelFitParams', [ 'a', 'b', 'c', 'sgn' ])
-
-# shortcuts for the Chebyshev polynomials
-Un = lambda n, x : eval_chebyu(n, x) if n >= 0 else 0
-Tn = lambda n, x : eval_chebyt(n, x) if n >= 0 else 0
-
-# A (or B) and dA (dB) expressions
-def Afunc(n, x, p, q, sgn=1):
-    return p * Tn(n, x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x)
-
-def dAfunc(n, x, p, q, sgn=1):
-    return n * (p * Un(n-1, x) + sgn * q * Tn(n, x) / np.sqrt(1 -  x*x))
-
-
-# returns vector expressions of A, B and their derivatives
-def Avec(x, c, s, sgn=1):
-    """Vector expression of A"""
-    return np.array([Afunc(n, x, c[n-1],  s[n-1], sgn=sgn)
-                     for n in range(1, len(s)+1) ])
-
-def Bvec(x, c, s, sgn=1):
-    """Vector expression of B"""
-    return np.array([Afunc(n, x, s[n-1], -c[n-1], sgn=sgn)
-                     for n in range(1, len(s)+1) ])
-
-def dAvec(x, c, s, sgn=1):
-    """Vector expression of the derivative of A"""
-    return np.array([dAfunc(n, x, c[n-1],  s[n-1], sgn=sgn)
-                     for n in range(1, len(s)+1) ])
-
-def dBvec(x, c, s, sgn=1):
-    """Vector expression of the derivative of B"""
-    return np.array([dAfunc(n, x, s[n-1], -c[n-1], sgn=sgn)
-                     for n in range(1, len(s)+1) ])
 
 
 def getAB(b, cn, sn):
@@ -86,7 +54,6 @@ def getAB(b, cn, sn):
 
 def M(t, b, omega, cn, sn, sgn=1):
     """ evaluate the shifted template at a given time """
-
     A = Avec(b, cn, sn, sgn=sgn)
     B = Bvec(b, cn, sn, sgn=sgn)
     n = np.arange(1, len(cn) + 1)[:, np.newaxis]
