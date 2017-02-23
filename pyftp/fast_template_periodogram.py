@@ -39,26 +39,33 @@ Un = lambda n, x : eval_chebyu(n, x) if n >= 0 else 0
 Tn = lambda n, x : eval_chebyt(n, x) if n >= 0 else 0
 
 # A (or B) and dA (dB) expressions
-Afunc    = lambda n, x, p, q, sgn=1 :      \
-            p * Tn(n, x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x)
+def Afunc(n, x, p, q, sgn=1):
+    return p * Tn(n, x) - sgn * q * Un(n-1, x) * np.sqrt(1 -  x*x)
 
-dAfunc   = lambda n, x, p, q, sgn=1 : \
-            n * (p * Un(n-1, x) + sgn * q * Tn(n, x) / np.sqrt(1 -  x*x))
+def dAfunc(n, x, p, q, sgn=1):
+    return n * (p * Un(n-1, x) + sgn * q * Tn(n, x) / np.sqrt(1 -  x*x))
 
 
 # returns vector expressions of A, B and their derivatives
-Avec        = lambda x, c, s, sgn=1 :  np.array([  \
-                          Afunc(n, x, c[n-1],  s[n-1], sgn=sgn) \
-                                 for n in range(1, len(s)+1) ])
-Bvec        = lambda x, c, s, sgn=1 :  np.array([ \
-                          Afunc(n, x, s[n-1], -c[n-1], sgn=sgn) \
-                                 for n in range(1, len(s)+1) ])
-dAvec       = lambda x, c, s, sgn=1 :  np.array([ \
-                         dAfunc(n, x, c[n-1],  s[n-1], sgn=sgn) \
-                                 for n in range(1, len(s)+1) ])
-dBvec       = lambda x, c, s, sgn=1 :  np.array([ \
-                         dAfunc(n, x, s[n-1], -c[n-1], sgn=sgn) \
-                                 for n in range(1, len(s)+1) ])
+def Avec(x, c, s, sgn=1):
+    """Vector expression of A"""
+    return np.array([Afunc(n, x, c[n-1],  s[n-1], sgn=sgn)
+                     for n in range(1, len(s)+1) ])
+
+def Bvec(x, c, s, sgn=1):
+    """Vector expression of B"""
+    return np.array([Afunc(n, x, s[n-1], -c[n-1], sgn=sgn)
+                     for n in range(1, len(s)+1) ])
+
+def dAvec(x, c, s, sgn=1):
+    """Vector expression of the derivative of A"""
+    return np.array([dAfunc(n, x, c[n-1],  s[n-1], sgn=sgn)
+                     for n in range(1, len(s)+1) ])
+
+def dBvec(x, c, s, sgn=1):
+    """Vector expression of the derivative of B"""
+    return np.array([dAfunc(n, x, s[n-1], -c[n-1], sgn=sgn)
+                     for n in range(1, len(s)+1) ])
 
 
 def getAB(b, cn, sn):
@@ -82,8 +89,9 @@ def M(t, b, omega, cn, sn, sgn=1):
 
     A = Avec(b, cn, sn, sgn=sgn)
     B = Bvec(b, cn, sn, sgn=sgn)
-    Xc = np.array([ np.cos(n * omega * t) for n in range(1, len(cn)+1) ])
-    Xs = np.array([ np.sin(n * omega * t) for n in range(1, len(cn)+1) ])
+    n = np.arange(1, len(cn) + 1)[:, np.newaxis]
+    Xc = np.cos(n * omega * t)
+    Xs = np.sin(n * omega * t)
 
     return np.dot(A, Xc) + np.dot(B, Xs)
 
