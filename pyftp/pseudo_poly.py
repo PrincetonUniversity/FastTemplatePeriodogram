@@ -159,68 +159,102 @@ class PseudoPolynomial(object):
         Factor in $(1 - x^2)^r * (p(x) + sqrt(1 - x^2)*q(x))$.
 
     """
-    def __init__(self, p=None, q=None, r=None):
+    def __init__(self, p=0, q=0, r=0):
+        self.p = np.atleast_1d(p)
+        self.q = np.atleast_1d(q)
+        self.r = r
 
-        # Uses arrays instead of Polynomial instances
-        # for better performance
-        assert(p is None or isinstance(p, np.ndarray))
-        assert(q is None or isinstance(q, np.ndarray))
-        assert(r is None or isinstance(r, Integral))
+        if r > 0 or int(r) != r:
+            raise ValueError("r must be a negative integer")
 
-        assert(r <= 0)
+        if self.p.ndim != 1:
+            raise ValueError('p must be one-dimensional')
+        if self.p.dtype == object:
+            raise ValueError('p must be a numerical array')
 
-        self.p = np.array([0]) if p is None else p
-        self.q = np.array([0]) if q is None else q
-        self.r = 0 if r is None else r
+        if self.q.ndim != 1:
+            raise ValueError('q must be one-dimensional')
+        if self.q.dtype == object:
+            raise ValueError('q must be a numerical array')
 
-    def __add__(self, PP):
+    @classmethod
+    def coerce(cls, obj):
+        """Coerce an object into a PseudoPolynomial if possible"""
+        if isinstance(obj, cls):
+            return obj
+        elif isinstance(obj, Polynomial):
+            return cls(obj.coef)
+        else:
+            return cls(obj)
+            obj_arr = np.atleast_1d(obj)
+            if obj_arr.ndim == 1:
+                return cls(obj_arr)
+            else:
+                raise ValueError("Object of type {0} cannot be coerced "
+                                 "into a PseudoPolynomial".format(type(obj)))
 
-        if not (isinstance(PP, type(self)) or isinstance(PP, np.ndarray)):
-            raise TypeError("Can only add Polynomial or PseudoPolynomial "
-                            "to another PseudoPolynomial, not %s"%(str(type(PP))))
-        PP_ = PP
-        if not isinstance(PP, type(self)):
-            PP_ = PseudoPolynomial(p=PP)
+    def __call__(self, x):
+        p, q = pol.Polynomial(self.p), pol.Polynomial(self.q)
+        lmx2 = 1 - np.power(x, 2)
+        return (lmx2 ** self.r) * p(x) + (lmx2 ** (self.r + 0.5)) * q(x)
 
-        p1, p2 = (self, PP_) if self.r <= PP_.r else (PP_, self)
+    def __eq__(self, other):
+        if not isinstance(other, PseudoPolynomial):
+            raise NotImplementedError("comparison with {0}".format(type(other)))
+        print(self)
+        print(other)
+        print()
+        return (np.all(self.p == other.p) and
+                np.all(self.q == other.q) and
+                (self.r == other.r))
 
-        x = 1 if p1.r == p2.r else pol.polypow((1, 0, -1), p2.r - p1.r)
+    def __add__(self, other):
+        other = self.coerce(other)
 
-        p = pol.polyadd(p1.p, pol.polymul(x, p2.p))
-        q = pol.polyadd(p1.q, pol.polymul(x, p2.q))
-        r = p1.r
+        if other.r < self.r:
+            self, other = other, self
+        p1, p2, q1, q2 = map(Polynomial, (self.p, other.p, self.q, other.q))
+        r1, r2 = self.r, other.r
+        one_minus_x_squared = Polynomial([1, 0, -1])
 
-        return PseudoPolynomial(p=p, q=q, r=r)
+        p12 = p1 + p2 * one_minus_x_squared ** (r2 - r1)
+        q12 = q1 + q2 * one_minus_x_squared ** (r2 - r1)
+        r12 = r1
 
+        return self.__class__(p12.coef, q12.coef, r12)
 
-    def __mul__(self, PP):
+    def __radd__(self, other):
+        # addition is commutative
+        return self.__add__(other)
 
-        if isinstance(PP, np.ndarray) or isinstance(PP, Number):
-            return PseudoPolynomial(p=pol.polymul(self.p, PP),
-                                    q=pol.polymul(self.q, PP),
-                                    r=self.r)
+    def __mul__(self, other):
+        other = self.coerce(other)
 
-        if not isinstance(PP, type(self)):
-            raise TypeError("Can only multiply PseudoPolynomial "
-                            "by a number, numpy Polynomial, or "
-                            "another PseudoPolynomial, not %s"%(str(type(PP))))
+        p1, p2, q1, q2 = map(Polynomial, (self.p, other.p, self.q, other.q))
+        r1, r2 = self.r, other.r
+        one_minus_x_squared = Polynomial([1, 0, -1])
 
-        p1, p2 = (self, PP) if self.r <= PP.r else (PP, self)
+        p12 = p1 * p2 + one_minus_x_squared * q1 * q2
+        q12 = p1 * q2 + q1 * p2
+        r12 = r1 + r2
 
-        x1 = pol.polypow((1, 0, -1), p1.r + p2.r + 1)
-        x2 = 1 if p2.r == p1.r else pol.polypow((1, 0, -1), p2.r - p1.r)
+        return self.__class__(p12.coef, q12.coef, r12)
 
-        p = pol.polyadd(pol.polymul(p1.p, p2.p),
-                        pol.polymul(pol.polymul(x1, p1.q), p2.q))
-        q = pol.polyadd(pol.polymul(pol.polymul(x2,p1.p), p2.q),
-                        pol.polymul(p2.p, p1.q))
-        r = p1.r
+    def __rmul__(self, other):
+        # multiplication is commutative
+        return self.__mul__(other)
 
-        return PseudoPolynomial(p=p, q=q, r=r)
+    def __sub__(self, other):
+        return self + (-other)
 
+    def __rsub__(self, other):
+        return (-self) + other
 
-    def __sub__(self, PP):
-        return self.__add__(PP * (-1))
+    def __neg__(self):
+        return (-1) * self
+
+    def __pos__(self):
+        return 1 * self
 
     def __repr__(self):
         return 'PseudoPolynomial(p=%s, q=%s, r=%s)'%(repr(self.p), repr(self.q), repr(self.r))
