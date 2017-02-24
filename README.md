@@ -2,7 +2,7 @@ Fast Template Periodogram
 =========================
 
 [![build status](http://img.shields.io/travis/PrincetonUniversity/FastTemplatePeriodogram/master.svg?style=flat)](https://travis-ci.org/PrincetonUniversity/FastTemplatePeriodogram)
-
+[![codecov.io](https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram/coverage.svg?branch=master)](https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram)
 John Hoffman, Jake Vanderplas
 (c) 2016
 

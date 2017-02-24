@@ -92,7 +92,7 @@ def approximate_template(Tt, Yt, errfunc=rms_resid_over_rms, stop=1E-2, nharmoni
             h+=1
 
         cn, sn = cn[:h], sn[:h]
-    return cn, sn
+    return np.array(cn), np.array(sn)
 
 normfac = lambda cn, sn : 1./np.sqrt(sum([ ss*ss + cc*cc for cc, ss in zip(cn, sn) ]))
 
