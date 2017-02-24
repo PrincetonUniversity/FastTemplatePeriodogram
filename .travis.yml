@@ -11,7 +11,7 @@ python:
 env:
   global:
     - TEST_DIR=/tmp/pyftp
-    - CONDA_DEPS="numpy scipy pytest pip coverage"
+    - CONDA_DEPS="numpy scipy pytest pip coverage pytest-cov"
     - PIP_DEPS="astroML gatspy"
     - CONDA_FORGE_DEPS="pynfft"
 
