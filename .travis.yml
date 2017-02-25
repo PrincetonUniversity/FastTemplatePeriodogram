@@ -11,7 +11,7 @@ python:
 env:
   global:
     - TEST_DIR=/tmp/pyftp
-    - CONDA_DEPS="numpy scipy pytest pip coverage pytest-cov"
+    - CONDA_DEPS="numpy scipy pytest pip coverage pytest-cov pytest-xdist"
     - PIP_DEPS="astroML gatspy"
     - CONDA_FORGE_DEPS="pynfft"
 
@@ -34,7 +34,7 @@ install:
 
 script:
   - mkdir -p $TEST_DIR
-  - cd $TEST_DIR && py.test --pyargs pyftp --cov=codecov
+  - cd $TEST_DIR && py.test --pyargs pyftp --cov=pyftp
 
 after_success:
   - codecov
