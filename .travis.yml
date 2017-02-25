@@ -34,7 +34,7 @@ install:
 
 script:
   - mkdir -p $TEST_DIR
-  - cd $TEST_DIR && py.test --pyargs pyftp --cov=codecov
+  - cd $TEST_DIR && py.test --pyargs pyftp --cov=pyftp
 
 after_success:
   - codecov
