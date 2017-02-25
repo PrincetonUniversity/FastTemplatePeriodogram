@@ -37,4 +37,4 @@ script:
   - cd $TEST_DIR && py.test --pyargs pyftp --cov=pyftp
 
 after_success:
-  - codecov --token a6cd5a9c-eec8-4785-807b-33fe46543957
+  - codecov --token=a6cd5a9c-eec8-4785-807b-33fe46543957
