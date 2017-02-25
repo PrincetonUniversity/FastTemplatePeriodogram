@@ -282,7 +282,7 @@ class FastTemplateModeler(object):
 
     """
     def __init__(self, **kwargs):
-        self.params = { key : value for key, value in kwargs.iteritems() }
+        self.params = { key : value for key, value in kwargs.items() }
         self.templates = {}
         self.omegas = None
         self.summations = None
@@ -294,7 +294,7 @@ class FastTemplateModeler(object):
         defaults = dict(ofac=10, hfac=3)
 
         # set defaults
-        for key, value in defaults.iteritems():
+        for key, value in defaults.items():
             if not key in self.params:
                 self.params[key] = value
         if 'templates' in self.params:
@@ -328,7 +328,7 @@ class FastTemplateModeler(object):
     def add_templates(self, templates, template_ids=None):
 
         if isinstance(templates, dict):
-            for ID, template in templates.iteritems():
+            for ID, template in templates.items():
                 self.add_template(template, template_id=ID)
 
         elif isinstance(templates, list):
@@ -400,7 +400,7 @@ class FastTemplateModeler(object):
         loud = False if not 'loud' in self.params else self.params['loud']
 
         all_ftps = []
-        for template_id, template in self.templates.iteritems():
+        for template_id, template in self.templates.items():
             args = (self.x, self.y, self.err, template.cn, template.sn)
             kwargs = dict(ofac       = self.params['ofac'],
                           hfac       = self.params['hfac'],
