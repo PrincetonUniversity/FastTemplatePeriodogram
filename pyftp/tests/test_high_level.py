@@ -1,8 +1,10 @@
 """Tests of high-level methods"""
 import numpy as np
-from ..modeler import Template, FastTemplateModeler
+from ..modeler import FastTemplateModeler#, Template
+from ..template import Template
 
 import pytest
+from numpy.testing import assert_allclose
 
 
 def template_function(phase,
@@ -33,7 +35,8 @@ def test_fast_template_method(nharmonics, template, data):
     t, y, yerr = data
     phase, y_phase = template
 
-    template = Template(phase=phase, y=y_phase, nharmonics=nharmonics)
+    template = Template.from_sampled(y_phase, nharmonics=nharmonics)
+    #template = Template(phase=phase, y=y_phase, nharmonics=nharmonics)
     template.precompute()
 
     model = FastTemplateModeler(templates=template)
