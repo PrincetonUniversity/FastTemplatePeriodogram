@@ -73,17 +73,17 @@ def approximate_template(Tt, Yt, errfunc=rms_resid_over_rms, stop=1E-2, nharmoni
     """ Fourier transforms template, returning the first H components """
 
     #print "fft"
-    fft = np.fft.fft(Yt[::-1])
+    fft = np.fft.rfft(Yt)
 
     cn, sn = None, None
     if not nharmonics is None and int(nharmonics) > 0:
         #print "creating cn and sn"
-        cn, sn = zip(*[ (p.real/len(Tt), p.imag/len(Tt)) for i,p in enumerate(fft) \
+        cn, sn = zip(*[ (p.real/len(Tt), -p.imag/len(Tt)) for i,p in enumerate(fft) \
                      if i > 0 and i <= int(nharmonics) ])
 
     else:
 
-        cn, sn = zip(*[ (p.real/len(Tt), p.imag/len(Tt)) for i,p in enumerate(fft) \
+        cn, sn = zip(*[ (p.real/len(Tt), -p.imag/len(Tt)) for i,p in enumerate(fft) \
                      if i > 0 ])
 
         h = 1
