@@ -1,6 +1,8 @@
 from __future__ import print_function
 
-from .modeler import FastTemplateModeler, Template, approximate_template, rms_resid_over_rms_fast
+from .modeler import FastTemplateModeler
+from .template import Template
+from .old_utils import approximate_template, rms_resid_over_rms_fast
 import gatspy.datasets.rrlyrae as rrl
 import os
 

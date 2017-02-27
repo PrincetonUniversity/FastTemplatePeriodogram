@@ -14,7 +14,7 @@ def test_template_round_trip(nharmonics, rseed=42):
 
     phase = np.linspace(0, 1, 100, endpoint=False)
     y = template(phase)
-    template2 = Template.from_sampled_template(y, nharmonics)
+    template2 = Template.from_sampled(y, nharmonics)
 
     assert_allclose(c_n, template2.c_n)
     assert_allclose(s_n, template2.s_n)
@@ -32,5 +32,5 @@ def test_template_infer_harmonics(rseed=42):
     eps = 1E-3
 
     for i, nharmonics in enumerate(variance[:-1] / variance[-1]):
-        template = Template.from_sampled_template(y, nharmonics + eps)
+        template = Template.from_sampled(y, nharmonics + eps)
         assert len(template.c_n) == i + 1
