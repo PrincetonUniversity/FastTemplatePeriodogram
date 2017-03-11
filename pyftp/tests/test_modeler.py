@@ -1,7 +1,7 @@
 """Tests of high-level methods for revised modeler class"""
 import numpy as np
 from ..modeler import FastTemplateModeler
-from ..modeler import Template
+from ..template import Template
 from numpy.testing import assert_allclose
 from scipy.interpolate import interp1d
 
@@ -38,15 +38,7 @@ def weights(yerr):
 
 
 def shift_template(template, tau):
-    """
-    returns new shifted template:
-    M_shift(t) = M(t - tau)
-    """
-    phase, y_phase = template
-    tfunc = interp1d(phase, y_phase)
-    new_y = tfunc((phase - tau)%1.0)
-
-    return (phase, new_y)
+    return lambda phase, tau=tau : template(phase - tau)
 
 def get_amplitude_and_offset(freq, template, data):
     """ 
@@ -54,15 +46,12 @@ def get_amplitude_and_offset(freq, template, data):
     amplitude = E[(y-ybar) * M(omega * t)] / Var(M(omega * t))
     offset    = ybar - amplitude * E[M(omega * t)]
     """
-
-    phase, y_phase = template
     t, y, yerr = data
 
-    tfunc = interp1d(phase, y_phase)
     w = weights(yerr)
     ybar = np.dot(w, y)
 
-    M = tfunc((t*freq)%1.0)
+    M = template((t*freq)%1.0)
     covym = np.dot(w, np.multiply(y - ybar, M))
     varm = np.dot(w, np.multiply(M, M))
 
@@ -71,20 +60,17 @@ def get_amplitude_and_offset(freq, template, data):
 
     return amplitude, offset
 
+
 def chi2_template_fit(freq, template, data):
     """
     obtain the chi2 (weighted sum of squared residuals)
     for a given (shifted) template
     """
 
-    phase, y_phase = template
     t, y, yerr = data
     amp, offset = get_amplitude_and_offset(freq, template, data)
 
-    tfunc = interp1d(phase, y_phase)
-    p = (t * freq)%1.0
-    
-    M = tfunc(p)
+    M = template((t * freq)%1.0)
 
     w = weights(yerr)
 
@@ -113,33 +99,60 @@ def truncate_template(phase, y, nharmonics):
     c_n, s_n = zip(*[ (p.real/len(phase), p.imag/len(phase)) for i,p in enumerate(fft) \
                      if i > 0 and i <= int(nharmonics) ])
 
-    return phase, template_function(phase, c_n=c_n, s_n=s_n)
+    return c_n, s_n
+
 
 @pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
 def test_fast_template_method(nharmonics, template, data):
     t, y, yerr = data
     phase, y_phase = template
+    w = weights(yerr)
 
-    phase_trunc, y_phase_trunc = truncate_template(phase, y_phase, nharmonics)
+    chi2_0 = np.dot(w, (y - np.dot(w, y))**2)
 
-    template = Template(phase=phase, y=y_phase, nharmonics=nharmonics)
+    c_n, s_n = truncate_template(phase, y_phase, nharmonics)
+
+    template = Template(c_n, s_n)
     template.precompute()
 
     model = FastTemplateModeler(templates=template)
     model.fit(t, y, yerr)
-    freq_template, power_template = model.periodogram(ofac=1, hfac=1)
+    freq_template, power_template = model.periodogram(ofac=10, hfac=1)
 
-    if max(phase_trunc) < 1:
-        phase_trunc = [ p for p in phase_trunc ]
-        phase_trunc.append(1)
-        y_phase_trunc = [ Y for Y in y_phase_trunc ]
-        y_phase_trunc.append(y_phase_trunc[0])
-
-    
-    pdg = lambda freq : direct_periodogram(freq, (phase_trunc, y_phase_trunc), data)
+  
+    pdg = lambda freq : direct_periodogram(freq, template, data)
     direct_power_template = np.array([ pdg(freq) for freq in freq_template ])
 
+    #assert_allclose(power_template, direct_power_template)
+
     dp = np.absolute(power_template - direct_power_template)
-    print("max diff = %e, mean diff = %e, median diff = %e"%(max(dp), np.mean(dp), np.median(dp)))
-    assert(np.median(dp) < 1E-2)
+    from scipy.stats import pearsonr
+    r, pval = pearsonr(power_template, direct_power_template)
+    
+    inds = np.argsort(-dp)
+
+    nbad = 0
+    dp_crit = 5E-2
+    for frq, ptmp, pdir, dpval in zip(freq_template[inds], power_template[inds], direct_power_template[inds], dp[inds]):
+        if dpval > dp_crit:
+            nbad += 1
+            #print("%.5e %.5e %.5e %.5e %.5e"%(frq, ptmp, pdir, dpval, chi2_0))
+
+    #import matplotlib
+    #matplotlib.use('Agg')
+    #import matplotlib.pyplot as plt 
+    #f, ax = plt.subplots()
+    #ax.plot(freq_template, power_template, color='r', label='ftp')
+    #ax.plot(freq_template, direct_power_template, color='k', label='direct')
+    #ax.set_xlim(min(freq_template), max(freq_template))
+    #ax.legend(loc='best')
+    #f.savefig('compare.png')
+
+    #print("pearson r correlation = %e"%(r))
+    #print("median err: %e, max err = %e, nbad = %d"%(np.median(dp), max(dp), nbad))
+
+    assert(float(np.argmax(power_template) - np.argmax(direct_power_template)) / len(power_template) < 0.01)
+    assert(max(dp) < 0.5)
+    #assert(nbad < max([ int(0.05 * len(dp)), 2 ]))
+    assert(np.median(dp) < 5E-3)
 
