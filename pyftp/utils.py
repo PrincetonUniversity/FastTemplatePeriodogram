@@ -1,6 +1,7 @@
 """Utility Functions"""
 import numpy as np
 from scipy.special import eval_chebyu, eval_chebyt
+from collections import namedtuple
 
 #----------------------------------------------------------------------
 # Functions to compute A, B, and their derivatives
@@ -49,3 +50,11 @@ def dBvec(x, c, s, sgn=1):
     c = np.asarray(c)
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return dAfunc(n, x, s, -c, sgn=sgn)
+
+#----------------------------------------------------------------------
+# Named tuples for storing 
+
+Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS',
+                                        'CC', 'CS', 'SS'])
+
+ModelFitParams = namedtuple('ModelFitParams', [ 'a', 'b', 'c', 'sgn' ])

@@ -429,12 +429,12 @@ def compute_zeros(ptensors, sums, loud=False):
         print("   ", dt, " seconds for bookkeeping")
 
     if loud: t0 = time()
-    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CCh[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.CCh[:H,:H])
-    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CSh[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.CCh[:H,:H])
-    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CSh[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CCh[:H,:H])
-    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SSh[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CSh[:H,:H])
-    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CSh[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.SSh[:H,:H])
-    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SSh[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.SSh[:H,:H])
+    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.CC[:H,:H])
+    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.CC[:H,:H])
+    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CC[:H,:H])
+    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CS[:H,:H])
+    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.SS[:H,:H])
+    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.SS[:H,:H])
 
     if loud:
         dt = time() - t0

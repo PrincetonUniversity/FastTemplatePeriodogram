@@ -19,7 +19,6 @@ from math import *
 
 from time import time
 import numpy as np
-from collections import namedtuple
 from scipy.special import eval_chebyt,\
                           eval_chebyu
 
@@ -27,13 +26,9 @@ from pynfft.nfft import NFFT
 from .pseudo_poly import compute_polynomial_tensors,\
                          get_polynomial_vectors,\
                          compute_zeros
-from .utils import Un, Tn, Avec, Bvec, dAvec, dBvec
+from .utils import Un, Tn, Avec, Bvec, dAvec, dBvec,\
+                    Summations, ModelFitParams
 
-
-Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS',
-                                        'CCh', 'CSh', 'SSh'])
-
-ModelFitParams = namedtuple('ModelFitParams', [ 'a', 'b', 'c', 'sgn' ])
 
 
 def getAB(b, cn, sn):
@@ -87,14 +82,14 @@ def get_a_from_b(b, cn, sn, sums, A=None, B=None,
     if AYCBYS is None:
         AYCBYS = np.dot(A, sums.YC) + np.dot(B, sums.YS)
 
-    a = AYCBYS / (       np.einsum('i,j,ij', A, A, sums.CCh) \
-                   + 2 * np.einsum('i,j,ij', A, B, sums.CSh) \
-                   +     np.einsum('i,j,ij', B, B, sums.SSh))
+    a = AYCBYS / (       np.einsum('i,j,ij', A, A, sums.CC) \
+                   + 2 * np.einsum('i,j,ij', A, B, sums.CS) \
+                   +     np.einsum('i,j,ij', B, B, sums.SS))
     return a
 
 
 def shift_t_for_nfft(t, ofac):
-    """ transforms times to [-1/2, 1/2] interval """
+    """ transforms t to [-1/2, 1/2] interval """
 
     r = ofac * (max(t) - min(t))
     eps = 1E-5
@@ -102,6 +97,8 @@ def shift_t_for_nfft(t, ofac):
 
     return 2 * a * (t - min(t)) / r - a
 
+def nfreqs(n, ofac, hfac):
+    return int(floor(0.5 * n * ofac * hfac))
 
 def compute_summations(x, y, err, H, ofac=5, hfac=1):
     """
@@ -112,7 +109,7 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
     w = weights(err)
 
     # number of frequencies (+1 for 0 freq)
-    N = int(floor(0.5 * len(x) * ofac * hfac))
+    nf = nfreqs(len(x), ofac, hfac)
 
     # shift times to [ -1/2, 1/2 ]
     t = shift_t_for_nfft(x, ofac)
@@ -121,7 +118,7 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
     T = max(x) - min(x)
     df = 1. / (ofac * T)
 
-    omegas = np.array([ 2 * np.pi * i * df for i in range(1, N) ])
+    omegas = np.array([ 2 * np.pi * i * df for i in range(1, nf) ])
 
     # compute weighted mean
     ybar = np.dot(w, y)
@@ -133,43 +130,40 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
     YY = np.dot(w, np.power(y - ybar, 2))
 
     # plan NFFT's and precompute
-    plan = NFFT(4 * H * N, len(x))
+    plan = NFFT(4 * H * nf, len(x))
     plan.x = t
     plan.precompute()
 
-    plan2 = NFFT(2 * H * N, len(x))
+    plan2 = NFFT(2 * H * nf, len(x))
     plan2.x = t
     plan2.precompute()
 
-    # evaluate NFFT for w
+    # NFFT(weights)
     plan.f = w
-    f_hat_w = plan.adjoint()[2 * H * N + 1:]
+    f_hat_w = plan.adjoint()[2 * H * nf + 1:]
 
-    # evaluate NFFT for y - ybar
+    # NFFT(y - ybar)
     plan2.f = u
-    f_hat_u = plan2.adjoint()[H * N + 1:]
+    f_hat_u = plan2.adjoint()[H * nf + 1:]
 
     all_computed_sums = []
     # Now compute the summation values at each frequency
-    for i in range(N-1):
+    for i in range(nf-1):
         computed_sums = Summations(C=np.zeros(H),
                                    S=np.zeros(H),
                                    YC=np.zeros(H),
                                    YS=np.zeros(H),
-                                   CCh=np.zeros((H,H)),
-                                   CSh=np.zeros((H,H)),
-                                   SSh=np.zeros((H,H)))
+                                   CC=np.zeros((H,H)),
+                                   CS=np.zeros((H,H)),
+                                   SS=np.zeros((H,H)))
 
         C_, S_ = np.zeros(2 * H), np.zeros(2 * H)
         for j in range(2 * H):
-            # This sign factor is necessary
-            # but I don't know why.
-            s = (-1 if ((i % 2)==0) and ((j % 2) == 0) else 1)
-            C_[j] =  f_hat_w[(j+1)*(i+1)-1].real * s
-            S_[j] =  f_hat_w[(j+1)*(i+1)-1].imag * s
+            C_[j] =  f_hat_w[(j+1)*(i+1)-1].real
+            S_[j] =  f_hat_w[(j+1)*(i+1)-1].imag
             if j < H:
-                computed_sums.YC[j] =  f_hat_u[(j+1)*(i+1)-1].real * s
-                computed_sums.YS[j] =  f_hat_u[(j+1)*(i+1)-1].imag * s
+                computed_sums.YC[j] =  f_hat_u[(j+1)*(i+1)-1].real
+                computed_sums.YS[j] =  f_hat_u[(j+1)*(i+1)-1].imag
 
         for j in range(H):
             for k in range(H):
@@ -185,9 +179,9 @@ def compute_summations(x, y, err, H, ofac=5, hfac=1):
                 Sp = S_[j + k + 1]
                 Cp = C_[j + k + 1]
 
-                computed_sums.CCh[j][k] = 0.5 * ( Cn + Cp ) - C_[j] * C_[k]
-                computed_sums.CSh[j][k] = 0.5 * ( Sn + Sp ) - C_[j] * S_[k]
-                computed_sums.SSh[j][k] = 0.5 * ( Cn - Cp ) - S_[j] * S_[k]
+                computed_sums.CC[j][k] = 0.5 * ( Cn + Cp ) - C_[j] * C_[k]
+                computed_sums.CS[j][k] = 0.5 * ( Sn + Sp ) - C_[j] * S_[k]
+                computed_sums.SS[j][k] = 0.5 * ( Cn - Cp ) - S_[j] * S_[k]
 
         computed_sums.C[:] = C_[:H]
         computed_sums.S[:] = S_[:H]
