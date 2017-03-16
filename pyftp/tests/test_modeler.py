@@ -2,8 +2,6 @@
 import numpy as np
 from ..modeler import FastTemplateModeler
 from ..template import Template
-from numpy.testing import assert_allclose
-from scipy.interpolate import interp1d
 
 import pytest
 
@@ -14,6 +12,7 @@ def template_function(phase,
     n = 1 + np.arange(len(c_n))[:, np.newaxis]
     return (np.dot(c_n, np.cos(2 * np.pi * n * phase)) +
             np.dot(s_n, np.sin(2 * np.pi * n * phase)))
+
 
 @pytest.fixture
 def template():
@@ -30,6 +29,7 @@ def data(N=30, T=5, period=0.9, coeffs=(5, 10),
     y += yerr * rand.randn(N)
     return t, y, yerr * np.ones_like(y)
 
+
 def weights(yerr):
     assert(all(yerr > 0))
 
@@ -39,6 +39,7 @@ def weights(yerr):
 
 def shift_template(template, tau):
     return lambda phase, tau=tau : template(phase - tau)
+
 
 def get_amplitude_and_offset(freq, template, data):
     """ 
@@ -76,6 +77,7 @@ def chi2_template_fit(freq, template, data):
 
     return np.dot(w, (y - amp * M - offset)**2)
 
+
 def direct_periodogram(freq, template, data, nshifts=100):
     """
     computes periodogram at a given frequency directly, 
@@ -93,6 +95,7 @@ def direct_periodogram(freq, template, data, nshifts=100):
     chi2s = [ chi2_tau(tau) for tau in taus ]
 
     return 1. - min(chi2s) / chi2_0
+
 
 def truncate_template(phase, y, nharmonics):
     fft = np.fft.fft(y[::-1])
