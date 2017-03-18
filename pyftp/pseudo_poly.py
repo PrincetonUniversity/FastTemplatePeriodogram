@@ -71,9 +71,7 @@ class PseudoPolynomial(object):
     def __eq__(self, other):
         if not isinstance(other, PseudoPolynomial):
             raise NotImplementedError("comparison with {0}".format(type(other)))
-        print(self)
-        print(other)
-        print()
+        
         return (np.all(self.p == other.p) and
                 np.all(self.q == other.q) and
                 (self.r == other.r))

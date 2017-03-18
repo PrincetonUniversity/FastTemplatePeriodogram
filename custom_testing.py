@@ -19,7 +19,7 @@ def template_function(phase,
 	        np.dot(s_n, np.sin(2 * np.pi * n * phase)))
 
 
-def data(N=1000, T=100, period=0.9, coeffs=(5, 10),
+def data(N=100, T=10, period=0.9, coeffs=(5, 10),
 	     yerr=0.0001, rseed=150, phi0=0.0):
 
 	t = T * rand.rand(N)
@@ -75,6 +75,7 @@ def test_template_model(temp, ntau = 150):
 	freq = 1./0.9
 	omega = 2 * np.pi * freq
 
+	shift = 0.5
 	f, ax = plt.subplots()
 	ax.set_xlim(0, 1)
 	ax.set_ylabel('template')
@@ -168,7 +169,7 @@ def test_template_model(temp, ntau = 150):
 			model_true = TemplateModel(temp, frequency=freq, parameters=pars)
 			model_ftp = TemplateModel(temp, frequency=freq, parameters=best_fit_pars)
 
-			y_best_model = model_ftp(phi / freq)
+			y_best_model = model_ftp((phi - shift) / freq)
 			y_true = model_true(phi / freq)
 
 			models.append((y_true, y_best_model))
@@ -178,7 +179,7 @@ def test_template_model(temp, ntau = 150):
 			w = weights(yerr)
 			ybar = np.dot(w, y)
 			chi2_0 = np.dot(w, (y - ybar)**2)
-			chi2_m = np.dot(w, (y - model_ftp(t))**2)
+			chi2_m = np.dot(w, (y - model_ftp(t - shift / freq))**2)
 			chi2_s = np.dot(w, (y - model_true(t))**2)
 
 			p_model = 1 - chi2_m / chi2_0
@@ -204,7 +205,7 @@ def test_template_model(temp, ntau = 150):
 		if pars.sgn < 0:
 			omt0 = 2 * np.pi - omt0
 
-		ftau_model = omtm / (2 * np.pi)
+		ftau_model = omtm / (2 * np.pi) - shift
 		ftau_true = omt0 / (2 * np.pi)
 
 
@@ -243,8 +244,8 @@ def test_template_model(temp, ntau = 150):
 
 	ani = animation.FuncAnimation(f, run, frames=ntau, blit=False, interval=100,
                               repeat=False)
-	ani.save('model_discrepancy_H%d.mp4'%(len(temp.c_n)), writer='ffmpeg', fps= ntau / 10)
-
+	ani.save('model_discrepancy_H%d_phi0_%.2f.mp4'%(len(temp.c_n), shift), writer='ffmpeg', fps= ntau / 10)
+	f.savefig('last_frame_H%d_phi0_%.2f.png'%(len(temp.c_n), shift))
 
 if __name__ == '__main__':
 	nharmonics = 3

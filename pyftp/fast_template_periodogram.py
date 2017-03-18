@@ -201,7 +201,10 @@ def fast_template_periodogram(t, y, dy, cn, sn, freqs, pvectors=None, ptensors=N
                         wtauz += tshift * 2 * np.pi
 
                         # Store best-fit parameters
-                        bfpars = ModelFitParams(a=amplitude, b=np.cos(wtauz), c=c, sgn=int(np.sign(np.sin(wtauz))))
+                        sgn = int(np.sign(np.sin(wtauz)))
+                        b   = np.cos(wtauz)
+
+                        bfpars = ModelFitParams(a=amplitude, b=b, c=c, sgn=sgn)
 
                     max_pz = pz
 
