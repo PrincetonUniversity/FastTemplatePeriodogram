@@ -1,8 +1,10 @@
 """Tests of high-level methods for revised modeler class"""
 import numpy as np
-from ..modeler import FastTemplateModeler
+from ..modeler import FastTemplateModeler, FastMultiTemplateModeler
 from ..template import Template
-
+from ..utils import weights
+from numpy.testing import assert_allclose
+from scipy.interpolate import interp1d
 import pytest
 
 
@@ -28,13 +30,6 @@ def data(N=30, T=5, period=0.9, coeffs=(5, 10),
     y = coeffs[0] + coeffs[1] * template_function(t / period)
     y += yerr * rand.randn(N)
     return t, y, yerr * np.ones_like(y)
-
-
-def weights(yerr):
-    assert(all(yerr > 0))
-
-    w = np.power(yerr, -2)
-    return w / np.sum(w)
 
 
 def shift_template(template, tau):
@@ -105,6 +100,7 @@ def truncate_template(phase, y, nharmonics):
     return c_n, s_n
 
 
+
 @pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
 def test_fast_template_method(nharmonics, template, data):
     t, y, yerr = data
@@ -115,15 +111,15 @@ def test_fast_template_method(nharmonics, template, data):
 
     c_n, s_n = truncate_template(phase, y_phase, nharmonics)
 
-    template = Template(c_n, s_n)
-    template.precompute()
+    temp = Template(c_n, s_n)
+    temp.precompute()
 
-    model = FastTemplateModeler(templates=template)
+    model = FastTemplateModeler(template=temp)
     model.fit(t, y, yerr)
-    freq_template, power_template = model.periodogram(ofac=10, hfac=1)
+    freq_template, power_template = model.autopower(samples_per_peak=10, nyquist_factor=1)
 
   
-    pdg = lambda freq : direct_periodogram(freq, template, data)
+    pdg = lambda freq : direct_periodogram(freq, temp, data)
     direct_power_template = np.array([ pdg(freq) for freq in freq_template ])
 
     #assert_allclose(power_template, direct_power_template)
@@ -159,3 +155,59 @@ def test_fast_template_method(nharmonics, template, data):
     #assert(nbad < max([ int(0.05 * len(dp)), 2 ]))
     assert(np.median(dp) < 5E-3)
 
+
+@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
+def test_best_model(nharmonics, template, data):
+    samples_per_peak, nyquist_factor = 4, 1
+
+    t, y, yerr = data
+    phase, y_phase = template
+    w = weights(yerr)
+    ybar = np.dot(w, y)
+
+    chi2_0 = np.dot(w, (y - ybar)**2)
+    c_n, s_n = truncate_template(phase, y_phase, nharmonics)
+    temp = Template(c_n, s_n)
+
+    modeler = FastTemplateModeler(template=temp).fit(t, y, yerr)
+    freq, P = modeler.autopower(samples_per_peak = samples_per_peak,
+                                nyquist_factor = nyquist_factor,
+                               save_best_model = True)
+
+    y_model = modeler.best_model(t)
+    chi2_m = np.dot(w, (y - y_model)**2)
+
+    P_max = 1 - chi2_m / chi2_0
+
+    assert( abs(P_max - max(P)) < 1E-3 * max(P) )
+
+
+@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
+def test_multi_template_method(nharmonics, template, data):
+    t, y, yerr = data
+    phase, y_phase = template
+    w = weights(yerr)
+
+    c_n, s_n = truncate_template(phase, y_phase, nharmonics)
+    c_n2, s_n2 = c_n + np.random.rand(len(c_n)), s_n + np.random.rand(len(c_n))
+
+
+    temp = Template(c_n, s_n)
+    temp2 = Template(c_n2, s_n2)
+
+    temp.precompute()
+    temp2.precompute()
+
+    model1 = FastTemplateModeler(template=temp).fit(t, y, yerr)
+    model2 = FastTemplateModeler(template=temp2).fit(t, y, yerr)
+
+    freq, p1 = model1.autopower(samples_per_peak=10, nyquist_factor=1, save_best_model=False)
+    freq, p2 = model2.autopower(samples_per_peak=10, nyquist_factor=1, save_best_model=False)
+
+    model = FastMultiTemplateModeler(templates=[ temp, temp2 ])
+    model.fit(t, y, yerr)
+    freq_template, p_multi = model.autopower(samples_per_peak=10, nyquist_factor=1, save_best_model=False)
+
+    #for P1, P2, Pmult in zip(p1, p2, p_multi):
+    #    print("Pmult={0}, P1={1}, P2={2}".format(Pmult, P1, P2))
+    #    assert(abs(Pmult - max([ P1, P2 ])) < 1E-3*Pmult)

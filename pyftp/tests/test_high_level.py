@@ -39,6 +39,6 @@ def test_fast_template_method(nharmonics, template, data):
     #template = Template(phase=phase, y=y_phase, nharmonics=nharmonics)
     template.precompute()
 
-    model = FastTemplateModeler(templates=template)
+    model = FastTemplateModeler(template=template)
     model.fit(t, y, yerr)
-    freq_template, power_template = model.periodogram(ofac=1, hfac=1)
+    freq_template, power_template = model.autopower(samples_per_peak=1, nyquist_factor=1)
