@@ -4,7 +4,7 @@ import numpy as np
 from ..modeler import FastTemplateModeler, FastMultiTemplateModeler, TemplateModel
 from ..template import Template
 from ..utils import weights, ModelFitParams
-from ..fast_template_periodogram import fit_template
+from ..periodogram import fit_template
 
 from numpy.testing import assert_allclose
 from scipy.interpolate import interp1d
@@ -301,6 +301,45 @@ def test_best_model_and_fit_model_are_consistent(nharmonics, template, data):
         for par in best_model_params.keys():
             assert(abs(best_model_params[par] \
                 - fit_model_params[par]) < 1E-3 * np.std(y))
+
+@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
+def test_errors_are_raised(nharmonics, template, data):
+    t, y, yerr = data
+
+    modeler = FastTemplateModeler()
+
+    with pytest.raises(ValueError):
+        modeler.autopower()
+
+    modeler.fit(t, y, yerr)
+
+    with pytest.raises(ValueError):
+        modeler.autopower()
+
+    modeler.template = convert_template(template, nharmonics)
+
+    freq, p = modeler.autopower()
+
+    modeler = FastMultiTemplateModeler()
+
+    with pytest.raises(ValueError):
+        modeler.autopower()
+
+    modeler.fit(t, y, yerr)
+
+    with pytest.raises(ValueError):
+        modeler.autopower()
+
+    #modeler.templates = [ convert_template(template, nharmonics) ]
+
+    modeler.templates = []
+
+    with pytest.raises(ValueError):
+        modeler.autopower()
+
+    modeler.templates.append(convert_template(template, nharmonics))
+
+    freq, p = modeler.autopower()
     
 @pytest.mark.parametrize('ndata', [ 5, 10, 30, 50, 100, 200 ])
 @pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])

@@ -16,7 +16,7 @@ try:
 except ImportError:
     import pickle
 
-from . import fast_template_periodogram as ftp
+from . import periodogram as pdg
 
 
 
@@ -193,7 +193,7 @@ class FastTemplateModeler(object):
         if not isinstance(freq, float):
             raise ValueError('fit_model requires float argument')
 
-        p, parameters = ftp.fit_template(self.t, self.y, self.dy, 
+        p, parameters = pdg.fit_template(self.t, self.y, self.dy, 
                             self.template, freq,
                 allow_negative_amplitudes=self.allow_negative_amplitudes)
 
@@ -281,7 +281,7 @@ class FastTemplateModeler(object):
         """
 
         frequency = self.autofrequency(**kwargs)
-        results = ftp.fast_template_periodogram(self.t, self.y, self.dy, self.template.cn,
+        results = pdg.fast_template_periodogram(self.t, self.y, self.dy, self.template.cn,
                             self.template.sn, frequency, pvectors=self.template.pvectors,
                             ptensors=self.template.ptensors, return_best_fit_pars=save_best_model,
                             allow_negative_amplitudes=self.allow_negative_amplitudes)
@@ -326,7 +326,7 @@ class FastTemplateModeler(object):
             The frequency and template periodogram power, a
 
         """
-        fitter = lambda frq : ftp.fit_template(self.t, self.y, self.dy, self.template, frq,
+        fitter = lambda frq : pdg.fit_template(self.t, self.y, self.dy, self.template, frq,
                                 allow_negative_amplitudes=self.allow_negative_amplitudes)
 
         multiple_frequencies = hasattr(frequency, '__iter__')
@@ -423,7 +423,7 @@ class FastMultiTemplateModeler(FastTemplateModeler):
         if not isinstance(freq, float):
             raise ValueError('fit_model requires float argument')
             
-        p, parameters = zip(*[ ftp.fit_template(self.t, self.y, self.dy, 
+        p, parameters = zip(*[ pdg.fit_template(self.t, self.y, self.dy, 
                                    template, freq,
                 allow_negative_amplitudes=self.allow_negative_amplitudes)\
                         for template in self.templates ])
@@ -459,7 +459,7 @@ class FastMultiTemplateModeler(FastTemplateModeler):
 
         frequency = self.autofrequency(**kwargs)
 
-        results = [ ftp.fast_template_periodogram(self.t, self.y, self.dy, template.cn,
+        results = [ pdg.fast_template_periodogram(self.t, self.y, self.dy, template.cn,
                             template.sn, frequency, pvectors=template.pvectors,
                             ptensors=template.ptensors, return_best_fit_pars=save_best_model,
                             allow_negative_amplitudes=self.allow_negative_amplitudes)\
@@ -504,7 +504,7 @@ class FastMultiTemplateModeler(FastTemplateModeler):
             The frequency and template periodogram power, a
 
         """
-        fitter = lambda frq : ftp.fit_template(self.t, self.y, self.dy, 
+        fitter = lambda frq : pdg.fit_template(self.t, self.y, self.dy, 
                                         template, frq,
                     allow_negative_amplitudes=self.allow_negative_amplitudes)
 

@@ -332,6 +332,14 @@ def compute_zeros(ptensors, sums, loud=False):
 
     if loud: t0 = time()
     P = pol.polysub(pol.polymul((1, 0, -1), pol.polymul(Pp, Pp)), pol.polymul(Pq, Pq))
+    P /= np.sqrt(sum(np.power(P, 2)))
+
+    #print("POLYNOMIAL:")
+    #for n, Pval in enumerate(P):
+    #    print("%-0.5e * x^%d"%(Pval, n))
+
+    #sys.exit()
+
     if loud:
         dt = time() - t0
         print("   ",dt, " seconds to get final polynomial")
@@ -350,3 +358,46 @@ def compute_zeros(ptensors, sums, loud=False):
 
     small = 1E-5
     return [ min([ 1.0, abs(r.real) ]) * np.sign(r.real) for r in R if abs(r.imag) < small and abs(r.real) < 1 + small ]
+
+
+def get_poly_coeffs(ptensors, sums):
+
+    AAdAp, AAdAq, \
+    AAdBp, AAdBq, \
+    ABdAp, ABdAq, \
+    ABdBp, ABdBq, \
+    BBdAp, BBdAq, \
+    BBdBp, BBdBq = ptensors
+
+    H = len(AAdAp)
+
+    
+    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.CC[:H,:H])
+    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.CC[:H,:H])
+    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CC[:H,:H])
+    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CS[:H,:H])
+    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.SS[:H,:H])
+    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.SS[:H,:H])
+
+    # Note: the first and last einsums for both Pp and Pq might not be necessary.
+    #       see the docs for more information
+
+    Pp  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
+    Pp += np.einsum('ijkl,ijk->l', AAdBp, Kaadb)
+    Pp += np.einsum('ijkl,ijk->l', ABdAp, Kabda)
+    Pp += np.einsum('ijkl,ijk->l', ABdBp, Kabdb)
+    Pp += np.einsum('ijkl,ijk->l', BBdAp, Kbbda)
+    Pp += np.einsum('ijkl,ijk->l', BBdBp, Kbbdb)
+
+    Pq  = np.einsum('ijkl,ijk->l', AAdAq, Kaada)
+    Pq += np.einsum('ijkl,ijk->l', AAdBq, Kaadb)
+    Pq += np.einsum('ijkl,ijk->l', ABdAq, Kabda)
+    Pq += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
+    Pq += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
+    Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
+    
+    P = pol.polysub(pol.polymul((1, 0, -1), pol.polymul(Pp, Pp)), pol.polymul(Pq, Pq))
+    P /= np.sqrt(sum(np.power(P, 2)))
+
+    
+    return P

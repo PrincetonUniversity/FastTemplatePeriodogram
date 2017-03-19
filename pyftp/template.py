@@ -1,5 +1,5 @@
 import numpy as np
-from . import fast_template_periodogram as ftp
+from . import pseudo_poly as ppol
 
 
 class Template(object):
@@ -66,14 +66,14 @@ class Template(object):
     def pvectors(self):
         if 'pvectors' not in self._computed:
             self._computed['pvectors'] =\
-                ftp.get_polynomial_vectors(self.c_n, self.s_n, sgn=1)
+                ppol.get_polynomial_vectors(self.c_n, self.s_n, sgn=1)
         return self._computed['pvectors']
 
     @property
     def ptensors(self):
         if 'ptensors' not in self._computed:
             self._computed['ptensors'] =\
-                ftp.compute_polynomial_tensors(*self.pvectors)
+                ppol.compute_polynomial_tensors(*self.pvectors)
         return self._computed['ptensors']
 
     def __call__(self, phase):
