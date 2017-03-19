@@ -1,9 +1,11 @@
 """Tests of high-level methods for revised modeler class"""
 import numpy as np
+
 from ..modeler import FastTemplateModeler, FastMultiTemplateModeler, TemplateModel
 from ..template import Template
 from ..utils import weights, ModelFitParams
 from ..fast_template_periodogram import fit_template
+
 from numpy.testing import assert_allclose
 from scipy.interpolate import interp1d
 import pytest
@@ -41,6 +43,7 @@ def data_from_template(template, parameters, N=30, T=5, period=0.9, yerr=0.1, rs
     y = model(t) + yerr * rand.randn(N)
 
     return t, y, yerr * np.ones_like(y)
+
 
 def shift_template(template, tau):
     return lambda phase, tau=tau : template(phase - tau)
@@ -136,6 +139,7 @@ def pdg(data, y_fit):
 
     return 1 - chi2 / chi2_0
 
+
 @pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
 def test_fast_template_method(nharmonics, template, data):
     t, y, yerr = data
@@ -205,8 +209,10 @@ def test_best_model(nharmonics, template, data):
     temp = Template(c_n, s_n)
 
     modeler = FastTemplateModeler(template=temp).fit(t, y, yerr)
-    freq, P = modeler.autopower(samples_per_peak = samples_per_peak,
-                                nyquist_factor = nyquist_factor,
+
+    freq, P = modeler.autopower(samples_per_peak = samples_per_peak, 
+                                nyquist_factor = nyquist_factor, 
+
                                save_best_model = True)
 
     y_model = modeler.best_model(t)
@@ -341,4 +347,3 @@ def test_inject_and_recover(nharmonics, ndata, period=0.9, ntest=50, tol=1E-2, r
 
         # no absolute value here, its possible to find better fit with noise
         assert((signal_power - fit_power) / signal_power < tol)
-

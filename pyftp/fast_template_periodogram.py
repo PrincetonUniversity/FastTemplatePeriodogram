@@ -59,7 +59,6 @@ def fit_template(t, y, dy, template, freq, allow_negative_amplitudes=True):
 
     zeros = compute_zeros(template.ptensors, sums)
 
-
     # Check boundaries, too
     if not  1 in zeros: zeros.append(1)
     if not -1 in zeros: zeros.append(-1)
@@ -104,6 +103,7 @@ def fit_template(t, y, dy, template, freq, allow_negative_amplitudes=True):
                 # Store best-fit parameters
                 bfpars = ModelFitParams(a=amplitude, b=np.cos(wtauz),
                                         c=c, sgn=int(np.sign(np.sin(wtauz))))
+
 
                 max_pz = pz
 
@@ -180,7 +180,8 @@ def fast_template_periodogram(t, y, dy, cn, sn, freqs, pvectors=None, ptensors=N
                 amplitude = get_a_from_b(bz, cn, sn, sums, A=A, B=B, AYCBYS=AYCBYS)
 
                 # Skip negative amplitude solutions
-                if amplitude < 0 and not allow_negative_amplitudes:
+
+                if amplitude < 0 and not allow_negative_amplitudes: 
                     continue
 
                 # Compute periodogram

@@ -86,6 +86,7 @@ class TemplateModel(object):
         if not isinstance(self.parameters, ModelFitParams):
             raise TypeError("parameters must be ModelFitParams instance")
 
+
         wtau = np.arccos(self.parameters.b)
         if self.parameters.sgn == -1:
             wtau = 2 * np.pi - wtau
@@ -154,11 +155,13 @@ class FastTemplateModeler(object):
             If scalar, all observations are weighted equally, which is
             effectively the same as setting `dy=None`.
 
+
         Returns
         -------
 
         self : FastTemplateModeler
             Returns self
+
 
         """
         self.t = np.array(t)
@@ -236,7 +239,6 @@ class FastTemplateModeler(object):
             The heuristically-determined optimal frequency bin
         """
 
-        
 
         baseline = self.t.max() - self.t.min()
         n_samples = self.t.size
@@ -254,6 +256,7 @@ class FastTemplateModeler(object):
             Nf = int(0.5 * samples_per_peak * nyquist_factor * n_samples)
 
         return f0 + df * np.arange(Nf)
+
 
     @requires_data
     @requires_template
@@ -276,6 +279,7 @@ class FastTemplateModeler(object):
             The frequency and template periodogram power
 
         """
+
         frequency = self.autofrequency(**kwargs)
         results = ftp.fast_template_periodogram(self.t, self.y, self.dy, self.template.cn,
                             self.template.sn, frequency, pvectors=self.template.pvectors,
@@ -291,9 +295,11 @@ class FastTemplateModeler(object):
             return frequency, p
 
 
+
         else:
             p = results
             return frequency, p
+
 
     @requires_data
     @requires_template
@@ -473,7 +479,6 @@ class FastMultiTemplateModeler(FastTemplateModeler):
                                                           parameters = bfpars[i][j])
 
         return frequency, np.max(p, axis=0)
-
 
     @requires_data
     def power_from_single_template(self, frequency, template, save_best_model=True):
