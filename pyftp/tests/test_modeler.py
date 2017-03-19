@@ -1,8 +1,9 @@
 """Tests of high-level methods for revised modeler class"""
 import numpy as np
-from ..modeler import FastTemplateModeler, FastMultiTemplateModeler
+from ..modeler import FastTemplateModeler, FastMultiTemplateModeler, TemplateModel
 from ..template import Template
-from ..utils import weights
+from ..utils import weights, ModelFitParams
+from ..fast_template_periodogram import fit_template
 from numpy.testing import assert_allclose
 from scipy.interpolate import interp1d
 import pytest
@@ -31,6 +32,15 @@ def data(N=30, T=5, period=0.9, coeffs=(5, 10),
     y += yerr * rand.randn(N)
     return t, y, yerr * np.ones_like(y)
 
+def data_from_template(template, parameters, N=30, T=5, period=0.9, yerr=0.1, rseed=42):
+    
+    rand = np.random.RandomState(rseed)
+    model = TemplateModel(template, parameters=parameters, frequency=1./period)
+    
+    t = np.sort(T * rand.rand(N))
+    y = model(t) + yerr * rand.randn(N)
+
+    return t, y, yerr * np.ones_like(y)
 
 def shift_template(template, tau):
     return lambda phase, tau=tau : template(phase - tau)
@@ -99,7 +109,32 @@ def truncate_template(phase, y, nharmonics):
 
     return c_n, s_n
 
+def convert_template(temp, nharmonics):
+    phase, y_phase = temp 
+    c_n, s_n = truncate_template(phase, y_phase, nharmonics)
 
+    template = Template(c_n, s_n)
+    template.precompute()
+    return template 
+
+def get_ftau(parameters):
+    omega_tau = np.arccos(parameters.b)
+    if parameters.sgn < 0:
+        omega_tau = 2 * np.pi - omega_tau
+
+    return (omega_tau / (2 * np.pi))%1.0
+
+
+def pdg(data, y_fit):
+    t, y, yerr = data
+    w = weights(yerr)
+
+    ybar = np.dot(w, y)
+
+    chi2 = np.dot(w, (y - y_fit)**2)
+    chi2_0 = np.dot(w, (y - ybar)**2)
+
+    return 1 - chi2 / chi2_0
 
 @pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
 def test_fast_template_method(nharmonics, template, data):
@@ -211,3 +246,99 @@ def test_multi_template_method(nharmonics, template, data):
     #for P1, P2, Pmult in zip(p1, p2, p_multi):
     #    print("Pmult={0}, P1={1}, P2={2}".format(Pmult, P1, P2))
     #    assert(abs(Pmult - max([ P1, P2 ])) < 1E-3*Pmult)
+
+
+@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
+def test_autopower_and_power_are_consistent(nharmonics, template, data):
+    t, y, yerr = data 
+    temp = convert_template(template, nharmonics)
+
+    temp2 = Template(c_n = np.random.rand(nharmonics), 
+                     s_n = np.random.rand(nharmonics))
+
+    temp2.precompute()
+    modeler_single = FastTemplateModeler(template=temp).fit(t, y, yerr)
+
+    # MULTI-template
+    modeler_multi = FastMultiTemplateModeler(templates=[temp, temp2])
+    modeler_multi.fit(t, y, yerr)
+
+    for modeler in [ modeler_single, modeler_multi ]:
+        freqs, p_auto = modeler.autopower()
+
+        p_single = [ modeler.power(freq) for freq in freqs ]
+
+        assert_allclose(p_auto, p_single)
+
+@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
+def test_best_model_and_fit_model_are_consistent(nharmonics, template, data):
+    t, y, yerr = data
+    temp = convert_template(template, nharmonics)
+
+    temp2 = Template(c_n = np.random.rand(nharmonics), 
+                     s_n = np.random.rand(nharmonics))
+
+    temp2.precompute()
+    modeler_single = FastTemplateModeler(template = temp).fit(t, y, yerr)
+
+    modeler_multi = FastMultiTemplateModeler(templates = [temp, temp2])
+    modeler_multi.fit(t, y, yerr)
+
+    for modeler in [ modeler_single, modeler_multi ]:
+        freqs, p_auto = modeler.autopower(save_best_model=True)
+
+
+        i = np.argmax(p_auto)
+        fit_model_params = modeler.fit_model(freqs[i]).parameters._asdict()
+        best_model_params = modeler.best_model.parameters._asdict()
+
+        for par in best_model_params.keys():
+            assert(abs(best_model_params[par] \
+                - fit_model_params[par]) < 1E-3 * np.std(y))
+    
+@pytest.mark.parametrize('ndata', [ 5, 10, 30, 50, 100, 200 ])
+@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
+def test_inject_and_recover(nharmonics, ndata, period=0.9, ntest=50, tol=1E-2, rseed=42):
+    amplitudes = np.random.rand(ntest)
+    bvalues = 2 * np.random.rand(ntest) - 1
+    offsets = np.random.rand(ntest)
+    sgns    = np.sign(np.random.rand(ntest) - 0.5)
+
+
+    rand = np.random if rseed is None else np.random.RandomState(rseed)
+
+
+    for a, b, c, sgn in zip(amplitudes, bvalues, offsets, sgns):
+        parameters = ModelFitParams(a=a, b=b, c=c, sgn=sgn)
+
+        c_n, s_n = rand.rand(nharmonics), rand.rand(nharmonics)
+
+        template = Template(c_n=c_n, s_n=s_n)
+
+        template.precompute()
+
+        t, y, yerr = data_from_template(template, parameters, period=period,
+                                             yerr=0.001, rseed=rseed)
+
+        max_p, best_pars = fit_template(t, y, yerr, template, 1./period,
+                                           allow_negative_amplitudes=True)
+
+        assert(abs(best_pars.a - parameters.a) / parameters.a < tol)
+        assert(abs(best_pars.c - parameters.c) / parameters.c < tol)
+
+
+        ftau = get_ftau(parameters)
+        ftau_fit = get_ftau(best_pars)
+
+        assert((ftau - ftau_fit)%1.0 < tol)
+
+
+        signal = TemplateModel(template, parameters)
+        model  = TemplateModel(template, best_pars)
+        
+        signal_power = pdg((t, y, yerr), signal(t))
+        fit_power = pdg((t, y, yerr), model(t))
+
+        # no absolute value here, its possible to find better fit with noise
+        assert((signal_power - fit_power) / signal_power < tol)
+

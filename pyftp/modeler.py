@@ -20,6 +20,34 @@ from . import fast_template_periodogram as ftp
 
 
 
+# function wrappers for performing checks
+def requires_templates(func):
+    def wrap(self, *args, **kwargs):
+        self.validate_templates()
+        return func(self, *args, **kwargs)
+    return wrap
+
+def requires_template(func):
+    def wrap(self, *args, **kwargs):
+        self.validate_template()
+        return func(self, *args, **kwargs)
+    return wrap
+
+def requires_data(func):
+    def wrap(self, *args, **kwargs):
+        self.validate_data()
+        return func(self, *args, **kwargs)
+    return wrap
+
+def power_from_fit(t, y, dy, yfit):
+    w = weights(dy)
+    ybar = np.dot(w, y)
+
+    chi2_0 = np.dot(w, (y-ybar)**2)
+    chi2   = np.dot(w, (y-yfit)**2)
+
+    return 1. - (chi2 / chi2_0)
+
 class TemplateModel(object):
     """
     Template for models of the form :math:`a * M(t - tau) + c` for
@@ -99,14 +127,19 @@ class FastTemplateModeler(object):
         #self.summations = None
         self.best_model = None
 
-    def _validate_template(self, template):
-        pass
+    def validate_template(self):
+        if self.template is None:
+            raise ValueError("No template set.")
+        if not isinstance(self.template, Template):
+            raise ValueError("template is not a Template instance.")
 
-    def _validate_data(self, t, y, dy=None):
-        pass
+    def validate_data(self):
+        if any([ X is None for X in [ self.t, self.y, self.dy ] ]):
+            raise ValueError("One or more of t, y, dy is None; "
+                             "fit(t, y, dy) must be called before %s.", func.__name__)
 
-    def _validate_frequencies(self, frequencies):
-        pass
+    def validate_frequencies(self, frequencies):
+        raise NotImplementedError()
 
     def fit(self, t, y, dy=None):
         """
@@ -121,6 +154,12 @@ class FastTemplateModeler(object):
             If scalar, all observations are weighted equally, which is
             effectively the same as setting `dy=None`.
 
+        Returns
+        -------
+
+        self : FastTemplateModeler
+            Returns self
+
         """
         self.t = np.array(t)
         self.y = np.array(y)
@@ -128,6 +167,38 @@ class FastTemplateModeler(object):
 
         return self
 
+    @requires_data
+    @requires_template
+    def fit_model(self, freq):
+        """
+        Fit a template model to data.
+
+        y_model(t) = a * template(freq * (t - tau)) + c
+        
+        Parameters
+        ----------
+
+        freq : float
+            Frequency at which to fit a template model
+
+        Returns
+        -------
+
+        model : TemplateModel
+            The best-fit model at this frequency
+        """
+        if not isinstance(freq, float):
+            raise ValueError('fit_model requires float argument')
+
+        p, parameters = ftp.fit_template(self.t, self.y, self.dy, 
+                            self.template, freq,
+                allow_negative_amplitudes=self.allow_negative_amplitudes)
+
+
+        return TemplateModel(self.template, parameters=parameters, 
+                                                     frequency=freq)
+
+    @requires_data
     def autofrequency(self, nyquist_factor=5, samples_per_peak=5, minimum_frequency=None,
                         maximum_frequency = None):
         """
@@ -165,9 +236,7 @@ class FastTemplateModeler(object):
             The heuristically-determined optimal frequency bin
         """
 
-        if any([ X is None for X in [ self.t, self.y, self.dy ] ]):
-            raise ValueError("One or more of t, y, dy is None; "
-                             "fit(t, y, dy) must be called before autofrequency.")
+        
 
         baseline = self.t.max() - self.t.min()
         n_samples = self.t.size
@@ -186,6 +255,8 @@ class FastTemplateModeler(object):
 
         return f0 + df * np.arange(Nf)
 
+    @requires_data
+    @requires_template
     def autopower(self, save_best_model=True, **kwargs):
         """
         Compute template periodogram at automatically-determined frequencies
@@ -205,8 +276,6 @@ class FastTemplateModeler(object):
             The frequency and template periodogram power
 
         """
-        assert(not any([ x is None for x in [ self.t, self.y, self.dy, self.template ]]))
-
         frequency = self.autofrequency(**kwargs)
         results = ftp.fast_template_periodogram(self.t, self.y, self.dy, self.template.cn,
                             self.template.sn, frequency, pvectors=self.template.pvectors,
@@ -226,6 +295,8 @@ class FastTemplateModeler(object):
             p = results
             return frequency, p
 
+    @requires_data
+    @requires_template
     def power(self, frequency, save_best_model=True):
         """
         Compute template periodogram at a given set of frequencies; slower than
@@ -253,20 +324,33 @@ class FastTemplateModeler(object):
                                 allow_negative_amplitudes=self.allow_negative_amplitudes)
 
         multiple_frequencies = hasattr(frequency, '__iter__')
+
+        # Do I need to initialize these if they're definied within if statements?
+        p, best_model = None, None
         if multiple_frequencies:
             bfpars, p = zip(*map(fitter, frequency))
             p = np.array(p)
+            i = np.argmax(p)
+            best_model = TemplateModel(self.template, frequency = frequency[i],
+                                                          parameters = bfpars[i])
         else:
             bfpars, p = fitter(frequency)
+            best_model = TemplateModel(self.template, frequency = frequency,
+                                                          parameters = bfpars)
 
         if save_best_model:
-            if multiple_frequencies:
-                i = np.argmax(p)
-                self.best_model = TemplateModel(self.template, frequency = frequency[i],
-                                                          parameters = bfpars[i])
-            else:
-                self.best_model = TemplateModel(self.template, frequency = frequency,
-                                                          parameters = bfpars)
+            # if there is an existing best model, replace
+            # with new best model only if new model improves fit 
+            if not self.best_model is None:
+                y_fit = best_model(self.t) 
+                y_best = self.best_model(self.t)
+
+                p_fit = power_from_fit(self.t, self.y, self.dy, y_fit)
+                p_best = power_from_fit(self.t, self.y, self.dy, y_best)
+
+                if p_fit > p_best:
+                    self.best_model = best_model
+
 
         return p
 
@@ -297,6 +381,56 @@ class FastMultiTemplateModeler(FastTemplateModeler):
         #self.summations = None
         self.best_model = None
 
+
+    def validate_templates(self):
+        if self.templates is None:
+            raise ValueError("No templates set.")
+        if not hasattr(self.templates, '__iter__'):
+            raise ValueError("<object>.templates must be iterable.")
+        if len(self.templates) == 0:
+            raise ValueError("No templates.")
+        for template in self.templates:
+            if not isinstance(template, Template):
+                raise ValueError("One or more templates are not Template instances.")
+        return func
+
+    @requires_data
+    @requires_templates
+    def fit_model(self, freq):
+        """
+        Fit a template model to data.
+
+        y_model(t) = a * template(freq * (t - tau)) + c
+        
+        Parameters
+        ----------
+
+        freq : float
+            Frequency at which to fit a template model
+
+        Returns
+        -------
+
+        model : TemplateModel
+            The best-fit model at this frequency
+        """
+        if not isinstance(freq, float):
+            raise ValueError('fit_model requires float argument')
+            
+        p, parameters = zip(*[ ftp.fit_template(self.t, self.y, self.dy, 
+                                   template, freq,
+                allow_negative_amplitudes=self.allow_negative_amplitudes)\
+                        for template in self.templates ])
+
+        i = np.argmax(p)
+        params = parameters[i]
+        template = self.templates[i]
+
+
+        return TemplateModel(template, parameters=params, 
+                                                     frequency=freq)
+    @requires_data
+    @requires_templates
     def autopower(self, save_best_model=True, **kwargs):
         """
         Compute template periodogram at automatically-determined frequencies
@@ -316,9 +450,6 @@ class FastMultiTemplateModeler(FastTemplateModeler):
             The frequency and template periodogram power
 
         """
-        assert(not any([ x is None for x in [ self.t, self.y, self.dy, self.templates ]]))
-        assert(isinstance(self.templates, list))
-        assert(len(self.templates) > 0)
 
         frequency = self.autofrequency(**kwargs)
 
@@ -327,7 +458,7 @@ class FastMultiTemplateModeler(FastTemplateModeler):
                             ptensors=template.ptensors, return_best_fit_pars=save_best_model,
                             allow_negative_amplitudes=self.allow_negative_amplitudes)\
                         for template in self.templates ]
-        p = None
+        p = results
         if save_best_model:
             p, bfpars = zip(*results)
 
@@ -341,12 +472,69 @@ class FastMultiTemplateModeler(FastTemplateModeler):
             self.best_model = TemplateModel(self.templates[i], frequency = frequency[j],
                                                           parameters = bfpars[i][j])
 
-        else:
-            p = results
-
-
         return frequency, np.max(p, axis=0)
 
+
+    @requires_data
+    def power_from_single_template(self, frequency, template, save_best_model=True):
+        """
+        Compute template periodogram at a given set of frequencies; slower than
+        `autopower`, but frequencies are not restricted to being evenly spaced
+
+        Parameters
+        ----------
+        frequency : float or array_like
+            Frequenc(ies) at which to determine template periodogram power
+
+        save_best_model : optional, bool (default=True)
+            Save best model fit, accessible via the `best_model` attribute
+
+        **kwargs : optional, dict
+            Passed to `autofrequency`
+
+        Returns
+        -------
+
+        power : float or ndarray
+            The frequency and template periodogram power, a
+
+        """
+        fitter = lambda frq : ftp.fit_template(self.t, self.y, self.dy, 
+                                        template, frq,
+                    allow_negative_amplitudes=self.allow_negative_amplitudes)
+
+        multiple_frequencies = hasattr(frequency, '__iter__')
+
+        # Do I need to initialize these if they're definied within if statements?
+        p, best_model = None, None
+        if multiple_frequencies:
+            bfpars, p = zip(*map(fitter, frequency))
+            p = np.array(p)
+            i = np.argmax(p)
+            best_model = TemplateModel(self.template, frequency = frequency[i],
+                                                          parameters = bfpars[i])
+        else:
+            bfpars, p = fitter(frequency)
+            best_model = TemplateModel(self.template, frequency = frequency,
+                                                          parameters = bfpars)
+
+        if save_best_model:
+            # if there is an existing best model, replace
+            # with new best model only if new model improves fit 
+            if not self.best_model is None:
+                y_fit = best_model(self.t) 
+                y_best = self.best_model(self.t)
+
+                p_fit = power_from_fit(self.t, self.y, self.dy, y_fit)
+                p_best = power_from_fit(self.t, self.y, self.dy, y_best)
+
+                if p_fit > p_best:
+                    self.best_model = best_model
+
+        return p
+
+    @requires_data
+    @requires_templates
     def power(self, frequency, save_best_model=True):
         """
         Compute template periodogram at a given set of frequencies
@@ -370,34 +558,8 @@ class FastMultiTemplateModeler(FastTemplateModeler):
 
         """
 
-        assert(not any([ x is None for x in [ self.t, self.y, self.dy, self.templates ]]))
-        assert(isinstance(self.templates, list))
-        assert(len(self.templates) > 0)
+        all_power = [ power_from_single_template(frequency, template, 
+                                        save_best_model=save_best_model)\
+                        for template in self.templates ]
 
-        fitters =[ lambda frq : ftp.fit_template(self.t, self.y, self.dy, template, frq,
-                                allow_negative_amplitudes=self.allow_negative_amplitudes)\
-                    for template in self.templates ]
-        p_final = None
-
-        multiple_frequencies = hasattr(frequency, '__iter__')
-        if multiple_frequencies:
-            p, bfpars = zip(*[ zip(*map(fitter, frequency)) for fitter in fitters ])
-
-            p_final = np.max(p, axis=0)
-        else:
-            p, bfpars = zip(*[ fitter(frequency) for fitter in fitters ])
-            p_final = max(p)
-
-        if save_best_model:
-            if multiple_frequencies:
-                j = np.argmax(p_final)
-                i = np.argmax([ P[j] for P in p ])
-
-                self.best_model = TemplateModel(self.templates[i], frequency = frequency[j],
-                                                          parameters = bfpars[i][j])
-            else:
-                i = np.argmax(p)
-                self.best_model = TemplateModel(self.templates[i], frequency = frequency,
-                                                          parameters = bfpars[i])
-
-        return p_final
+        return np.max(all_power, axis=0)
