@@ -147,7 +147,7 @@ class PseudoPolynomial(object):
 
 
     def root_finding_poly(self):
-        """ (1 - x^2)^(-(2 * r + 1)) * p^2 - q^2
+        """ p^2 - (1 - x^2) * q^2
 
         Returns
         -------
@@ -156,8 +156,8 @@ class PseudoPolynomial(object):
             same number of roots as the PP
 
         """
-        return  pol.polysub(pol.polymul(pol.polymul(self.p, self.p), (1, 0, -1)),
-                            pol.polymul(self.q, self.q))
+        return  pol.polysub(pol.polymul(self.p, self.p),
+                            pol.polymul(pol.polymul(self.q, self.q), (1, 0, -1)))
 
     def roots(self):
         return self.root_finding_poly().roots()
@@ -177,8 +177,8 @@ Afunc_pp = lambda n, p, q, sgn : PseudoPolynomial(   \
                                         r=   0)
 
 # Vector A or B in PseudoPolynomial form
-ABpoly = lambda c, s, sgn, alpha : [ Afunc_pp(n+1, C if alpha == 0 else  S,
-                                                 S if alpha == 0 else -C, sgn) \
+ABpoly = lambda c, s, sgn, kind : [ Afunc_pp(n+1, C if kind == 'A' else  S,
+                                                  S if kind == 'A' else -C, sgn) \
                                        for n, (C, S) in enumerate(zip(c, s)) ]
 
 # Hardcoded, should probably be double checked but this
@@ -247,8 +247,8 @@ def get_polynomial_vectors(cn, sn, sgn=1):
     returns list of PseudoPolynomials corresponding to
     A_n, B_n, and their derivatives
     """
-    A = ABpoly(cn, sn, sgn, 0)
-    B = ABpoly(cn, sn, sgn, 1)
+    A = ABpoly(cn, sn, sgn, 'A')
+    B = ABpoly(cn, sn, sgn, 'B')
 
     dA = [ a.deriv() for a in A ]
     dB = [ b.deriv() for b in B ]
@@ -332,7 +332,7 @@ def compute_zeros(ptensors, sums, loud=False):
 
     if loud: t0 = time()
     P = pol.polysub(pol.polymul((1, 0, -1), pol.polymul(Pp, Pp)), pol.polymul(Pq, Pq))
-    P /= np.sqrt(sum(np.power(P, 2)))
+    #P /= np.sqrt(sum(np.power(P, 2)))
 
     #print("POLYNOMIAL:")
     #for n, Pval in enumerate(P):
@@ -349,8 +349,7 @@ def compute_zeros(ptensors, sums, loud=False):
     #c = max(np.absolute(P))
     #c = 1./c if c > 0 else 1.0
     #if P[-1] < 0: c *= -1
-    c = 1.0
-    R = pol.polyroots(np.array(P) * c)
+    R = pol.polyroots(np.array(P))
     #R = sturm_zeros(P, -1, 1)
     if loud:
         dt = time() - t0
@@ -379,6 +378,7 @@ def get_poly_coeffs(ptensors, sums):
     Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.SS[:H,:H])
     Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.SS[:H,:H])
 
+
     # Note: the first and last einsums for both Pp and Pq might not be necessary.
     #       see the docs for more information
 
@@ -397,7 +397,5 @@ def get_poly_coeffs(ptensors, sums):
     Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
     
     P = pol.polysub(pol.polymul((1, 0, -1), pol.polymul(Pp, Pp)), pol.polymul(Pq, Pq))
-    P /= np.sqrt(sum(np.power(P, 2)))
-
     
     return P

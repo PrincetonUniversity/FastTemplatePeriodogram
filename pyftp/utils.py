@@ -28,7 +28,6 @@ def Avec(x, c, s, sgn=1):
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return Afunc(n, x, c, s, sgn=sgn)
 
-
 def Bvec(x, c, s, sgn=1):
     """Vector expression of B"""
     s = np.asarray(s)
@@ -36,13 +35,11 @@ def Bvec(x, c, s, sgn=1):
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return Afunc(n, x, s, -c, sgn=sgn)
 
-
 def dAvec(x, c, s, sgn=1):
     """Vector expression of the derivative of A"""
     s = np.asarray(s)
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return dAfunc(n, x, c, s, sgn=sgn)
-
 
 def dBvec(x, c, s, sgn=1):
     """Vector expression of the derivative of B"""

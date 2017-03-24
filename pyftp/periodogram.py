@@ -42,10 +42,11 @@ def get_a_from_b(b, cn, sn, sums, A=None, B=None,
     if AYCBYS is None:
         AYCBYS = np.dot(A, sums.YC) + np.dot(B, sums.YS)
 
-    a = AYCBYS / (       np.einsum('i,j,ij', A, A, sums.CC) \
-                   + 2 * np.einsum('i,j,ij', A, B, sums.CS) \
-                   +     np.einsum('i,j,ij', B, B, sums.SS))
-    return a
+    D = (    np.einsum('i,j,ij', A, A, sums.CC) \
+       + 2 * np.einsum('i,j,ij', A, B, sums.CS) \
+       +     np.einsum('i,j,ij', B, B, sums.SS))
+
+    return AYCBYS / D
 
 
 def fit_template(t, y, dy, template, freq, allow_negative_amplitudes=True):

@@ -76,3 +76,5 @@ Untitled*.ipynb
 scripts/saved_results
 .DS_Store
 work/
+*.gif
+*.mp4
