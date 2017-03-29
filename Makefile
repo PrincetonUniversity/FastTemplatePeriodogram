@@ -1,2 +1,2 @@
 test : 
-	py.test -x pyftp
+	py.test pyftp

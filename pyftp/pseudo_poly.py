@@ -8,6 +8,12 @@ from scipy.optimize import newton, brentq
 from numpy.polynomial.polynomial import Polynomial
 import numpy.polynomial.polynomial as pol
 
+def remove_zeros(p, tol=1E-10):
+    for i, coeff in enumerate(p):
+        if abs(coeff) < tol:
+            p[i] = 0.
+        
+    return p
 
 
 class PseudoPolynomial(object):
@@ -30,8 +36,8 @@ class PseudoPolynomial(object):
 
     """
     def __init__(self, p=0, q=0, r=0):
-        self.p = np.atleast_1d(p)
-        self.q = np.atleast_1d(q)
+        self.p = remove_zeros(np.atleast_1d(p))
+        self.q = remove_zeros(np.atleast_1d(q))
         self.r = r
 
         if r > 0 or int(r) != r:
@@ -46,6 +52,7 @@ class PseudoPolynomial(object):
             raise ValueError('q must be one-dimensional')
         if self.q.dtype == object:
             raise ValueError('q must be a numerical array')
+
 
     @classmethod
     def coerce(cls, obj):
@@ -62,11 +69,6 @@ class PseudoPolynomial(object):
             else:
                 raise ValueError("Object of type {0} cannot be coerced "
                                  "into a PseudoPolynomial".format(type(obj)))
-
-    def __call__(self, x):
-        p, q = pol.Polynomial(self.p), pol.Polynomial(self.q)
-        lmx2 = 1 - np.power(x, 2)
-        return (lmx2 ** self.r) * p(x) + (lmx2 ** (self.r + 0.5)) * q(x)
 
     def __eq__(self, other):
         if not isinstance(other, PseudoPolynomial):
@@ -89,7 +91,7 @@ class PseudoPolynomial(object):
         q12 = q1 + q2 * one_minus_x_squared ** (r2 - r1)
         r12 = r1
 
-        return self.__class__(p12.coef, q12.coef, r12)
+        return self.__class__(remove_zeros(p12.coef), remove_zeros(q12.coef), r12)
 
     def __radd__(self, other):
         # addition is commutative
@@ -106,7 +108,7 @@ class PseudoPolynomial(object):
         q12 = p1 * q2 + q1 * p2
         r12 = r1 + r2
 
-        return self.__class__(p12.coef, q12.coef, r12)
+        return self.__class__(remove_zeros(p12.coef), remove_zeros(q12.coef), r12)
 
     def __rmul__(self, other):
         # multiplication is commutative
@@ -143,8 +145,7 @@ class PseudoPolynomial(object):
         q = pol.polysub(pol.polymul((1, 0, -1), dq), pol.polymul((0, 2 * self.r + 1), self.q))
         r = self.r - 1
 
-        return PseudoPolynomial(p=p, q=q, r=r)
-
+        return PseudoPolynomial(p=remove_zeros(p), q=remove_zeros(q), r=r)
 
     def root_finding_poly(self):
         """ p^2 - (1 - x^2) * q^2
@@ -156,17 +157,79 @@ class PseudoPolynomial(object):
             same number of roots as the PP
 
         """
-        return  pol.polysub(pol.polymul(self.p, self.p),
-                            pol.polymul(pol.polymul(self.q, self.q), (1, 0, -1)))
+        return  remove_zeros(pol.polysub(pol.polymul(self.p, self.p),
+                            pol.polymul(pol.polymul(self.q, self.q), (1, 0, -1))))
 
-    def roots(self):
-        return self.root_finding_poly().roots()
+    def _roots0(self):
+        p  = self.root_finding_poly()
+        dp = remove_zeros(pol.polyder(p))
 
-    def eval(self, x):
-        a = 1./pol.polyval((1, 0, -1), -self.r)
 
-        return a * (pol.polyval(x, self.p) + sqrt(1 - x*x) \
-                                        * pol.polyval(x, self.q))
+        roots_p = pol.polyroots(self.p)
+        roots_q = pol.polyroots(self.q)
+
+        roots = []
+        for root in roots_p:
+            if any([ abs(rq - root) < 1E-5 for rq in roots_q ]):
+                roots.append(root)
+
+
+        pr    = remove_zeros(pol.polyfromroots(roots))
+        p2, _ = pol.polydiv(p, pol.polymul(pr, pr))
+        p2    = remove_zeros(p2)
+
+        new_roots = list(pol.polyroots(p2))
+        
+        roots.extend(new_roots)
+
+        return roots, p, dp
+
+    def complex_roots(self):
+        roots0, p, dp = self._roots0()
+
+        roots = []
+        for root in roots0:
+            if abs(self(root)) < 1E-9:
+                roots.append(root)
+
+        return roots
+
+    def real_roots_pm(self, use_newton=False):
+        roots0, p, dp = self._roots0()
+
+        f = lambda x, p=p : pol.polyval( x, p)
+        fprime = lambda x, dp=dp : pol.polyval( x, dp )
+
+        return correct_real_roots(roots0, f, fprime=fprime, use_newton=use_newton)
+
+    def real_roots(self, use_newton=False):
+        roots0, p, dp = self._roots0()
+
+        f = lambda x, p=p : pol.polyval( x, p)
+        fprime = lambda x, dp=dp : pol.polyval( x, dp )
+
+        criterion = lambda x, P=self.p, Q=self.q : pol.polyval(x, P) * pol.polyval(x, Q) < 1E-8
+
+        return correct_real_roots(roots0, f, fprime=fprime, criterion=criterion, use_newton=use_newton)
+
+    def eval(self, x, tol=1E-4):
+
+        #if (not hasattr(x, '__iter__') and abs(x) >= 1) \
+        #    or (hasattr(x, '__iter__') and any(np.absolute(x) >= 1)):
+        #    raise RuntimeError("Cannot evaluate PseudoPolynomial outside of (-1, 1).")
+
+        p, q = pol.Polynomial(self.p), pol.Polynomial(self.q)
+        #lmx2 = 1 if abs(x) < tol * tol else 1 - np.power(x, 2)
+
+        lmx2 = 1 - np.power(x, 2)
+
+        num = p(x) + np.sqrt(lmx2) * q(x)
+        denom = lmx2 ** self.r
+
+        return num * denom
+
+    def __call__(self, x):
+        return self.eval(x)
 
 
 # An (or Bn) as a PseudoPolynomial
@@ -217,6 +280,8 @@ def pseudo_poly_tensor(P1, P2, P3):
             for k, p3 in enumerate(P3):
                 PPP = PP * p3
 
+                #lpolp = max([ i for i in range(L) if abs(PPP.p[i]) > 1E-9 ])
+                #lpolq = max([ i for i in range(L) if abs(PPP.q[i]) > 1E-9 ])
                 #print len(P[i][j][k]), len(PPP.p), len(PPP.q)
                 P[i][j][k][:len(PPP.p)] = PPP.p[:]
                 Q[i][j][k][:len(PPP.q)] = PPP.q[:]
@@ -255,9 +320,107 @@ def get_polynomial_vectors(cn, sn, sgn=1):
 
     return A, B, dA, dB
 
+def correct_real_roots(roots0, func, fprime=None,use_newton=True, criterion=None, tol=1E-5):
+    """ 
+    Uses Newton's method to determine roots of `func`
+    with `roots0` as initial guesses.
+
+    """
+
+    corr_roots = []
+    check = criterion if not criterion is None else lambda x : True
+    
+    for r0 in roots0:
+        if abs(r0) > 1 - tol:
+            continue
 
 
-def compute_zeros(ptensors, sums, loud=False):
+        if abs(func(r0.real)) < tol:
+            if not any([ abs(r0.real - cr) < 1E-6 for cr in corr_roots ]):
+                if not check(r0.real):
+                    continue
+                corr_roots.append(r0.real)
+            continue
+
+        if use_newton:
+            try: 
+                nz = newton(func, r0.real, maxiter=50, fprime=fprime)
+                all_bad = False
+                if not any([ abs(nz - cr) < tol for cr in corr_roots ]):
+                    if not check(nz):
+                        continue
+                    corr_roots.append(nz)
+
+            except RuntimeError:
+                corr_roots.append(r0.real)
+        else:
+            if abs(r0.imag) < tol:
+                corr_roots.append(r0.real)
+
+    return corr_roots
+
+
+def get_final_ppoly(ptensors, sums):
+
+    AAdAp, AAdAq, \
+    AAdBp, AAdBq, \
+    ABdAp, ABdAq, \
+    ABdBp, ABdBq, \
+    BBdAp, BBdAq, \
+    BBdBp, BBdBq = ptensors
+
+    H = len(AAdAp)
+
+    """
+    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) \
+          - np.einsum('k,ji->ijk', sums.YC[:H], sums.CC[:H,:H])
+
+    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) \
+          - np.einsum('k,ji->ijk', sums.YS[:H], sums.CC[:H,:H])
+
+    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) \
+          + np.einsum('j,ki->ijk', sums.YS[:H], sums.CC[:H,:H])
+
+    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) \
+          + np.einsum('j,ik->ijk', sums.YS[:H], sums.CS[:H,:H])
+
+    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) \
+          - np.einsum('k,ij->ijk', sums.YC[:H], sums.SS[:H,:H])
+
+    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) \
+          - np.einsum('k,ji->ijk', sums.YS[:H], sums.SS[:H,:H])
+    """
+
+    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) - np.einsum('k,ij->ijk', sums.YC[:H], sums.CC[:H,:H])
+    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS[:H], sums.CC[:H,:H])
+    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS[:H], sums.CC[:H,:H])
+    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS[:H], sums.CS[:H,:H])
+    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YC[:H], sums.SS[:H,:H])
+    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS[:H], sums.SS[:H,:H])
+
+
+    Pp  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
+    Pp += np.einsum('ijkl,ijk->l', AAdBp, Kaadb)
+    Pp += np.einsum('ijkl,ijk->l', ABdAp, Kabda)
+    Pp += np.einsum('ijkl,ijk->l', ABdBp, Kabdb)
+    Pp += np.einsum('ijkl,ijk->l', BBdAp, Kbbda)
+    Pp += np.einsum('ijkl,ijk->l', BBdBp, Kbbdb)
+
+    Pq  = np.einsum('ijkl,ijk->l', AAdAq, Kaada)
+    Pq += np.einsum('ijkl,ijk->l', AAdBq, Kaadb)
+    Pq += np.einsum('ijkl,ijk->l', ABdAq, Kabda)
+    Pq += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
+    Pq += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
+    Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
+    
+    #P = pol.polysub(pol.polymul(Pp, Pp), pol.polymul(pol.polymul(Pq, Pq), (1, 0, -1)))
+    PP = PseudoPolynomial(p=Pp, q=Pq, r=0)
+
+
+    return PP
+
+
+def compute_zeros(ptensors, sums, old_b=None, loud=False, small = 1E-5):
     """
     Compute frequency-dependent polynomial coefficients,
     then find real roots
@@ -267,10 +430,9 @@ def compute_zeros(ptensors, sums, loud=False):
     ptensors: np.ndarray
         generated by :compute_polynomial_tensors: and contains
         coefficients unique to each template
-    summations: tuple or array-like
-        C, S, YC, YS, CChat, CShat, SShat; see documentation for
-        definitions of these quantities.
-    loud: bool (default: False)
+    sums : Summations
+        ordered dictionary containing CC, CS, SS, YC, YS
+    loud : bool (default: False)
         Print timing information
 
     Returns
@@ -280,122 +442,15 @@ def compute_zeros(ptensors, sums, loud=False):
         (real) roots of the generated polynomial.
 
     """
-    t0 = None
-    if loud: t0 = time()
+    
+    PP = get_final_ppoly(ptensors, sums)
 
-    AAdAp, AAdAq, \
-    AAdBp, AAdBq, \
-    ABdAp, ABdAq, \
-    ABdBp, ABdBq, \
-    BBdAp, BBdAq, \
-    BBdBp, BBdBq = ptensors
-
-    H = len(AAdAp)
-
-    if loud:
-        dt = time() - t0
-        print("   ", dt, " seconds for bookkeeping")
-
-    if loud: t0 = time()
-    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.CC[:H,:H])
-    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.CC[:H,:H])
-    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CC[:H,:H])
-    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CS[:H,:H])
-    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.SS[:H,:H])
-    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.SS[:H,:H])
-
-    if loud:
-        dt = time() - t0
-        print("   ", dt, " seconds to make constants")
-
-
-    # Note: the first and last einsums for both Pp and Pq might not be necessary.
-    #       see the docs for more information
-
-    if loud: t0 = time()
-    Pp  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
-    Pp += np.einsum('ijkl,ijk->l', AAdBp, Kaadb)
-    Pp += np.einsum('ijkl,ijk->l', ABdAp, Kabda)
-    Pp += np.einsum('ijkl,ijk->l', ABdBp, Kabdb)
-    Pp += np.einsum('ijkl,ijk->l', BBdAp, Kbbda)
-    Pp += np.einsum('ijkl,ijk->l', BBdBp, Kbbdb)
-
-    Pq  = np.einsum('ijkl,ijk->l', AAdAq, Kaada)
-    Pq += np.einsum('ijkl,ijk->l', AAdBq, Kaadb)
-    Pq += np.einsum('ijkl,ijk->l', ABdAq, Kabda)
-    Pq += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
-    Pq += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
-    Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
-    if loud:
-        dt = time() - t0
-        print("   ", dt, " seconds to make coefficients of pseudo-polynomial")
-
-    if loud: t0 = time()
-    P = pol.polysub(pol.polymul((1, 0, -1), pol.polymul(Pp, Pp)), pol.polymul(Pq, Pq))
-    #P /= np.sqrt(sum(np.power(P, 2)))
-
-    #print("POLYNOMIAL:")
-    #for n, Pval in enumerate(P):
-    #    print("%-0.5e * x^%d"%(Pval, n))
-
-    #sys.exit()
-
-    if loud:
-        dt = time() - t0
-        print("   ",dt, " seconds to get final polynomial")
-
-    if loud: t0 = time()
-
-    #c = max(np.absolute(P))
-    #c = 1./c if c > 0 else 1.0
-    #if P[-1] < 0: c *= -1
-    R = pol.polyroots(np.array(P))
-    #R = sturm_zeros(P, -1, 1)
-    if loud:
-        dt = time() - t0
-        print("   ", dt, " seconds to find roots of polynomial")
-
-    small = 1E-5
-    return [ min([ 1.0, abs(r.real) ]) * np.sign(r.real) for r in R if abs(r.imag) < small and abs(r.real) < 1 + small ]
-
-
-def get_poly_coeffs(ptensors, sums):
-
-    AAdAp, AAdAq, \
-    AAdBp, AAdBq, \
-    ABdAp, ABdAq, \
-    ABdBp, ABdBq, \
-    BBdAp, BBdAq, \
-    BBdBp, BBdBq = ptensors
-
-    H = len(AAdAp)
+    if not old_b is None:
+        p = pol.Polynomial(PP.root_finding_poly())
+        pprime = p.deriv()
+        roots0 = [ -old_b, old_b ]
+        return correct_real_roots(roots0, p, fprime=pprime, tol=1E-3)
+    
+    return PP.real_roots_pm()
 
     
-    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.CC[:H,:H])
-    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.CC[:H,:H])
-    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CC[:H,:H])
-    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS, sums.CS[:H,:H])
-    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YC, sums.SS[:H,:H])
-    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS, sums.SS[:H,:H])
-
-
-    # Note: the first and last einsums for both Pp and Pq might not be necessary.
-    #       see the docs for more information
-
-    Pp  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
-    Pp += np.einsum('ijkl,ijk->l', AAdBp, Kaadb)
-    Pp += np.einsum('ijkl,ijk->l', ABdAp, Kabda)
-    Pp += np.einsum('ijkl,ijk->l', ABdBp, Kabdb)
-    Pp += np.einsum('ijkl,ijk->l', BBdAp, Kbbda)
-    Pp += np.einsum('ijkl,ijk->l', BBdBp, Kbbdb)
-
-    Pq  = np.einsum('ijkl,ijk->l', AAdAq, Kaada)
-    Pq += np.einsum('ijkl,ijk->l', AAdBq, Kaadb)
-    Pq += np.einsum('ijkl,ijk->l', ABdAq, Kabda)
-    Pq += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
-    Pq += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
-    Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
-    
-    P = pol.polysub(pol.polymul((1, 0, -1), pol.polymul(Pp, Pp)), pol.polymul(Pq, Pq))
-    
-    return P

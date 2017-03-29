@@ -2,7 +2,7 @@ import numpy as np
 from numpy.polynomial import polynomial as pol
 from numpy.testing import assert_allclose
 from ..pseudo_poly import PseudoPolynomial
-
+from scipy.optimize import newton
 import pytest
 
 
@@ -101,3 +101,70 @@ def test_pseudopoly_operations(r1, r2, Np1, Np2, Nq1, Nq2, rseed=42):
 
     op = poly1 * poly2
     assert_allclose(op(x), poly1(x) * poly2(x))
+
+
+@pytest.mark.parametrize('r', [0, -1, -2])
+@pytest.mark.parametrize('Np', [1, 2])
+@pytest.mark.parametrize('Nq', [1, 2])
+def test_pseudopoly_root_finding(r, Np, Nq, rseed=42):
+    rand = np.random.RandomState(rseed)
+
+    poly = random_polynomial(Np, Nq, r, rseed=rand.randint(1000))
+    
+    zeros = poly.complex_roots()
+
+    pzeros = [ abs(poly(z)) for z in zeros ]
+
+    print("PZEROS = ", pzeros)
+    print("ZEROS  = ", zeros)
+
+    pzeros_real = [ poly(z).real for z in zeros ]
+    pzeros_imag = [ poly(z).imag for z in zeros ]
+
+    assert_allclose(pzeros, np.zeros_like(pzeros), atol=1E-9)
+
+@pytest.mark.parametrize('r', [0, -1, -2])
+@pytest.mark.parametrize('delta', [ 1E-5, 1E-3, 1E-1 ])
+@pytest.mark.parametrize('nroots', [ 1, 2, 3, 4, 5, 10 ])
+def test_pathological_roots(r, nroots, delta, rseed=42, tol=1E-5):
+    rand = np.random.RandomState(rseed)
+    roots = [ root for root in rand.rand(max([nroots/2, 1])) ]
+    for i in range(nroots - len(roots)):
+        rt = roots[i] + np.sign(0.5 - rand.rand()) * delta
+        if abs(rt) < 1:
+            roots.append(rt)
+
+    roots = np.sort(roots)
+    p = pol.polyfromroots(roots)
+    q = pol.polyfromroots(roots)
+
+    pp = PseudoPolynomial(p=p, q=q, r=r)
+
+    pproots = np.sort(pp.real_roots())
+
+    print(roots, pproots)
+
+    proots = pol.polyroots(p)
+    qroots = pol.polyroots(q)
+
+    for root in proots:
+        dr = min(np.absolute(np.array(roots) - root))
+        assert(dr < tol)
+
+    for root in qroots:
+        dr = min(np.absolute(np.array(roots) - root))
+        assert(dr < tol)
+
+    for root in pproots:
+        assert( abs(pp(root)) < tol)
+
+    for root in roots:
+        dr = min(np.absolute(np.array(pproots) - root) / max([ tol, np.absolute(root) ]))
+        assert( abs(pp(root)) < tol and dr < tol )
+
+
+
+
+
+
+    

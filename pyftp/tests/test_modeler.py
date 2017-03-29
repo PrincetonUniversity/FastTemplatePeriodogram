@@ -10,9 +10,17 @@ from numpy.testing import assert_allclose
 from scipy.interpolate import interp1d
 import pytest
 
+#nharms_to_test = [ 1, 2, 3, 4, 5 ]
+nharms_to_test = [ 1, 2, 3 ]
+ndata_to_test  = [ 30 ]
+samples_per_peak_to_test = [ 1, 3 ]
+nyquist_factors_to_test = [ 1, 3 ]
+rseeds_to_test = [ 42 ]
+plot_fit = False
+
 
 def template_function(phase,
-                      c_n=[-0.181, -0.075, -0.020],
+                      c_n=[-0.181, -0.1, -0.020],
                       s_n=[-0.110, 0.000,  0.030]):
     n = 1 + np.arange(len(c_n))[:, np.newaxis]
     return (np.dot(c_n, np.cos(2 * np.pi * n * phase)) +
@@ -26,18 +34,19 @@ def template():
 
 
 @pytest.fixture
-def data(N=30, T=5, period=0.9, coeffs=(5, 10),
-         yerr=0.1, rseed=42):
+def data(N=30, T=2, period=0.9, coeffs=(5, 10),
+         yerr=0.0001, rseed=42):
     rand = np.random.RandomState(rseed)
-    t = T * rand.rand(N)
+    t = np.sort(T * rand.rand(N))
     y = coeffs[0] + coeffs[1] * template_function(t / period)
     y += yerr * rand.randn(N)
     return t, y, yerr * np.ones_like(y)
 
-def data_from_template(template, parameters, N=30, T=5, period=0.9, yerr=0.1, rseed=42):
+def data_from_template(template, parameters, N=30, T=2, 
+                                 period=0.9, yerr=0.0001, rseed=42):
     
     rand = np.random.RandomState(rseed)
-    model = TemplateModel(template, parameters=parameters, frequency=1./period)
+    model = TemplateModel(template, parameters=parameters, frequency=(1./period))
     
     t = np.sort(T * rand.rand(N))
     y = model(t) + yerr * rand.randn(N)
@@ -86,7 +95,7 @@ def chi2_template_fit(freq, template, data):
     return np.dot(w, (y - amp * M - offset)**2)
 
 
-def direct_periodogram(freq, template, data, nshifts=100):
+def direct_periodogram(freq, template, data, nshifts=300):
     """
     computes periodogram at a given frequency directly, 
     using grid search for the best phase shift
@@ -140,8 +149,10 @@ def pdg(data, y_fit):
     return 1 - chi2 / chi2_0
 
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
-def test_fast_template_method(nharmonics, template, data):
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
+@pytest.mark.parametrize('samples_per_peak', samples_per_peak_to_test)
+@pytest.mark.parametrize('nyquist_factor', nyquist_factors_to_test)
+def test_fast_template_method(nharmonics, template, data, samples_per_peak, nyquist_factor):
     t, y, yerr = data
     phase, y_phase = template
     w = weights(yerr)
@@ -155,49 +166,49 @@ def test_fast_template_method(nharmonics, template, data):
 
     model = FastTemplateModeler(template=temp)
     model.fit(t, y, yerr)
-    freq_template, power_template = model.autopower(samples_per_peak=10, nyquist_factor=1)
+    freq_template, power_template = model.autopower(samples_per_peak=samples_per_peak, 
+                                                      nyquist_factor=nyquist_factor)
 
   
     pdg = lambda freq : direct_periodogram(freq, temp, data)
     direct_power_template = np.array([ pdg(freq) for freq in freq_template ])
 
-    #assert_allclose(power_template, direct_power_template)
 
-    dp = np.absolute(power_template - direct_power_template)
-    from scipy.stats import pearsonr
-    r, pval = pearsonr(power_template, direct_power_template)
-    
-    inds = np.argsort(-dp)
+    dp = power_template - direct_power_template
 
-    nbad = 0
-    dp_crit = 5E-2
-    for frq, ptmp, pdir, dpval in zip(freq_template[inds], power_template[inds], direct_power_template[inds], dp[inds]):
-        if dpval > dp_crit:
-            nbad += 1
-            #print("%.5e %.5e %.5e %.5e %.5e"%(frq, ptmp, pdir, dpval, chi2_0))
-
-    #import matplotlib
-    #matplotlib.use('Agg')
-    #import matplotlib.pyplot as plt 
-    #f, ax = plt.subplots()
-    #ax.plot(freq_template, power_template, color='r', label='ftp')
-    #ax.plot(freq_template, direct_power_template, color='k', label='direct')
-    #ax.set_xlim(min(freq_template), max(freq_template))
-    #ax.legend(loc='best')
-    #f.savefig('compare.png')
-
-    #print("pearson r correlation = %e"%(r))
-    #print("median err: %e, max err = %e, nbad = %d"%(np.median(dp), max(dp), nbad))
-
-    assert(float(np.argmax(power_template) - np.argmax(direct_power_template)) / len(power_template) < 0.01)
-    assert(max(dp) < 0.5)
-    #assert(nbad < max([ int(0.05 * len(dp)), 2 ]))
-    assert(np.median(dp) < 5E-3)
+    assert(all(np.sort(dp) > -5E-3))
 
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
-def test_best_model(nharmonics, template, data):
-    samples_per_peak, nyquist_factor = 4, 1
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
+@pytest.mark.parametrize('samples_per_peak', samples_per_peak_to_test)
+@pytest.mark.parametrize('nyquist_factor', nyquist_factors_to_test)
+def test_fast_vs_slow(nharmonics, template, data, samples_per_peak, nyquist_factor):
+    t, y, yerr = data
+    phase, y_phase = template
+    w = weights(yerr)
+
+    chi2_0 = np.dot(w, (y - np.dot(w, y))**2)
+
+    c_n, s_n = truncate_template(phase, y_phase, nharmonics)
+
+    temp = Template(c_n, s_n)
+    temp.precompute()
+
+    model = FastTemplateModeler(template=temp)
+    model.fit(t, y, yerr)
+    freq_template, power_template_fast = model.autopower(samples_per_peak=samples_per_peak, 
+                                                      nyquist_factor=nyquist_factor, fast=True)
+
+    freq_template, power_template_slow = model.autopower(samples_per_peak=samples_per_peak, 
+                                                      nyquist_factor=nyquist_factor, fast=False)
+
+    assert_allclose(power_template_fast, power_template_slow)
+
+
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
+@pytest.mark.parametrize('samples_per_peak', samples_per_peak_to_test)
+@pytest.mark.parametrize('nyquist_factor', nyquist_factors_to_test)
+def test_best_model(nharmonics, template, data, samples_per_peak, nyquist_factor):
 
     t, y, yerr = data
     phase, y_phase = template
@@ -211,7 +222,7 @@ def test_best_model(nharmonics, template, data):
     modeler = FastTemplateModeler(template=temp).fit(t, y, yerr)
 
     freq, P = modeler.autopower(samples_per_peak = samples_per_peak, 
-                                nyquist_factor = nyquist_factor, 
+                                  nyquist_factor = nyquist_factor, 
 
                                save_best_model = True)
 
@@ -220,17 +231,23 @@ def test_best_model(nharmonics, template, data):
 
     P_max = 1 - chi2_m / chi2_0
 
-    assert( abs(P_max - max(P)) < 1E-3 * max(P) )
+    assert( max(P) - P_max > -1E-4 )
 
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
-def test_multi_template_method(nharmonics, template, data):
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
+@pytest.mark.parametrize('samples_per_peak', samples_per_peak_to_test)
+@pytest.mark.parametrize('nyquist_factor', nyquist_factors_to_test)
+@pytest.mark.parametrize('rseed', rseeds_to_test)
+def test_multi_template_method(nharmonics, template, data, samples_per_peak, nyquist_factor, rseed):
+
     t, y, yerr = data
     phase, y_phase = template
     w = weights(yerr)
 
+    rand = np.random if rseed is None else np.random.RandomState(rseed)
+
     c_n, s_n = truncate_template(phase, y_phase, nharmonics)
-    c_n2, s_n2 = c_n + np.random.rand(len(c_n)), s_n + np.random.rand(len(c_n))
+    c_n2, s_n2 = c_n + rand.rand(len(c_n)), s_n + rand.rand(len(c_n))
 
 
     temp = Template(c_n, s_n)
@@ -242,25 +259,34 @@ def test_multi_template_method(nharmonics, template, data):
     model1 = FastTemplateModeler(template=temp).fit(t, y, yerr)
     model2 = FastTemplateModeler(template=temp2).fit(t, y, yerr)
 
-    freq, p1 = model1.autopower(samples_per_peak=10, nyquist_factor=1, save_best_model=False)
-    freq, p2 = model2.autopower(samples_per_peak=10, nyquist_factor=1, save_best_model=False)
+    freq, p1 = model1.autopower(samples_per_peak=samples_per_peak, 
+                     nyquist_factor=nyquist_factor, save_best_model=False)
+    freq, p2 = model2.autopower(samples_per_peak=samples_per_peak, 
+                     nyquist_factor=nyquist_factor, save_best_model=False)
 
     model = FastMultiTemplateModeler(templates=[ temp, temp2 ])
     model.fit(t, y, yerr)
-    freq_template, p_multi = model.autopower(samples_per_peak=10, nyquist_factor=1, save_best_model=False)
+    freq_template, p_multi = model.autopower(samples_per_peak=samples_per_peak, 
+                     nyquist_factor=nyquist_factor, save_best_model=False)
 
-    #for P1, P2, Pmult in zip(p1, p2, p_multi):
-    #    print("Pmult={0}, P1={1}, P2={2}".format(Pmult, P1, P2))
-    #    assert(abs(Pmult - max([ P1, P2 ])) < 1E-3*Pmult)
+    for P1, P2, Pmult in zip(p1, p2, p_multi):
+        #print("Pmult={0}, P1={1}, P2={2}".format(Pmult, P1, P2))
+        assert(abs(Pmult - max([ P1, P2 ])) < 1E-4)
 
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
-def test_autopower_and_power_are_consistent(nharmonics, template, data):
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
+@pytest.mark.parametrize('samples_per_peak', samples_per_peak_to_test)
+@pytest.mark.parametrize('nyquist_factor', nyquist_factors_to_test)
+@pytest.mark.parametrize('rseed', rseeds_to_test)
+def test_autopower_and_power_are_consistent(nharmonics, template, 
+                           samples_per_peak, nyquist_factor,rseed,  data):
     t, y, yerr = data 
     temp = convert_template(template, nharmonics)
 
-    temp2 = Template(c_n = np.random.rand(nharmonics), 
-                     s_n = np.random.rand(nharmonics))
+    rand = np.random if rseed is None else np.random.RandomState(rseed)
+
+    temp2 = Template(c_n = rand.rand(nharmonics), 
+                     s_n = rand.rand(nharmonics))
 
     temp2.precompute()
     modeler_single = FastTemplateModeler(template=temp).fit(t, y, yerr)
@@ -270,19 +296,32 @@ def test_autopower_and_power_are_consistent(nharmonics, template, data):
     modeler_multi.fit(t, y, yerr)
 
     for modeler in [ modeler_single, modeler_multi ]:
-        freqs, p_auto = modeler.autopower()
+        freqs, p_auto = modeler.autopower(samples_per_peak=samples_per_peak,
+                                            nyquist_factor=nyquist_factor)
 
-        p_single = [ modeler.power(freq) for freq in freqs ]
+        p_single = modeler.power(freqs)
 
-        assert_allclose(p_auto, p_single)
+        inds = np.argsort(p_auto)[::-1]
+        assert_allclose(p_auto[inds], p_single[inds], atol=1E-5)
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
-def test_best_model_and_fit_model_are_consistent(nharmonics, template, data):
-    t, y, yerr = data
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
+@pytest.mark.parametrize('samples_per_peak', samples_per_peak_to_test)
+@pytest.mark.parametrize('nyquist_factor', nyquist_factors_to_test)
+@pytest.mark.parametrize('ndata', ndata_to_test)
+@pytest.mark.parametrize('rseed', rseeds_to_test)
+def test_best_model_and_fit_model_are_consistent(nharmonics, template, ndata, 
+                              rseed, nyquist_factor, samples_per_peak):
+
+
     temp = convert_template(template, nharmonics)
+    parameters = ModelFitParams(a=1.25, b=0.75, c=0.5, sgn=1)
+    t, y, yerr = data_from_template(temp, parameters, N=ndata, T=5, 
+                                 period=1.0, yerr=0.0001, rseed=rseed)
 
-    temp2 = Template(c_n = np.random.rand(nharmonics), 
-                     s_n = np.random.rand(nharmonics))
+    rand = np.random if rseed is None else np.random.RandomState(rseed)
+
+    temp2 = Template(c_n = rand.rand(nharmonics), 
+                     s_n = rand.rand(nharmonics))
 
     temp2.precompute()
     modeler_single = FastTemplateModeler(template = temp).fit(t, y, yerr)
@@ -291,18 +330,30 @@ def test_best_model_and_fit_model_are_consistent(nharmonics, template, data):
     modeler_multi.fit(t, y, yerr)
 
     for modeler in [ modeler_single, modeler_multi ]:
-        freqs, p_auto = modeler.autopower(save_best_model=True)
+
+        freqs, p_auto = modeler.autopower(save_best_model=True, 
+                                 samples_per_peak=samples_per_peak, 
+                                   nyquist_factor=nyquist_factor)
 
 
         i = np.argmax(p_auto)
         fit_model_params = modeler.fit_model(freqs[i]).parameters._asdict()
         best_model_params = modeler.best_model.parameters._asdict()
 
+        print(fit_model_params)
+        print(best_model_params)
+        print(parameters)
         for par in best_model_params.keys():
-            assert(abs(best_model_params[par] \
-                - fit_model_params[par]) < 1E-3 * np.std(y))
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
+            if nharmonics == 1 and not par == 'c':
+                assert(abs(abs(best_model_params[par]) \
+                - abs(fit_model_params[par])) < 1E-5)
+
+            else:
+                assert(abs(best_model_params[par] \
+                    - fit_model_params[par]) < 1E-5)
+
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
 def test_errors_are_raised(nharmonics, template, data):
     t, y, yerr = data
 
@@ -341,48 +392,54 @@ def test_errors_are_raised(nharmonics, template, data):
 
     freq, p = modeler.autopower()
     
-@pytest.mark.parametrize('ndata', [ 5, 10, 30, 50, 100, 200 ])
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
-def test_inject_and_recover(nharmonics, ndata, period=0.9, ntest=50, tol=1E-2, rseed=42):
-    amplitudes = np.random.rand(ntest)
-    bvalues = 2 * np.random.rand(ntest) - 1
-    offsets = np.random.rand(ntest)
-    sgns    = np.sign(np.random.rand(ntest) - 0.5)
-
+@pytest.mark.parametrize('ndata', ndata_to_test)
+@pytest.mark.parametrize('nharmonics', nharms_to_test)
+@pytest.mark.parametrize('rseed', rseeds_to_test)
+def test_inject_and_recover(nharmonics, ndata, rseed, period=1.2, tol=1E-2):
 
     rand = np.random if rseed is None else np.random.RandomState(rseed)
 
+    a = 1 + rand.rand()
+    b = 2 * rand.rand() - 1
+    c = 1 + rand.rand()
+    sgn   = np.sign(rand.rand() - 0.5)
 
-    for a, b, c, sgn in zip(amplitudes, bvalues, offsets, sgns):
-        parameters = ModelFitParams(a=a, b=b, c=c, sgn=sgn)
+    parameters = ModelFitParams(a=a, b=b, c=c, sgn=sgn)
 
-        c_n, s_n = rand.rand(nharmonics), rand.rand(nharmonics)
+    c_n, s_n = rand.rand(nharmonics), rand.rand(nharmonics)
 
-        template = Template(c_n=c_n, s_n=s_n)
+    template = Template(c_n=c_n, s_n=s_n)
 
-        template.precompute()
+    template.precompute()
 
-        t, y, yerr = data_from_template(template, parameters, period=period,
-                                             yerr=0.001, rseed=rseed)
+    t, y, yerr = data_from_template(template, parameters, period=period,
+                                         yerr=0.0001, rseed=rseed)
 
-        max_p, best_pars = fit_template(t, y, yerr, template, 1./period,
-                                           allow_negative_amplitudes=True)
+    max_p, best_pars = fit_template(t, y, yerr, template.cn, template.sn, template.ptensors, 1./period,
+                                       allow_negative_amplitudes=True)
 
-        assert(abs(best_pars.a - parameters.a) / parameters.a < tol)
-        assert(abs(best_pars.c - parameters.c) / parameters.c < tol)
-
-
-        ftau = get_ftau(parameters)
-        ftau_fit = get_ftau(best_pars)
-
-        assert((ftau - ftau_fit)%1.0 < tol)
+    if nharmonics == 1 and best_pars.a < 0:
+        best_pars = ModelFitParams(a=-best_pars.a, b=-best_pars.b, c=best_pars.c, sgn=-best_pars.sgn)
 
 
-        signal = TemplateModel(template, parameters)
-        model  = TemplateModel(template, best_pars)
-        
-        signal_power = pdg((t, y, yerr), signal(t))
-        fit_power = pdg((t, y, yerr), model(t))
+    signal = TemplateModel(template, parameters=parameters, frequency=1./period)
+    model  = TemplateModel(template, parameters=best_pars, frequency=1./period)
+    
+    signal_power = pdg((t, y, yerr), signal(t))
+    fit_power = pdg((t, y, yerr), model(t))
 
-        # no absolute value here, its possible to find better fit with noise
-        assert((signal_power - fit_power) / signal_power < tol)
+    # no absolute value here, its possible to find better fit with noise
+    assert(signal_power - fit_power < tol)
+    
+    assert(abs(best_pars.a - parameters.a) / parameters.a < tol)
+    assert(abs(best_pars.c - parameters.c) / parameters.c < tol)
+
+    ftau     = get_ftau(parameters)
+    ftau_fit = get_ftau(best_pars)
+
+    dftau = ftau - ftau_fit
+    if abs(dftau) > 0.5:
+        dftau -= np.sign(dftau) * 0.5
+    assert(dftau < tol)    
+
+    

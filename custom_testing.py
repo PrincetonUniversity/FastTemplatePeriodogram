@@ -3,7 +3,7 @@ from pyftp.utils import weights
 from pyftp.template import Template
 from pyftp.modeler import FastTemplateModeler, FastMultiTemplateModeler, TemplateModel
 from pyftp.utils import ModelFitParams, weights
-from pyftp.fast_template_periodogram import fit_template
+from pyftp.periodogram import fit_template
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.animation as animation
@@ -75,7 +75,7 @@ def test_template_model(temp, ntau = 150):
 	freq = 1./0.9
 	omega = 2 * np.pi * freq
 
-	shift = 0.5
+	shift = 0.0
 	f, ax = plt.subplots()
 	ax.set_xlim(0, 1)
 	ax.set_ylabel('template')
@@ -161,13 +161,14 @@ def test_template_model(temp, ntau = 150):
 			pars = ModelFitParams(a=1.0, c=0.0, b=b, sgn=sgn)
 
 			t, y, yerr = template_model_data(temp, pars)
+			t[0] = 0
 
 			# uses direct summations!
 			p_ftp, best_fit_pars = fit_template(t, y, yerr, temp, freq, allow_negative_amplitudes=True)
 
 
 			model_true = TemplateModel(temp, frequency=freq, parameters=pars)
-			model_ftp = TemplateModel(temp, frequency=freq, parameters=best_fit_pars)
+			model_ftp  = TemplateModel(temp, frequency=freq, parameters=best_fit_pars)
 
 			y_best_model = model_ftp((phi - shift) / freq)
 			y_true = model_true(phi / freq)

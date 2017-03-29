@@ -24,14 +24,14 @@ def template():
 def data(N=30, T=5, period=0.9, coeffs=(5, 10),
          yerr=0.1, rseed=42):
     rand = np.random.RandomState(rseed)
-    t = T * rand.rand(N)
+    t = np.sort(T * rand.rand(N))
     y = coeffs[0] + coeffs[1] * template_function(t / period)
     y += yerr * rand.randn(N)
     return t, y, yerr * np.ones_like(y)
 
 
 @pytest.mark.parametrize('nharmonics', [1, 2, 3, 4, 5])
-def test_fast_template_method(nharmonics, template, data):
+def test_fast_templ_method_runs(nharmonics, template, data):
     t, y, yerr = data
     phase, y_phase = template
 

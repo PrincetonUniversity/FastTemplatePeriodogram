@@ -2,24 +2,30 @@ from pynfft.nfft import NFFT
 from .utils import Summations, weights
 import numpy as np
 
-def shift_t_for_nfft(t, samples_per_peak):
-    """ transforms t to [-1/2, 1/2] interval """
+def inspect_freqs(freqs):
+    df = freqs[1] - freqs[0]
+    nf = len(freqs)
 
-    r = samples_per_peak * (max(t) - min(t))
-    eps = 1E-5
-    a = 0.5 - eps
+    assert_close((nf-1) * df + freqs[0], freqs[-1])
 
-    return 2 * a * (t - min(t)) / r - a
+    if abs(freqs[0] / df - round(freqs[0] / df)) > 1E-3:
+        raise ValueError("Minimum frequency must be a multiple of df")
 
-def direct_summations(t, y, w, freq, nharmonics):
+    if not all([ abs(freqs[i] - freqs[i-1] - df) < 1E-3*df for i in range(1, len(freqs)) ]):
+        raise ValueError("Frequencies are not evenly spaced!")
+
+    # offset for minimum frequency
+    dnf = int(round(freqs[0] / df))
+
+    return nf, df, dnf
+    
+
+def direct_summations_single_freq(t, y, w, freq, nharmonics):
     """ for testing against NFFT implementation """
 
-    # shift the data to [-1/2, 1/2); then scale so that
-    # frequency * t gives expected phase
-    #tt = t - t[0]#shift_t_for_nfft(t, 1) * (max(t) - min(t))
     ybar = np.dot(w, y)
 
-    wt = 2 * np.pi * freq * shift_t_for_nfft(t, 1) * (max(t) - min(t))
+    wt = 2 * np.pi * freq * t
 
 
     YC = np.array([ np.dot(w, np.multiply(y-ybar, np.cos(wt * (h+1))))\
@@ -55,42 +61,45 @@ def direct_summations(t, y, w, freq, nharmonics):
 
     return Summations(C=C, S=S, YC=YC, YS=YS, CC=CC, CS=CS, SS=SS)
 
-def assert_close(x, y, tol=1E-3):
+def direct_summations(t, y, w, freqs, nh):
+    """ for testing against NFFT implementation """
+
+    multi_freq = hasattr(freqs, '__iter__')
+
+    if multi_freq:
+        return [ direct_summations_single_freq(t, y, w, frq, nh)\
+                                                      for frq in freqs ]
+    else:
+        return direct_summations_single_freq(t, y, w, freqs, nh) 
+
+def assert_close(x, y, tol=1E-5):
     assert( abs(x - y) < tol * 0.5 * (x + y) )
 
 
-def fast_summations(t, y, w, freqs, nharmonics):
+def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     """
     Computes C, S, YC, YS, CC, CS, SS using
     pyNFFT
     """
 
-    df = freqs[1] - freqs[0]
-    nf = len(freqs)
-
-    assert_close((nf-1) * df + freqs[0], freqs[-1])
-
-    if abs(freqs[0] / df - round(freqs[0] / df)) > 1E-3:
-        raise ValueError("Minimum frequency must be a multiple of df")
-
-    if not all([ abs(freqs[i] - freqs[i-1] - df) < 1E-3*df for i in range(1, len(freqs)) ]):
-        raise ValueError("Frequencies are not evenly spaced!")
-
-    # offset for minimum frequency
-    dnf = int(round(freqs[0] / df))
+    nf, df, dnf = inspect_freqs(freqs)
+    tmin = min(t)
 
     # infer samples per peak
-    baseline = max(t) - min(t)
+    baseline = max(t) - tmin
     samples_per_peak = 1./(baseline * df)
+    
+    eps = 1E-5
+    a = 0.5 - eps
+    r = 2 * a / df
+
+    tshift = a * (2 * (t - tmin) / r - 1)
 
     # number of frequencies needed for NFFT
     # need nf_nfft_u / 2 - 1 =  H * (nf - 1 + dnf)
     #      nf_nfft_w / 2 - 1 = 2H * (nf - 1 + dnf)
-    nf_nfft_u = 2 * ( nharmonics * (nf + dnf - 1) + 1)
-    nf_nfft_w = 2 * ( 2 * nharmonics * (nf + dnf - 1) + 1)
-
-    # shift times to [ -1/2, 1/2 ]
-    tshift = shift_t_for_nfft(t, samples_per_peak)
+    nf_nfft_u = 2 * (     nh * (nf + dnf - 1) + 1)
+    nf_nfft_w = 2 * ( 2 * nh * (nf + dnf - 1) + 1)
 
     # transform y -> w_i * y_i - ybar
     ybar = np.dot(w, y)
@@ -107,36 +116,44 @@ def fast_summations(t, y, w, freqs, nharmonics):
 
     # NFFT(weights)
     plan.f = w
-    f_hat_w = plan.adjoint()[nf_nfft_w/2 :]
+    f_hat_w = plan.adjoint()[nf_nfft_w/2:]
 
     # NFFT(y - ybar)
     plan2.f = u
-    f_hat_u = plan2.adjoint()[nf_nfft_u/2 :]
+    f_hat_u = plan2.adjoint()[nf_nfft_u/2:]
 
     all_computed_sums = []
 
+    # now correct for phase shift induced by transforming t -> (-1/2, 1/2)
+    beta = -a * (2 * tmin / r + 1)
+    I = 0. + 1j
+    twiddles = np.exp(- I * 2 * np.pi * np.arange(0, nf_nfft_w/2) * beta)
+    f_hat_u = np.multiply(f_hat_u, twiddles[:len(f_hat_u)])
+    f_hat_w = np.multiply(f_hat_w, twiddles[:len(f_hat_w)])
+
+
     # Now compute the summation values at each frequency
     for i in range(0, nf):
-        computed_sums = Summations(C=np.zeros(nharmonics),
-                                   S=np.zeros(nharmonics),
-                                   YC=np.zeros(nharmonics),
-                                   YS=np.zeros(nharmonics),
-                                   CC=np.zeros((nharmonics,nharmonics)),
-                                   CS=np.zeros((nharmonics,nharmonics)),
-                                   SS=np.zeros((nharmonics,nharmonics)))
+        computed_sums = Summations(C=np.zeros(nh),
+                                   S=np.zeros(nh),
+                                   YC=np.zeros(nh),
+                                   YS=np.zeros(nh),
+                                   CC=np.zeros((nh,nh)),
+                                   CS=np.zeros((nh,nh)),
+                                   SS=np.zeros((nh,nh)))
 
-        C_, S_ = np.zeros(2 * nharmonics), np.zeros(2 * nharmonics)
-        for j in range(2 * nharmonics):
+        C_, S_ = np.zeros(2 * nh), np.zeros(2 * nh)
+        for j in range(2 * nh):
             k = (j + 1) * (i + dnf)
             C_[j] =  f_hat_w[k].real
             S_[j] =  f_hat_w[k].imag
-            if j < nharmonics:
+            if j < nh:
 
                 computed_sums.YC[j] =  f_hat_u[k].real
                 computed_sums.YS[j] =  f_hat_u[k].imag
 
-        for j in range(nharmonics):
-            for k in range(nharmonics):
+        for j in range(nh):
+            for k in range(nh):
                 Sn, Cn = None, None
 
                 if j == k:
@@ -153,8 +170,8 @@ def fast_summations(t, y, w, freqs, nharmonics):
                 computed_sums.CS[j][k] = 0.5 * ( Sn + Sp ) - C_[j] * S_[k]
                 computed_sums.SS[j][k] = 0.5 * ( Cn - Cp ) - S_[j] * S_[k]
 
-        computed_sums.C[:] = C_[:nharmonics]
-        computed_sums.S[:] = S_[:nharmonics]
+        computed_sums.C[:] = C_[:nh]
+        computed_sums.S[:] = S_[:nh]
 
         all_computed_sums.append(computed_sums)
 
