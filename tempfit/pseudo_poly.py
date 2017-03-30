@@ -1,10 +1,8 @@
 from __future__ import print_function
 
 import numpy as np
-from time import time
 from scipy.special import chebyu, chebyt
-from numbers import Number, Integral
-from scipy.optimize import newton, brentq
+from scipy.optimize import newton
 from numpy.polynomial.polynomial import Polynomial
 import numpy.polynomial.polynomial as pol
 
@@ -12,7 +10,6 @@ def remove_zeros(p, tol=1E-10):
     for i, coeff in enumerate(p):
         if abs(coeff) < tol:
             p[i] = 0.
-        
     return p
 
 
@@ -148,14 +145,14 @@ class PseudoPolynomial(object):
         return PseudoPolynomial(p=remove_zeros(p), q=remove_zeros(q), r=r)
 
     def root_finding_poly(self):
-        """ 
+        """
         R = p^2 - (1 - x^2) * q^2
 
         Returns
         -------
 
         coef : np.ndarray
-            Coefficients of a root-finding polynomial `R(x)`. Every zero of 
+            Coefficients of a root-finding polynomial `R(x)`. Every zero of
             the `PseudoPolynomial` is also a zero of `R(x)`.
 
         """
@@ -202,7 +199,7 @@ class PseudoPolynomial(object):
         p2    = remove_zeros(p2)
 
         new_roots = list(pol.polyroots(p2))
-        
+
         roots.extend(new_roots)
 
         return roots, p, dp
@@ -247,7 +244,7 @@ class PseudoPolynomial(object):
 
         Parameters
         ----------
-        
+
         use_newton : bool, optional (default : False)
             Use Newton-Raphson's method to improve root estimation
 
@@ -273,7 +270,7 @@ class PseudoPolynomial(object):
 
         Parameters
         ----------
-        
+
         tol : float
             `p(x) * q(x) < tol`, `x` is considered a root
 
@@ -402,7 +399,7 @@ def get_polynomial_vectors(cn, sn, sgn=1):
     return A, B, dA, dB
 
 def correct_real_roots(roots0, func, fprime=None,use_newton=True, maxiter=50, criterion=None, tol=1E-5):
-    """ 
+    """
     Uses Newton's method to determine roots of `func`
     with `roots0` as initial guesses.
 
@@ -419,7 +416,7 @@ def correct_real_roots(roots0, func, fprime=None,use_newton=True, maxiter=50, cr
 
     # function to check that root passes specified criteria
     check = criterion if not criterion is None else lambda x : True
-    
+
     for root in roots0:
 
         # don't check too close to the critical values (-1, 1)
@@ -438,7 +435,7 @@ def correct_real_roots(roots0, func, fprime=None,use_newton=True, maxiter=50, cr
 
         # Use newton iteration to improve zero
         if use_newton:
-            try: 
+            try:
                 nz = newton(func, root.real, maxiter=maxiter, fprime=fprime)
                 all_bad = False
                 if not any([ abs(nz - cr) < tol for cr in corr_roots ]):
@@ -458,7 +455,7 @@ def correct_real_roots(roots0, func, fprime=None,use_newton=True, maxiter=50, cr
 def get_final_ppoly(ptensors, sums):
     """
     Calculates the `PseudoPolynomial` used to determine
-    a set of candidates for the optimal phase-shift 
+    a set of candidates for the optimal phase-shift
 
     Parameters
     ----------
@@ -518,7 +515,7 @@ def get_final_ppoly(ptensors, sums):
     Pq += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
     Pq += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
     Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
-    
+
     PP = PseudoPolynomial(p=Pp, q=Pq, r=0)
 
     return PP
@@ -541,7 +538,7 @@ def compute_zeros(ptensors, sums, b_guess=None, tol=1E-3):
     b_guess : float, optional
         Guess for the location of the optimal phase shift.
         Uses Newton's method to search around `+/-b_guess`
-        for a root to the `PseudoPolynomial` 
+        for a root to the `PseudoPolynomial`
 
     tol : float (default : 1E-3)
         Tolerance value passed to `correct_real_roots`, only
@@ -554,7 +551,7 @@ def compute_zeros(ptensors, sums, b_guess=None, tol=1E-3):
         `.real_roots_pm()`, not `.real_roots()`)
 
     """
-    
+
     PP = get_final_ppoly(ptensors, sums)
 
     if not b_guess is None:
@@ -562,7 +559,5 @@ def compute_zeros(ptensors, sums, b_guess=None, tol=1E-3):
         pprime = p.deriv()
         roots0 = [ -b_guess, b_guess ]
         return correct_real_roots(roots0, p, fprime=pprime, tol=tol, use_newton=True)
-    
-    return PP.real_roots_pm()
 
-    
+    return PP.real_roots_pm()
