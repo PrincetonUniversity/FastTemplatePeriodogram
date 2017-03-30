@@ -45,59 +45,47 @@ def get_a_from_b(b, cn, sn, sums, A=None, B=None,
 
 def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
                        allow_negative_amplitudes=True):
-    """
+    r"""
     Fits periodic template to data at a single frequency
 
     Parameters
     ----------
     t : array_like
         Measurement times (must be monotonically increasing)
-
     y : array_like
         Measurement values at corresponding measurement times
-
     dy : array_like
         Measurement uncertainties
-
     cn : array_like
         Fourier (cosine) coefficients of the template
-
     sn : array_like
         Fourier (sine) coefficients of the template
-
     ptensors : np.ndarray, shape = (H, H, H, L)
         Polynomial coefficients from template; H is the number of
         harmonics, L is the (maximum) length of the polynomial
-
     freq : float
         Frequency at which to fit the template
-
     sums : Summations, optional
         Precomputed summations (C, S, CC, CS, SS, YC, YS). Default
         is None, which means the sums are computed directly (no NFFT)
-
     allow_negative_amplitudes : bool, optional, (default = True)
         Specifies whether or not negative amplitude solutions are allowed.
         They are automatically forbidden for H=1 (since this is equivalent
         to a phase shift). If no positive amplitude solutions are found and
         allow_negative_amplitudes = False, the periodogram is set to 0
 
-
     Returns
     -------
-
     power : float
         $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$, where $\chi^2_0$ is for a
         flat model with $\hat{y}_0 = \bar{y}$, the weighted mean.
     params : ModelFitParams
         Best fit template parameters
-
     """
     nh   = len(cn)
     w    = weights(dy)
     ybar = np.dot(w, y)
     yy   = np.dot(w, (y - ybar)**2)
-
 
     if sums is None:
         sums   = direct_summations(t, y, w, freq, nh)
@@ -150,40 +138,31 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
                         summations=None, allow_negative_amplitudes=True,
                         fast=True):
-
-    """
+    r"""
     Produces a template periodogram using a single template
 
     Parameters
     ----------
     t : array_like
         Measurement times (must be monotonically increasing)
-
     y : array_like
         Measurement values at corresponding measurement times
-
     dy : array_like
         Measurement uncertainties
-
     cn : array_like
         Fourier (cosine) coefficients of the template
-
     sn : array_like
         Fourier (sine) coefficients of the template
-
     ptensors : np.ndarray, shape = (H, H, H, L), optional
         Polynomial coefficients from template; H is the number of
         harmonics, L is the (maximum) length of the polynomial
-
     freqs : array_like
         Frequencies at which to fit the template
-
     summations : list of Summations, optional
         Precomputed summations (C, S, CC, CS, SS, YC, YS) at each frequency
         in freqs. Default is None, which means the sums are computed via
         direct summations (if `fast=False`) or via fast summations (NFFT, if
         `fast=True`)
-
     allow_negative_amplitudes : bool, optional, (default = True)
         Specifies whether or not negative amplitude solutions are allowed.
         They are automatically forbidden for H=1 (since this is equivalent
@@ -196,7 +175,6 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
         $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$ at each frequency in `freqs`,
         where $\chi^2_0$ is for a flat model with $\hat{y}_0 = \bar{y}$,
         the weighted mean.
-
     best_fit_params : list of `ModelFitParams`
         List of best-fit model parameters at each frequency in `freqs`
     """
@@ -218,12 +196,10 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
 
     # Iterate through frequency values (sums contains C, S, YC, ...)
     for frq, sums in zip(freqs, summations):
-
         power, params = fit_template(t, y, dy, cn, sn, ptensors, frq, sums=sums,
                           allow_negative_amplitudes=allow_negative_amplitudes)
 
         best_fit_params.append(params)
         powers.append(power)
-
 
     return np.array(powers), best_fit_params

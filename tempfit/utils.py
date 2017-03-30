@@ -10,6 +10,7 @@ from collections import namedtuple
 def Un(n, x):
     return np.where(np.asarray(n) >= 0, eval_chebyu(n, x), 0)
 
+
 def Tn(n, x):
     return np.where(np.asarray(n) >= 0, eval_chebyt(n, x), 0)
 
@@ -28,6 +29,7 @@ def Avec(x, c, s, sgn=1):
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return Afunc(n, x, c, s, sgn=sgn)
 
+
 def Bvec(x, c, s, sgn=1):
     """Vector expression of B"""
     s = np.asarray(s)
@@ -35,11 +37,13 @@ def Bvec(x, c, s, sgn=1):
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return Afunc(n, x, s, -c, sgn=sgn)
 
+
 def dAvec(x, c, s, sgn=1):
     """Vector expression of the derivative of A"""
     s = np.asarray(s)
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return dAfunc(n, x, c, s, sgn=sgn)
+
 
 def dBvec(x, c, s, sgn=1):
     """Vector expression of the derivative of B"""
@@ -48,13 +52,11 @@ def dBvec(x, c, s, sgn=1):
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return dAfunc(n, x, s, -c, sgn=sgn)
 
+
 #----------------------------------------------------------------------
-# Named tuples for storing 
-
-Summations = namedtuple('Summations', [ 'C', 'S', 'YC', 'YS',
-                                        'CC', 'CS', 'SS'])
-
-ModelFitParams = namedtuple('ModelFitParams', [ 'a', 'b', 'c', 'sgn' ])
+# Named tuples for storing values used in the package
+Summations = namedtuple('Summations', ['C', 'S', 'YC', 'YS', 'CC', 'CS', 'SS'])
+ModelFitParams = namedtuple('ModelFitParams', ['a', 'b', 'c', 'sgn'])
 
 
 #----------------------------------------------------------------------
