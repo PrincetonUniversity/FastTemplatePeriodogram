@@ -4,6 +4,8 @@ import os
 import sys
 from time import time
 from math import *
+from functools import wraps
+
 import numpy as np
 from scipy.optimize import curve_fit
 from .utils import weights, ModelFitParams, Avec, Bvec
@@ -23,18 +25,21 @@ from . import periodogram as pdg
 
 # function wrappers for performing checks
 def requires_templates(func):
+    @wraps(func)
     def wrap(self, *args, **kwargs):
         self._validate_templates()
         return func(self, *args, **kwargs)
     return wrap
 
 def requires_template(func):
+    @wraps(func)
     def wrap(self, *args, **kwargs):
         self._validate_template()
         return func(self, *args, **kwargs)
     return wrap
 
 def requires_data(func):
+    @wraps(func)
     def wrap(self, *args, **kwargs):
         self._validate_data()
         return func(self, *args, **kwargs)
