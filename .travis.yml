@@ -10,7 +10,7 @@ python:
 
 env:
   global:
-    - TEST_DIR=/tmp/pyftp
+    - TEST_DIR=/tmp/tempfit
     - CONDA_DEPS="numpy scipy pytest pip"
     - PIP_DEPS="astroML gatspy coverage codecov pytest-cov"
     - CONDA_FORGE_DEPS="pynfft"
@@ -34,7 +34,7 @@ install:
 
 script:
   - mkdir -p $TEST_DIR
-  - cd $TEST_DIR && py.test --pyargs pyftp --cov=pyftp
+  - cd $TEST_DIR && py.test --pyargs tempfit --cov=tempfit
 
 after_success:
   - codecov --token=a6cd5a9c-eec8-4785-807b-33fe46543957
