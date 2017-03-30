@@ -6,10 +6,9 @@ from scipy.optimize import newton
 from numpy.polynomial.polynomial import Polynomial
 import numpy.polynomial.polynomial as pol
 
+
 def remove_zeros(p, tol=1E-10):
-    for i, coeff in enumerate(p):
-        if abs(coeff) < tol:
-            p[i] = 0.
+    p[abs(p) < tol] = 0
     return p
 
 
