@@ -3,20 +3,18 @@ from .utils import Summations
 import numpy as np
 from math import floor
 
+
 def inspect_freqs(freqs):
-    df = freqs[1] - freqs[0]
+    """Validate that frequencies lie on a regular grid at multiples of df"""
     nf = len(freqs)
-
-    assert_close((nf-1) * df + freqs[0], freqs[-1])
-
-    if abs(freqs[0] / df - round(freqs[0] / df)) > 1E-3:
-        raise ValueError("Minimum frequency must be a multiple of df")
-
-    if not all([ abs(freqs[i] - freqs[i-1] - df) < 1E-3*df for i in range(1, len(freqs)) ]):
-        raise ValueError("Frequencies are not evenly spaced!")
-
-    # offset for minimum frequency
+    df = freqs[1] - freqs[0]
     dnf = int(round(freqs[0] / df))
+
+    if not np.allclose(freqs[0], dnf * df):
+        raise ValueError("Minimum frequency must be an integer multiple of df")
+
+    if not np.allclose(np.diff(freqs), df):
+        raise ValueError("frequencies must lie on a regular grid")
 
     return nf, df, dnf
 
@@ -26,44 +24,32 @@ def direct_summations_single_freq(t, y, w, freq, nharmonics):
     Compute summations (C, S, CC, ...) via direct summation
     for a single frequency
     """
-
     ybar = np.dot(w, y)
-
     wt = 2 * np.pi * freq * t
+    h = 1 + np.arange(nharmonics)[:, np.newaxis]
 
+    C = np.dot(np.cos(h * wt), w)
+    S = np.dot(np.sin(h * wt), w)
 
-    YC = np.array([ np.dot(w, np.multiply(y-ybar, np.cos(wt * (h+1))))\
-                                 for h in range(nharmonics) ])
-
-    YS = np.array([ np.dot(w, np.multiply(y-ybar, np.sin(wt * (h+1))))\
-                                 for h in range(nharmonics) ])
-
-    C = np.array([ np.dot(w, np.cos(wt * (h+1)))\
-                                 for h in range(nharmonics) ])
-
-    S = np.array([ np.dot(w, np.sin(wt * (h+1)))\
-                                 for h in range(nharmonics) ])
+    YC = np.dot((y - ybar) * np.cos(h * wt), w)
+    YS = np.dot((y - ybar) * np.sin(h * wt), w)
 
     CC = np.zeros((nharmonics, nharmonics))
     CS = np.zeros((nharmonics, nharmonics))
     SS = np.zeros((nharmonics, nharmonics))
 
-    for h1 in range(nharmonics):
-        for h2 in range(nharmonics):
-            CC[h1][h2] = np.dot(w, np.multiply(np.cos(wt * (h1+1)),
-                                               np.cos(wt * (h2+1))))
+    hT = h[:, :, np.newaxis]
 
-            CS[h1][h2] = np.dot(w, np.multiply(np.cos(wt * (h1+1)),
-                                               np.sin(wt * (h2+1))))
+    CC = np.dot(np.cos(hT * wt) * np.cos(h * wt), w)
+    CS = np.dot(np.cos(hT * wt) * np.sin(h * wt), w)
+    SS = np.dot(np.sin(hT * wt) * np.sin(h * wt), w)
 
-            SS[h1][h2] = np.dot(w, np.multiply(np.sin(wt * (h1+1)),
-                                               np.sin(wt * (h2+1))))
-
-            CC[h1][h2] -= C[h1] * C[h2]
-            CS[h1][h2] -= C[h1] * S[h2]
-            SS[h1][h2] -= S[h1] * S[h2]
+    CC -= C[:, np.newaxis] * C
+    CS -= C[:, np.newaxis] * S
+    SS -= S[:, np.newaxis] * S
 
     return Summations(C=C, S=S, YC=YC, YS=YS, CC=CC, CS=CS, SS=SS)
+
 
 def direct_summations(t, y, w, freqs, nh):
     """
@@ -79,16 +65,12 @@ def direct_summations(t, y, w, freqs, nh):
     else:
         return direct_summations_single_freq(t, y, w, freqs, nh)
 
-def assert_close(x, y, tol=1E-5):
-    assert( abs(x - y) < tol * 0.5 * (x + y) )
-
 
 def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     """
     Computes C, S, YC, YS, CC, CS, SS using
     pyNFFT
     """
-
     nf, df, dnf = inspect_freqs(freqs)
     tmin = min(t)
 
@@ -126,64 +108,50 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     # NFFT(weights)
     plan.f = w
 
-
     f_hat_w = plan.adjoint()[n_w0:]
 
     # NFFT(y - ybar)
     plan2.f = u
     f_hat_u = plan2.adjoint()[n_u0:]
 
-    all_computed_sums = []
-
     # now correct for phase shift induced by transforming t -> (-1/2, 1/2)
     beta = -a * (2 * tmin / r + 1)
     I = 0. + 1j
     twiddles = np.exp(- I * 2 * np.pi * np.arange(0, n_w0) * beta)
-    f_hat_u = np.multiply(f_hat_u, twiddles[:len(f_hat_u)])
-    f_hat_w = np.multiply(f_hat_w, twiddles[:len(f_hat_w)])
+    f_hat_u *= twiddles[:len(f_hat_u)]
+    f_hat_w *= twiddles[:len(f_hat_w)]
 
+    all_computed_sums = []
 
     # Now compute the summation values at each frequency
-    for i in range(0, nf):
-        computed_sums = Summations(C=np.zeros(nh),
-                                   S=np.zeros(nh),
-                                   YC=np.zeros(nh),
-                                   YS=np.zeros(nh),
-                                   CC=np.zeros((nh,nh)),
-                                   CS=np.zeros((nh,nh)),
-                                   SS=np.zeros((nh,nh)))
+    for i in range(nf):
+        j = np.arange(2 * nh)
+        k = (j + 1) * (i + dnf)
+        C = f_hat_w[k].real
+        S = f_hat_w[k].imag
+        YC = f_hat_u[k[:nh]].real
+        YS = f_hat_u[k[:nh]].imag
 
-        C_, S_ = np.zeros(2 * nh), np.zeros(2 * nh)
-        for j in range(2 * nh):
-            k = (j + 1) * (i + dnf)
-            C_[j] =  f_hat_w[k].real
-            S_[j] =  f_hat_w[k].imag
-            if j < nh:
+        #-------------------------------
+        # Note: redefining j and k here!
+        k = np.arange(nh)
+        j = k[:, np.newaxis]
 
-                computed_sums.YC[j] =  f_hat_u[k].real
-                computed_sums.YS[j] =  f_hat_u[k].imag
+        Sn  = np.sign(k - j) * S[abs(k - j) - 1]
+        Sn.flat[::nh + 1] = 0  # set diagonal to zero
 
-        for j in range(nh):
-            for k in range(nh):
-                Sn, Cn = None, None
+        Cn = C[abs(k - j) - 1]
+        Cn.flat[::nh + 1] = 1  # set diagonal to one
 
-                if j == k:
-                    Sn = 0
-                    Cn = 1
-                else:
-                    Sn =  np.sign(k - j) * S_[int(abs(k - j)) - 1]
-                    Cn =  C_[int(abs(k - j)) - 1]
+        Sp = S[j + k + 1]
+        Cp = C[j + k + 1]
 
-                Sp = S_[j + k + 1]
-                Cp = C_[j + k + 1]
+        CC = 0.5 * (Cn + Cp) - C[j] * C[k]
+        CS = 0.5 * (Sn + Sp) - C[j] * S[k]
+        SS = 0.5 * (Cn - Cp) - S[j] * S[k]
 
-                computed_sums.CC[j][k] = 0.5 * ( Cn + Cp ) - C_[j] * C_[k]
-                computed_sums.CS[j][k] = 0.5 * ( Sn + Sp ) - C_[j] * S_[k]
-                computed_sums.SS[j][k] = 0.5 * ( Cn - Cp ) - S_[j] * S_[k]
-
-        computed_sums.C[:] = C_[:nh]
-        computed_sums.S[:] = S_[:nh]
-
-        all_computed_sums.append(computed_sums)
+        all_computed_sums.append(Summations(C=C[:nh], S=S[:nh],
+                                            YC=YC, YS=YS,
+                                            CC=CC, CS=CS, SS=SS))
 
     return all_computed_sums
