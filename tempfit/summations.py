@@ -3,6 +3,7 @@ from .utils import Summations
 import numpy as np
 from math import floor
 
+
 def inspect_freqs(freqs):
     df = freqs[1] - freqs[0]
     nf = len(freqs)
@@ -19,6 +20,10 @@ def inspect_freqs(freqs):
     dnf = int(round(freqs[0] / df))
 
     return nf, df, dnf
+    
+
+def assert_close(x, y, tol=1E-5):
+    assert( abs(x - y) < tol * 0.5 * (x + y) )
 
 
 def direct_summations_single_freq(t, y, w, freq, nharmonics):
@@ -65,6 +70,7 @@ def direct_summations_single_freq(t, y, w, freq, nharmonics):
 
     return Summations(C=C, S=S, YC=YC, YS=YS, CC=CC, CS=CS, SS=SS)
 
+
 def direct_summations(t, y, w, freqs, nh):
     """
     Compute summations (C, S, CC, ...) via direct summation
@@ -78,9 +84,6 @@ def direct_summations(t, y, w, freqs, nh):
                                                       for frq in freqs ]
     else:
         return direct_summations_single_freq(t, y, w, freqs, nh)
-
-def assert_close(x, y, tol=1E-5):
-    assert( abs(x - y) < tol * 0.5 * (x + y) )
 
 
 def fast_summations(t, y, w, freqs, nh, eps=1E-5):
@@ -132,8 +135,6 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     plan2.f = u
     f_hat_u = plan2.adjoint()[n_u0:]
 
-    all_computed_sums = []
-
     # now correct for phase shift induced by transforming t -> (-1/2, 1/2)
     beta = -a * (2 * tmin / r + 1)
     I = 0. + 1j
@@ -141,8 +142,10 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     f_hat_u *= twiddles[:len(f_hat_u)]
     f_hat_w *= twiddles[:len(f_hat_w)]
 
+    all_computed_sums = []
+
     # Now compute the summation values at each frequency
-    for i in range(0, nf):
+    for i in range(nf):
         j = np.arange(2 * nh)
         k = (j + 1) * (i + dnf)
         C = f_hat_w[k].real
@@ -150,14 +153,16 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
         YC = f_hat_u[k[:nh]].real
         YS = f_hat_u[k[:nh]].imag
 
+        #-------------------------------
+        # Note: redefining j and k here!
         k = np.arange(nh)
         j = k[:, np.newaxis]
 
         Sn  = np.sign(k - j) * S[abs(k - j) - 1]
-        Sn.flat[::nh + 1] = 0
+        Sn.flat[::nh + 1] = 0  # set diagonal to zero
 
         Cn = C[abs(k - j) - 1]
-        Cn.flat[::nh + 1] = 1
+        Cn.flat[::nh + 1] = 1  # set diagonal to one
 
         Sp = S[j + k + 1]
         Cp = C[j + k + 1]
