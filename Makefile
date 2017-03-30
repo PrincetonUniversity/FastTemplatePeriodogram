@@ -1,2 +1,2 @@
 test : 
-	py.test pyftp
+	py.test tempfit

@@ -29,17 +29,17 @@ def version(path):
     raise RuntimeError("Unable to find version string.")
 
 
-VERSION = version('pyftp/__init__.py')
+VERSION = version('tempfit/__init__.py')
 
-setup(name='pyftp',
+setup(name='tempfit',
       version=VERSION,
-      description="Fast template periodogram",
-      author='John Hoffman',
-      author_email='jah5@princeton.edu',
+      description="Tools for efficiently fitting periodic templates to irregularly-sampled timeseries data",
+      author='John Hoffman, Jake Vanderplas',
+      author_email='jah5@princeton.edu, jakevdp@cs.washington.edu',
       url='https://github.com/PrincetonUniversity/FastTemplatePeriodogram',
-      packages=['pyftp',
-                'pyftp.tests'],
-      requires=['numpy', 'scipy', 'pynfft', 'gatspy', 'astroML', 'sklearn'],
+      packages=['tempfit',
+                'tempfit.tests'],
+      requires=['numpy', 'scipy', 'pynfft'],
       classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',

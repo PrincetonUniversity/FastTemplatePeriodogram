@@ -12,11 +12,12 @@ import pytest
 
 #nharms_to_test = [ 1, 2, 3, 4, 5 ]
 nharms_to_test = [ 1, 2, 3 ]
-ndata_to_test  = [ 30 ]
+ndata_to_test  = [ 50 ]
 samples_per_peak_to_test = [ 1, 3 ]
 nyquist_factors_to_test = [ 1, 3 ]
 rseeds_to_test = [ 42 ]
 plot_fit = False
+ndata0 = 50
 
 
 def template_function(phase,
@@ -34,7 +35,7 @@ def template():
 
 
 @pytest.fixture
-def data(N=30, T=2, period=0.9, coeffs=(5, 10),
+def data(N=ndata0, T=2, period=0.9, coeffs=(5, 10),
          yerr=0.0001, rseed=42):
     rand = np.random.RandomState(rseed)
     t = np.sort(T * rand.rand(N))
@@ -42,7 +43,7 @@ def data(N=30, T=2, period=0.9, coeffs=(5, 10),
     y += yerr * rand.randn(N)
     return t, y, yerr * np.ones_like(y)
 
-def data_from_template(template, parameters, N=30, T=2, 
+def data_from_template(template, parameters, N=ndata0, T=2, 
                                  period=0.9, yerr=0.0001, rseed=42):
     
     rand = np.random.RandomState(rseed)

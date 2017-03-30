@@ -1,6 +1,7 @@
 from pynfft.nfft import NFFT
 from .utils import Summations, weights
 import numpy as np
+from math import floor
 
 def inspect_freqs(freqs):
     df = freqs[1] - freqs[0]
@@ -100,7 +101,9 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     #      nf_nfft_w / 2 - 1 = 2H * (nf - 1 + dnf)
     nf_nfft_u = 2 * (     nh * (nf + dnf - 1) + 1)
     nf_nfft_w = 2 * ( 2 * nh * (nf + dnf - 1) + 1)
-
+    n_w0 = int(floor(nf_nfft_w/2))
+    n_u0 = int(floor(nf_nfft_u/2))
+    
     # transform y -> w_i * y_i - ybar
     ybar = np.dot(w, y)
     u = np.multiply(w, y - ybar)
@@ -116,18 +119,20 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
 
     # NFFT(weights)
     plan.f = w
-    f_hat_w = plan.adjoint()[nf_nfft_w/2:]
+
+
+    f_hat_w = plan.adjoint()[n_w0:]
 
     # NFFT(y - ybar)
     plan2.f = u
-    f_hat_u = plan2.adjoint()[nf_nfft_u/2:]
+    f_hat_u = plan2.adjoint()[n_u0:]
 
     all_computed_sums = []
 
     # now correct for phase shift induced by transforming t -> (-1/2, 1/2)
     beta = -a * (2 * tmin / r + 1)
     I = 0. + 1j
-    twiddles = np.exp(- I * 2 * np.pi * np.arange(0, nf_nfft_w/2) * beta)
+    twiddles = np.exp(- I * 2 * np.pi * np.arange(0, n_w0) * beta)
     f_hat_u = np.multiply(f_hat_u, twiddles[:len(f_hat_u)])
     f_hat_w = np.multiply(f_hat_w, twiddles[:len(f_hat_w)])
 

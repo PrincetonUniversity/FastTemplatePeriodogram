@@ -16,6 +16,12 @@ class Template(object):
     """
     def __init__(self, c_n, s_n, template_id=None):
         self.c_n, self.s_n = np.broadcast_arrays(c_n, s_n)
+
+        # normalize
+        A = np.sqrt(sum(np.power(self.c_n, 2) + np.power(self.s_n, 2)))
+        self.c_n /= A
+        self.s_n /= A
+
         self.template_id = template_id
         if self.c_n.ndim != 1:
             raise ValueError("c_n and s_n must be one-dimensional")

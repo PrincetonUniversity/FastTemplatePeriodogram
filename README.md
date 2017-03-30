@@ -1,10 +1,6 @@
 # Fast Template Periodogram [![build status](http://img.shields.io/travis/PrincetonUniversity/FastTemplatePeriodogram/master.svg?style=flat)](https://travis-ci.org/PrincetonUniversity/FastTemplatePeriodogram) [![codecov.io](https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram/coverage.svg?branch=master)](https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram)
 
-John Hoffman
-
-Jake Vanderplas
-
-(c) 2016
+(c) 2016; John Hoffman, Jake Vanderplas
 
 Description
 -----------
@@ -34,9 +30,8 @@ template fitting procedure to multiband Pan-STARRS photometry and found that
 of RR Lyrae stars, but that (2) it required a substantial amount of 
 computational resources to perform these fits.
 
-However, if the templates are sufficiently smooth (or can be adequately 
-approximated by a sufficiently smooth template) the template can be
-represented by a short truncated Fourier series of length `H`. Using this 
+However, if the templates are sufficiently smooth to be
+well-approximated by a short truncated Fourier series of length `H`. Using this 
 representation, the optimal parameters (amplitude, phase, offset) 
 of the template fit can then be found exactly after finding the roots of 
 a polynomial at each trial frequency.
@@ -74,145 +69,9 @@ more likely to detect a multiple of the true frequency. For a discussion of this
 effect, possible remedies with Tikhonov regularization, and an illuminating review
 of periodograms in general, see [Vanderplas et al. (2015)](http://adsabs.harvard.edu/abs/2015ApJ...812...18V).
 
-Requirements
-------------
-
-* [pyNFFT](https://pypi.python.org/pypi/pyNFFT) is required, but this program is thorny to install.
-	* Do NOT use `pip install pynfft`; this will almost definitely not work.
-	* You need to install [NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) <= 3.2.4 (NOT the latest version)
-	* use `./configure --enable-openmp` when installing NFFT
-	* NFFT also requires [FFTW3](http://www.fftw.org)
-	* You may have to manually add the directory containing NFFT `.h` files to the `include_dirs` variable in the pyNFFT `setup.py` file.
-* The [Scipy stack](http://www.scipy.org/install.html)
-* [gatspy](http://www.astroml.org/gatspy/) 
-	* RRLyrae modeler needs this to obtain templates
-	* Used to check accuracy/performance of the FTP
-
-Installation
-------------
-These instructions assume a `*nix` operating system (i.e. Mac, Linux, BSD, etc.). 
-
-#### If you have a **Mac** operating system
-
-* I have not tested the default `clang` compilers; I would highly recommend 
-  installing [macports]() and installing `gcc` compilers.
-	`sudo port install gcc`
-* After this, you may need to 'select' the gcc compilers: run 
-    `sudo port select --list gcc`
-  then pick the option that is not "none" by running 
-    `sudo port select --set gcc mp-gcc6`
-  where `mp-gcc6` is the option besides `none` (it may be different if you 
-  install another version).
-* If you run into any other trouble or find other dependencies, please let us know!
-
-#### Installing FFTW3
-
-* First download the FFTW3 [source](http://www.fftw.org), (the latest version should be fine, I have `3.3.5` on my machine)
-* Unzip the downloaded `.tar.gz` file
-* `./configure --enable-openmp --enable-threads` from inside the directory
-* `sudo make install`
-
-#### Installing NFFT
-
-* Download [NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) **version <= 3.2.4** (NOT the latest version)
-* unzip `.tar.gz` file
-* `./configure --enable-openmp --with-fftw3-includedir=/usr/local/include --with-fftw3-libdir=/usr/local/lib`
-	* optionally, use `--with-window=gaussian`, which should be faster (I haven't actually tested this).
-* `sudo make install`
-
-#### Installing pyNFFT
-* `pip download pynfft`
-* unzip `.tar.gz` file
-* open the `setup.py` file in a text editor, add `/usr/local/include` to the `include_dirs` variable; i.e., change
-	```python
-	# Define utility functions to build the extensions
-	def get_common_extension_args():
-	    import numpy
-	    common_extension_args = dict(
-	        libraries=['nfft3_threads', 'nfft3', 'fftw3_threads', 'fftw3', 'm'],
-	        library_dirs=[],
-	        include_dirs=[numpy.get_include()], #THIS LINE
-	```
-
-	to 
-
-	```python
-	# Define utility functions to build the extensions
-	def get_common_extension_args():
-	    import numpy
-	    common_extension_args = dict(
-	        libraries=['nfft3_threads', 'nfft3', 'fftw3_threads', 'fftw3', 'm'],
-	        library_dirs=[],
-	        include_dirs=[numpy.get_include(), '/usr/local/include'], #added /usr/local/include
-	```
-
-* then `python setup.py install`.
-
-#### Installing gatspy
-* `pip install gatspy` should work!
-
-#### Installing this code
-* `git clone https://github.com/PrincetonUniversity/FastTemplatePeriodogram.git`
-* Change into the newly created `FastTemplatePeriodogram` directory
-* `python setup.py install`
-
 Example usage
 -------------
-
-```python
-from pyftp import modeler
-import numpy as np
-
-# define your template by its Fourier coefficients
-cn = np.array([ 1.0, 0.5, 0.2 ])
-sn = np.array([ 1.0, -0.2, 0.5 ])
-
-# create a Template object
-template = modeler.Template(cn=cn, sn=sn)
-
-# Precompute some quantities for speed
-template.precompute()
-
-# create a FastTemplateModeler
-model = modeler.FastTemplateModeler()
-
-# add the template(s) to your modeler
-model.add_templates([ template ])
-
-# get some data
-t, mag, err = get_your_data()
-
-# feed the data to the modeler
-model.fit(t, mag, err)
-
-# get your template periodogram!
-# ofac -- the oversampling factor: df = 1 / (ofac * (max(t) - min(t)))
-# hfac -- the nyquist factor: f_max = hfac * N_obs / (max(t) - min(t))
-freqs, periodogram = model.periodogram(ofac=20, hfac=1)
-
-# What are the parameters of the best fit?
-template, params = model.get_best_model()
-```
-
-There is also a built-in RR Lyrae modeler that pulls RR Lyrae templates 
-from Gatspy (templates are from [Sesar et al. (2010)](http://iopscience.iop.org/article/10.1088/0004-637X/708/1/717/meta)).
-
-```python
-from pyftp import rrlyrae
-
-# create a FastTemplateModeler
-model = rrlyrae.FastRRLyraeTemplateModeler(filts='r')
-
-# get some data
-t, mag, err = get_your_data()
-
-# feed the data to the modeler
-model.fit(t, mag, err)
-
-# get your template periodogram!
-freqs, periodogram = model.periodogram(ofac=20, hfac=1)
-
-```
+See the `Examples.ipynb` located in the `notebooks/` directory.
 
  
 Updates
@@ -270,7 +129,5 @@ a given accuracy.
 TODO
 ----
 
-* Extending this to a multiband template periodogram is a top priority after fixing bugs and
-  providing adequate documentation!
-* Unit testing
-* Improve performance!
+* Multi-band extensions
+* Speed improvements

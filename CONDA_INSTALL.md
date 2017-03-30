@@ -6,13 +6,18 @@ You can use [conda](http://conda.pydata.org) to install all the required depende
 ```
 $ conda create -n fast-template-periodogram python=3.5
 $ source activate fast-template-periodogram
-$ conda install jupyter notebook scipy astropy pytest
+$ conda install jupyter notebook scipy astropy pytest matplotlib
 $ conda install pynfft -c conda-forge
-$ pip install gatspy
 ```
 
 Next, make sure that things are working by running the unit tests:
 
 ```
 $ make test
+```
+
+and finally, from the `FastTemplatePeriodogram` directory, run
+
+```
+$ python setup.py install
 ```

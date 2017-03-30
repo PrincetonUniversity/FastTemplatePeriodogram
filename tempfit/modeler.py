@@ -73,7 +73,7 @@ class TemplateModel(object):
     --------
 
     >>> params = ModelFitParams(a=1, b=1, c=0, sgn=1)
-    >>> template = Template(cn=[ 1.0, 0.4, 0.2], sn=[0.1, 0.9, 0.2])
+    >>> template = Template([ 1.0, 0.4, 0.2], [0.1, 0.9, 0.2])
     >>> model = TemplateModel(template, frequency=1.0, parameters=params)
     >>> t = np.linspace(0, 10, 100)
     >>> y_fit = model(t)
@@ -204,7 +204,7 @@ class FastTemplateModeler(object):
         model : TemplateModel
             The best-fit model at this frequency
         """
-        if not isinstance(freq, float):
+        if not any([ isinstance(freq, type_) for type_ in [ float, np.floating ] ]) :
             raise ValueError('fit_model requires float argument')
 
         p, parameters = fit_template(self.t, self.y, self.dy, 

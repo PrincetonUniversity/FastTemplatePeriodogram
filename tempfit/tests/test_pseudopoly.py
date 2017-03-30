@@ -115,12 +115,6 @@ def test_pseudopoly_root_finding(r, Np, Nq, rseed=42):
 
     pzeros = [ abs(poly(z)) for z in zeros ]
 
-    print("PZEROS = ", pzeros)
-    print("ZEROS  = ", zeros)
-
-    pzeros_real = [ poly(z).real for z in zeros ]
-    pzeros_imag = [ poly(z).imag for z in zeros ]
-
     assert_allclose(pzeros, np.zeros_like(pzeros), atol=1E-9)
 
 @pytest.mark.parametrize('r', [0, -1, -2])
@@ -128,7 +122,7 @@ def test_pseudopoly_root_finding(r, Np, Nq, rseed=42):
 @pytest.mark.parametrize('nroots', [ 1, 2, 3, 4, 5, 10 ])
 def test_pathological_roots(r, nroots, delta, rseed=42, tol=1E-5):
     rand = np.random.RandomState(rseed)
-    roots = [ root for root in rand.rand(max([nroots/2, 1])) ]
+    roots = [ root for root in rand.rand(max([int(nroots/2), 1])) ]
     for i in range(nroots - len(roots)):
         rt = roots[i] + np.sign(0.5 - rand.rand()) * delta
         if abs(rt) < 1:
