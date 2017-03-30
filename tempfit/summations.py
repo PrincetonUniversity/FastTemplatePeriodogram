@@ -126,7 +126,6 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     # NFFT(weights)
     plan.f = w
 
-
     f_hat_w = plan.adjoint()[n_w0:]
 
     # NFFT(y - ybar)
@@ -139,9 +138,8 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     beta = -a * (2 * tmin / r + 1)
     I = 0. + 1j
     twiddles = np.exp(- I * 2 * np.pi * np.arange(0, n_w0) * beta)
-    f_hat_u = np.multiply(f_hat_u, twiddles[:len(f_hat_u)])
-    f_hat_w = np.multiply(f_hat_w, twiddles[:len(f_hat_w)])
-
+    f_hat_u *= twiddles[:len(f_hat_u)]
+    f_hat_w *= twiddles[:len(f_hat_w)]
 
     # Now compute the summation values at each frequency
     for i in range(0, nf):
@@ -153,15 +151,12 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
                                    CS=np.zeros((nh,nh)),
                                    SS=np.zeros((nh,nh)))
 
-        C_, S_ = np.zeros(2 * nh), np.zeros(2 * nh)
-        for j in range(2 * nh):
-            k = (j + 1) * (i + dnf)
-            C_[j] =  f_hat_w[k].real
-            S_[j] =  f_hat_w[k].imag
-            if j < nh:
-
-                computed_sums.YC[j] =  f_hat_u[k].real
-                computed_sums.YS[j] =  f_hat_u[k].imag
+        j = np.arange(2 * nh)
+        k = (j + 1) * (i + dnf)
+        C_ = f_hat_w[k].real
+        S_ = f_hat_w[k].imag
+        computed_sums.YC[:] = f_hat_u[k[:nh]].real
+        computed_sums.YS[:] = f_hat_u[k[:nh]].imag
 
         for j in range(nh):
             for k in range(nh):
