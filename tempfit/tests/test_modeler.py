@@ -415,8 +415,9 @@ def test_inject_and_recover(nharmonics, ndata, rseed, period=1.2, tol=1E-2):
     t, y, yerr = data_from_template(template, parameters, period=period,
                                          yerr=0.0001, rseed=rseed)
 
-    max_p, best_pars = fit_template(t, y, yerr, template.cn, template.sn, template.ptensors, 1./period,
-                                       allow_negative_amplitudes=True)
+    max_p, best_pars = fit_template(t, y, yerr, template.c_n, template.s_n,
+                                    template.ptensors, 1./period,
+                                    allow_negative_amplitudes=True)
 
     # if nharmonics == 1 and best_pars.a < 0:
     #     best_pars = ModelFitParams(a=-best_pars.a, b=-best_pars.b, c=best_pars.c, sgn=-best_pars.sgn)
