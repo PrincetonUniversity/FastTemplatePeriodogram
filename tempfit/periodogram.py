@@ -13,14 +13,8 @@ minimization (e.g. Levenberg-Marquardt) at each frequency.
 """
 from __future__ import print_function
 
-import sys
-import os
-from math import *
 
-from time import time
 import numpy as np
-from scipy.special import eval_chebyt,\
-                          eval_chebyu
 
 from .summations import fast_summations, direct_summations
 
@@ -28,10 +22,7 @@ from .pseudo_poly import compute_polynomial_tensors,\
                          get_polynomial_vectors,\
                          compute_zeros
 
-from .utils import Un, Tn, Avec, Bvec, dAvec, dBvec,\
-                    Summations, ModelFitParams, weights
-
-from numpy.testing import assert_allclose
+from .utils import Avec, Bvec, ModelFitParams, weights
 
 
 def get_a_from_b(b, cn, sn, sums, A=None, B=None,
@@ -52,7 +43,7 @@ def get_a_from_b(b, cn, sn, sums, A=None, B=None,
     return AYCBYS / D
 
 
-def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None, 
+def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
                        allow_negative_amplitudes=True):
     """
     Fits periodic template to data at a single frequency
@@ -109,7 +100,7 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 
 
     if sums is None:
-        sums   = direct_summations(t, y, w, freq, nh) 
+        sums   = direct_summations(t, y, w, freq, nh)
 
     # Get a list of zeros
     zeros = compute_zeros(ptensors, sums)
@@ -139,7 +130,7 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 
             # Compute periodogram
             p = a * AYCBYS / yy
-                    
+
             # Record the best-fit parameters for this template
             if power is None or p > power:
                 # Get offset
@@ -149,7 +140,7 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
                 params = ModelFitParams(a=a, b=b, c=c, sgn=sgn)
 
                 power = p
-    
+
     if params is None:
         return 0, ModelFitParams(a=0, b=1, c=ybar, sgn=1)
 
@@ -157,11 +148,11 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 
 
 def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
-                        summations=None, allow_negative_amplitudes=True, 
+                        summations=None, allow_negative_amplitudes=True,
                         fast=True):
 
     """
-    Produces a template periodogram using a single template 
+    Produces a template periodogram using a single template
 
     Parameters
     ----------
@@ -188,7 +179,7 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
         Frequencies at which to fit the template
 
     summations : list of Summations, optional
-        Precomputed summations (C, S, CC, CS, SS, YC, YS) at each frequency 
+        Precomputed summations (C, S, CC, CS, SS, YC, YS) at each frequency
         in freqs. Default is None, which means the sums are computed via
         direct summations (if `fast=False`) or via fast summations (NFFT, if
         `fast=True`)
@@ -198,12 +189,12 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
         They are automatically forbidden for H=1 (since this is equivalent
         to a phase shift). If no positive amplitude solutions are found and
         allow_negative_amplitudes = False, the periodogram is set to 0
-    
+
     Returns
     -------
     powers : array_like
-        $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$ at each frequency in `freqs`, 
-        where $\chi^2_0$ is for a flat model with $\hat{y}_0 = \bar{y}$, 
+        $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$ at each frequency in `freqs`,
+        where $\chi^2_0$ is for a flat model with $\hat{y}_0 = \bar{y}$,
         the weighted mean.
 
     best_fit_params : list of `ModelFitParams`

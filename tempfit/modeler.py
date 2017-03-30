@@ -1,24 +1,11 @@
 from __future__ import print_function
 
-import os
-import sys
-from time import time
-from math import *
 from functools import wraps
 
 import numpy as np
-from scipy.optimize import curve_fit
-from .utils import weights, ModelFitParams, Avec, Bvec
+
+from .utils import weights, ModelFitParams
 from .template import Template
-from .periodogram import fit_template
-#from summations import fast_summations, direct_summations
-
-try:
-    # Python 2.x only
-    import cPickle as pickle
-except ImportError:
-    import pickle
-
 from . import periodogram as pdg
 
 
@@ -212,7 +199,7 @@ class FastTemplateModeler(object):
         if not any([ isinstance(freq, type_) for type_ in [ float, np.floating ] ]) :
             raise ValueError('fit_model requires float argument')
 
-        p, parameters = fit_template(self.t, self.y, self.dy, 
+        p, parameters = pdg.fit_template(self.t, self.y, self.dy, 
                     self.template.cn, self.template.sn, self.template.ptensors, freq, 
             allow_negative_amplitudes=self.allow_negative_amplitudes)
 
