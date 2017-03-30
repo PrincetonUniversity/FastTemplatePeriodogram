@@ -13,7 +13,7 @@ import pytest
 #nharms_to_test = [ 1, 2, 3, 4, 5 ]
 nharms_to_test = [ 1, 3 ]
 ndata_to_test  = [ 30 ]
-samples_per_peak_to_test = [ 1, 3 ]
+samples_per_peak_to_test = [ 1, 2 ]
 nyquist_factors_to_test = [ 1, 2 ]
 rseeds_to_test = [ 42 ]
 ndata0 = ndata_to_test[0]
