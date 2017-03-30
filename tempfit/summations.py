@@ -22,7 +22,10 @@ def inspect_freqs(freqs):
     
 
 def direct_summations_single_freq(t, y, w, freq, nharmonics):
-    """ for testing against NFFT implementation """
+    """ 
+    Compute summations (C, S, CC, ...) via direct summation 
+    for a single frequency
+    """
 
     ybar = np.dot(w, y)
 
@@ -63,7 +66,10 @@ def direct_summations_single_freq(t, y, w, freq, nharmonics):
     return Summations(C=C, S=S, YC=YC, YS=YS, CC=CC, CS=CS, SS=SS)
 
 def direct_summations(t, y, w, freqs, nh):
-    """ for testing against NFFT implementation """
+    """ 
+    Compute summations (C, S, CC, ...) via direct summation 
+    for one or more frequencies
+    """
 
     multi_freq = hasattr(freqs, '__iter__')
 

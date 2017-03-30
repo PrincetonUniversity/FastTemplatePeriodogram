@@ -24,19 +24,19 @@ from . import periodogram as pdg
 # function wrappers for performing checks
 def requires_templates(func):
     def wrap(self, *args, **kwargs):
-        self.validate_templates()
+        self._validate_templates()
         return func(self, *args, **kwargs)
     return wrap
 
 def requires_template(func):
     def wrap(self, *args, **kwargs):
-        self.validate_template()
+        self._validate_template()
         return func(self, *args, **kwargs)
     return wrap
 
 def requires_data(func):
     def wrap(self, *args, **kwargs):
-        self.validate_data()
+        self._validate_data()
         return func(self, *args, **kwargs)
     return wrap
 
@@ -134,7 +134,7 @@ class FastTemplateModeler(object):
         self.t, self.y, self.dy = None, None, None
         self.best_model = None
 
-    def validate_template(self):
+    def _validate_template(self):
         if self.template is None:
             raise ValueError("No template set.")
         if not isinstance(self.template, Template):
@@ -142,7 +142,7 @@ class FastTemplateModeler(object):
 
         self.template.precompute()
 
-    def validate_data(self):
+    def _validate_data(self):
         if any([ X is None for X in [ self.t, self.y, self.dy ] ]):
             raise ValueError("One or more of t, y, dy is None; "
                              "fit(t, y, dy) must be called first.")
@@ -153,7 +153,7 @@ class FastTemplateModeler(object):
         if not (len(self.t) == len(self.y) and len(self.y) == len(self.dy)):
             raise ValueError("One or more of (t, y, dy) arrays are unequal lengths")
 
-    def validate_frequencies(self, frequencies):
+    def _validate_frequencies(self, frequencies):
         raise NotImplementedError()
 
     def fit(self, t, y, dy=None):
@@ -405,7 +405,7 @@ class FastMultiTemplateModeler(FastTemplateModeler):
         self.best_model = None
 
 
-    def validate_templates(self):
+    def _validate_templates(self):
         if self.templates is None:
             raise ValueError("No templates set.")
         if not hasattr(self.templates, '__iter__'):
@@ -446,10 +446,10 @@ class FastMultiTemplateModeler(FastTemplateModeler):
             allow_negative_amplitudes=self.allow_negative_amplitudes)\
                         for template in self.templates ])
 
+
         i = np.argmax(p)
         params = parameters[i]
         template = self.templates[i]
-
 
         return TemplateModel(template, parameters=params, 
                                                      frequency=freq)

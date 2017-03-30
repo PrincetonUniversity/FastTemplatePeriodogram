@@ -148,22 +148,45 @@ class PseudoPolynomial(object):
         return PseudoPolynomial(p=remove_zeros(p), q=remove_zeros(q), r=r)
 
     def root_finding_poly(self):
-        """ p^2 - (1 - x^2) * q^2
+        """ 
+        R = p^2 - (1 - x^2) * q^2
 
         Returns
         -------
+
         coef : np.ndarray
-            Coefficients of a polynomial that has the
-            same number of roots as the PP
+            Coefficients of a root-finding polynomial `R(x)`. Every zero of 
+            the `PseudoPolynomial` is also a zero of `R(x)`.
 
         """
         return  remove_zeros(pol.polysub(pol.polymul(self.p, self.p),
                             pol.polymul(pol.polymul(self.q, self.q), (1, 0, -1))))
 
     def _roots0(self):
+        """
+        Complex roots of pseudo-poly using `np.polynomial.polyroots` method,
+        which finds the eigenvalues of the companion matrix of the root-finding
+        poly.
+
+        First finds common roots between `p` and `q` polynomials, then divides
+        these roots from the `root_finding_poly`.
+
+        Returns
+        -------
+
+        roots : list (of floats)
+            (Complex) roots of the `root_finding_poly`
+
+        p : tuple of floats
+            Coefficients of the root finding polynomial
+
+        dp : tuple of floats
+            Coefficients of the derivative of the root finding polynomial
+
+        """
+
         p  = self.root_finding_poly()
         dp = remove_zeros(pol.polyder(p))
-
 
         roots_p = pol.polyroots(self.p)
         roots_q = pol.polyroots(self.q)
@@ -184,17 +207,58 @@ class PseudoPolynomial(object):
 
         return roots, p, dp
 
-    def complex_roots(self):
+    def complex_roots(self, tol=1E-9):
+        """
+        Finds all complex roots of the pseudo-polynomial,
+        confirmed by testing that self(root) is close to
+        zero at each root returned by `_roots0`
+
+        Parameters
+        ----------
+
+        tol : float
+            If `abs(self(root)) < tol`, `root` is considered a
+            root of the polynomial
+
+        Returns
+        -------
+
+        roots : array_like
+            List of (unique) complex roots of the pseudopolynomial
+
+        """
+
         roots0, p, dp = self._roots0()
 
         roots = []
         for root in roots0:
-            if abs(self(root)) < 1E-9:
+            if abs(self(root)) < tol and \
+                      not any([ abs(r - root) < tol for r in roots0 ]):
                 roots.append(root)
 
         return roots
 
     def real_roots_pm(self, use_newton=False):
+        """
+        Finds all real roots of the root-finding polynomial,
+        without confirming that the `PseudoPolynomial` evaluates
+        as zero at each root (i.e. these are complex roots of
+        `p(x) +/- sqrt(1 - x^2)q(x)`
+
+        Parameters
+        ----------
+        
+        use_newton : bool, optional (default : False)
+            Use Newton-Raphson's method to improve root estimation
+
+        Returns
+        -------
+
+        roots : array_like
+            List of (unique) real roots of the root-finding poly
+
+        """
+
         roots0, p, dp = self._roots0()
 
         f = lambda x, p=p : pol.polyval( x, p)
@@ -202,24 +266,41 @@ class PseudoPolynomial(object):
 
         return correct_real_roots(roots0, f, fprime=fprime, use_newton=use_newton)
 
-    def real_roots(self, use_newton=False):
+    def real_roots(self, use_newton=False, tol=1E-8):
+        """
+        Finds all real roots of the root-finding polynomial,
+        confirming that each root is in fact a zero by evaluating `self(root)`.
+
+        Parameters
+        ----------
+        
+        tol : float
+            `p(x) * q(x) < tol`, `x` is considered a root
+
+        use_newton : bool, optional (default : False)
+            Use Newton-Raphson's method to improve root estimation
+
+        Returns
+        -------
+
+        roots : array_like
+            List of (unique) real roots of the PseudoPolynomial
+
+        """
+
+
         roots0, p, dp = self._roots0()
 
         f = lambda x, p=p : pol.polyval( x, p)
         fprime = lambda x, dp=dp : pol.polyval( x, dp )
 
-        criterion = lambda x, P=self.p, Q=self.q : pol.polyval(x, P) * pol.polyval(x, Q) < 1E-8
+        criterion = lambda x, P=self.p, Q=self.q : pol.polyval(x, P) * pol.polyval(x, Q) < tol
 
         return correct_real_roots(roots0, f, fprime=fprime, criterion=criterion, use_newton=use_newton)
 
-    def eval(self, x, tol=1E-4):
-
-        #if (not hasattr(x, '__iter__') and abs(x) >= 1) \
-        #    or (hasattr(x, '__iter__') and any(np.absolute(x) >= 1)):
-        #    raise RuntimeError("Cannot evaluate PseudoPolynomial outside of (-1, 1).")
+    def eval(self, x):
 
         p, q = pol.Polynomial(self.p), pol.Polynomial(self.q)
-        #lmx2 = 1 if abs(x) < tol * tol else 1 - np.power(x, 2)
 
         lmx2 = 1 - np.power(x, 2)
 
@@ -320,31 +401,45 @@ def get_polynomial_vectors(cn, sn, sgn=1):
 
     return A, B, dA, dB
 
-def correct_real_roots(roots0, func, fprime=None,use_newton=True, criterion=None, tol=1E-5):
+def correct_real_roots(roots0, func, fprime=None,use_newton=True, maxiter=50, criterion=None, tol=1E-5):
     """ 
     Uses Newton's method to determine roots of `func`
     with `roots0` as initial guesses.
 
+    Parameters
+    ----------
+
+    Returns
+    -------
+
+
     """
 
     corr_roots = []
+
+    # function to check that root passes specified criteria
     check = criterion if not criterion is None else lambda x : True
     
-    for r0 in roots0:
-        if abs(r0) > 1 - tol:
+    for root in roots0:
+
+        # don't check too close to the critical values (-1, 1)
+        if abs(root) > 1 - tol:
             continue
 
+        # check that `func(root.real)` is close to zero.
+        if abs(func(root.real)) < tol:
 
-        if abs(func(r0.real)) < tol:
-            if not any([ abs(r0.real - cr) < 1E-6 for cr in corr_roots ]):
-                if not check(r0.real):
+            # check that this zero isn't already present
+            if not any([ abs(root.real - cr) < 1E-6 for cr in corr_roots ]):
+                if not check(root.real):
                     continue
-                corr_roots.append(r0.real)
+                corr_roots.append(root.real)
             continue
 
+        # Use newton iteration to improve zero
         if use_newton:
             try: 
-                nz = newton(func, r0.real, maxiter=50, fprime=fprime)
+                nz = newton(func, root.real, maxiter=maxiter, fprime=fprime)
                 all_bad = False
                 if not any([ abs(nz - cr) < tol for cr in corr_roots ]):
                     if not check(nz):
@@ -352,15 +447,35 @@ def correct_real_roots(roots0, func, fprime=None,use_newton=True, criterion=None
                     corr_roots.append(nz)
 
             except RuntimeError:
-                corr_roots.append(r0.real)
+                corr_roots.append(root.real)
         else:
-            if abs(r0.imag) < tol:
-                corr_roots.append(r0.real)
+            if abs(root.imag) < tol:
+                corr_roots.append(root.real)
 
     return corr_roots
 
 
 def get_final_ppoly(ptensors, sums):
+    """
+    Calculates the `PseudoPolynomial` used to determine
+    a set of candidates for the optimal phase-shift 
+
+    Parameters
+    ----------
+    ptensors: np.ndarray
+        generated by :compute_polynomial_tensors: and contains
+        coefficients unique to each template
+
+    sums : Summations
+        ordered dictionary containing CC, CS, SS, YC, YS
+
+
+    Returns
+    -------
+    PPfinal : PseudoPolynomial
+        PseudoPolynomial for which the zeros are the
+        candidate phase shifts
+    """
 
     AAdAp, AAdAq, \
     AAdBp, AAdBq, \
@@ -371,15 +486,14 @@ def get_final_ppoly(ptensors, sums):
 
     H = len(AAdAp)
 
-    """
     Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) \
-          - np.einsum('k,ji->ijk', sums.YC[:H], sums.CC[:H,:H])
+          - np.einsum('k,ij->ijk', sums.YC[:H], sums.CC[:H,:H])
 
     Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) \
-          - np.einsum('k,ji->ijk', sums.YS[:H], sums.CC[:H,:H])
+          - np.einsum('k,ij->ijk', sums.YS[:H], sums.CC[:H,:H])
 
     Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) \
-          + np.einsum('j,ki->ijk', sums.YS[:H], sums.CC[:H,:H])
+          + np.einsum('j,ik->ijk', sums.YS[:H], sums.CC[:H,:H])
 
     Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) \
           + np.einsum('j,ik->ijk', sums.YS[:H], sums.CS[:H,:H])
@@ -388,15 +502,7 @@ def get_final_ppoly(ptensors, sums):
           - np.einsum('k,ij->ijk', sums.YC[:H], sums.SS[:H,:H])
 
     Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) \
-          - np.einsum('k,ji->ijk', sums.YS[:H], sums.SS[:H,:H])
-    """
-
-    Kaada = np.einsum('i,jk->ijk', sums.YC[:H], sums.CC[:H,:H]) - np.einsum('k,ij->ijk', sums.YC[:H], sums.CC[:H,:H])
-    Kaadb = np.einsum('i,jk->ijk', sums.YC[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS[:H], sums.CC[:H,:H])
-    Kabda = np.einsum('i,kj->ijk', sums.YC[:H], sums.CS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS[:H], sums.CC[:H,:H])
-    Kabdb = np.einsum('i,jk->ijk', sums.YC[:H], sums.SS[:H,:H]) + np.einsum('j,ik->ijk', sums.YS[:H], sums.CS[:H,:H])
-    Kbbda = np.einsum('i,kj->ijk', sums.YS[:H], sums.CS[:H,:H]) - np.einsum('k,ij->ijk', sums.YC[:H], sums.SS[:H,:H])
-    Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) - np.einsum('k,ij->ijk', sums.YS[:H], sums.SS[:H,:H])
+          - np.einsum('k,ij->ijk', sums.YS[:H], sums.SS[:H,:H])
 
 
     Pp  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
@@ -413,14 +519,12 @@ def get_final_ppoly(ptensors, sums):
     Pq += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
     Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
     
-    #P = pol.polysub(pol.polymul(Pp, Pp), pol.polymul(pol.polymul(Pq, Pq), (1, 0, -1)))
     PP = PseudoPolynomial(p=Pp, q=Pq, r=0)
-
 
     return PP
 
 
-def compute_zeros(ptensors, sums, old_b=None, loud=False, small = 1E-5):
+def compute_zeros(ptensors, sums, b_guess=None, tol=1E-3):
     """
     Compute frequency-dependent polynomial coefficients,
     then find real roots
@@ -430,26 +534,34 @@ def compute_zeros(ptensors, sums, old_b=None, loud=False, small = 1E-5):
     ptensors: np.ndarray
         generated by :compute_polynomial_tensors: and contains
         coefficients unique to each template
+
     sums : Summations
         ordered dictionary containing CC, CS, SS, YC, YS
-    loud : bool (default: False)
-        Print timing information
+
+    b_guess : float, optional
+        Guess for the location of the optimal phase shift.
+        Uses Newton's method to search around `+/-b_guess`
+        for a root to the `PseudoPolynomial` 
+
+    tol : float (default : 1E-3)
+        Tolerance value passed to `correct_real_roots`, only
+        needed if `b_guess` is specified.
 
     Returns
     -------
     roots: list
-        list of cos(omega * tau) values corresponding to
-        (real) roots of the generated polynomial.
+        List of real roots of the `PseudoPolynomial` (using
+        `.real_roots_pm()`, not `.real_roots()`)
 
     """
     
     PP = get_final_ppoly(ptensors, sums)
 
-    if not old_b is None:
+    if not b_guess is None:
         p = pol.Polynomial(PP.root_finding_poly())
         pprime = p.deriv()
-        roots0 = [ -old_b, old_b ]
-        return correct_real_roots(roots0, p, fprime=pprime, tol=1E-3)
+        roots0 = [ -b_guess, b_guess ]
+        return correct_real_roots(roots0, p, fprime=pprime, tol=tol, use_newton=True)
     
     return PP.real_roots_pm()
 

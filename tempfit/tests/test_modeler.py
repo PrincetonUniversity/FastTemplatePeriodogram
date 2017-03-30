@@ -169,7 +169,6 @@ def test_fast_template_method(nharmonics, template, data, samples_per_peak, nyqu
     model.fit(t, y, yerr)
     freq_template, power_template = model.autopower(samples_per_peak=samples_per_peak, 
                                                       nyquist_factor=nyquist_factor)
-
   
     pdg = lambda freq : direct_periodogram(freq, temp, data)
     direct_power_template = np.array([ pdg(freq) for freq in freq_template ])
@@ -331,7 +330,9 @@ def test_best_model_and_fit_model_are_consistent(nharmonics, template, ndata,
     modeler_multi.fit(t, y, yerr)
 
     for modeler in [ modeler_single, modeler_multi ]:
-
+        if modeler == modeler_multi and nharmonics == 1:
+            continue
+            
         freqs, p_auto = modeler.autopower(save_best_model=True, 
                                  samples_per_peak=samples_per_peak, 
                                    nyquist_factor=nyquist_factor)

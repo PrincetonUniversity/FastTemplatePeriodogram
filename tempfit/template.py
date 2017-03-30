@@ -29,10 +29,12 @@ class Template(object):
 
     @property
     def cn(self):
+        """ Cosine Fourier coefficients """
         return self.c_n
 
     @property
     def sn(self):
+        """ Sine Fourier coefficients """
         return self.s_n
 
     @classmethod
@@ -48,6 +50,9 @@ class Template(object):
             If integer, specify the number of harmonics to use.
             If float between 0 and 1, then specify the relative variance to
             preserve in selecting the number of harmonics
+
+        **kwargs : dict (optional)
+            Passed to __init__
         """
         yhat = np.fft.rfft(y)[1:]
 
@@ -63,6 +68,16 @@ class Template(object):
         return cls(c_n, s_n, **kwargs)
 
     def precompute(self, force_recompute=False):
+        """
+        Precompute `pvectors` and `ptensors`, which are
+        needed by the Fast Template Periodogram
+
+        Parameters
+        ----------
+            force_recompute : bool, optional
+                Ignores previous computations
+        """
+
         if force_recompute:
             self._computed = {}
         # properties are computed by referencing them
