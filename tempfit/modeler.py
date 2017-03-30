@@ -177,14 +177,11 @@ class FastTemplateModeler(object):
         model : TemplateModel
             The best-fit model at this frequency
         """
-        if not any([ isinstance(freq, type_) for type_ in [ float, np.floating ] ]) :
-            raise ValueError('fit_model requires float argument')
-
+        freq = float(freq)
         p, parameters = pdg.fit_template(self.t, self.y, self.dy,
                                          self.template.c_n, self.template.s_n,
                                          self.template.ptensors, freq,
                                          allow_negative_amplitudes=self.allow_negative_amplitudes)
-
         return TemplateModel(self.template, parameters=parameters,
                              frequency=freq)
 
@@ -268,8 +265,9 @@ class FastTemplateModeler(object):
 
         if save_best_model:
             i = np.argmax(p)
-            self._save_best_model(TemplateModel(self.template, frequency = frequency[i],
-                                                       parameters = bfpars[i]))
+            self._save_best_model(TemplateModel(self.template,
+                                                frequency = frequency[i],
+                                                parameters = bfpars[i]))
         return frequency, p
 
     @requires_data
@@ -309,8 +307,9 @@ class FastTemplateModeler(object):
 
         if save_best_model:
             i = np.argmax(p)
-            best_model = TemplateModel(self.template, frequency = frequency[i],
-                                       parameters = bfpars[i])
+            best_model = TemplateModel(self.template,
+                                       frequency=frequency[i],
+                                       parameters=bfpars[i])
             self._save_best_model(best_model)
 
         return p.reshape(shape)
