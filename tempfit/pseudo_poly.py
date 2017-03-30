@@ -57,10 +57,9 @@ class PseudoPolynomial(object):
         elif isinstance(obj, Polynomial):
             return cls(obj.coef)
         else:
-            return cls(obj)
-            obj_arr = np.atleast_1d(obj)
-            if obj_arr.ndim == 1:
-                return cls(obj_arr)
+            coeff = np.atleast_1d(obj)
+            if coeff.ndim == 1:
+                return cls(coeff)
             else:
                 raise ValueError("Object of type {0} cannot be coerced "
                                  "into a PseudoPolynomial".format(type(obj)))
@@ -531,7 +530,7 @@ def compute_zeros(ptensors, sums, b_guess=None, tol=1E-3):
     """
     PP = get_final_ppoly(ptensors, sums)
 
-    if not b_guess is None:
+    if b_guess is not None:
         p = pol.Polynomial(PP.root_finding_poly())
         pprime = p.deriv()
         roots0 = [ -b_guess, b_guess ]
