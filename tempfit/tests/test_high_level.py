@@ -3,7 +3,6 @@ import numpy as np
 from .. import FastTemplateModeler, Template
 
 import pytest
-from numpy.testing import assert_allclose
 
 
 def template_function(phase,

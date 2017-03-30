@@ -424,7 +424,6 @@ def correct_real_roots(roots0, func, fprime=None,use_newton=True,
         if use_newton:
             try:
                 nz = newton(func, root.real, maxiter=maxiter, fprime=fprime)
-                all_bad = False
                 if not any([ abs(nz - cr) < tol for cr in corr_roots ]):
                     if not check(nz):
                         continue
