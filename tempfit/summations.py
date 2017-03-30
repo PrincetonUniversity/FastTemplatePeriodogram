@@ -5,25 +5,18 @@ from math import floor
 
 
 def inspect_freqs(freqs):
-    df = freqs[1] - freqs[0]
+    """Validate that frequencies lie on a regular grid at multiples of df"""
     nf = len(freqs)
-
-    assert_close((nf-1) * df + freqs[0], freqs[-1])
-
-    if abs(freqs[0] / df - round(freqs[0] / df)) > 1E-3:
-        raise ValueError("Minimum frequency must be a multiple of df")
-
-    if not all([ abs(freqs[i] - freqs[i-1] - df) < 1E-3*df for i in range(1, len(freqs)) ]):
-        raise ValueError("Frequencies are not evenly spaced!")
-
-    # offset for minimum frequency
+    df = freqs[1] - freqs[0]
     dnf = int(round(freqs[0] / df))
 
-    return nf, df, dnf
-    
+    if not np.allclose(freqs[0], dnf * df):
+        raise ValueError("Minimum frequency must be an integer multiple of df")
 
-def assert_close(x, y, tol=1E-5):
-    assert( abs(x - y) < tol * 0.5 * (x + y) )
+    if not np.allclose(np.diff(freqs), df):
+        raise ValueError("frequencies must lie on a regular grid")
+
+    return nf, df, dnf
 
 
 def direct_summations_single_freq(t, y, w, freq, nharmonics):
