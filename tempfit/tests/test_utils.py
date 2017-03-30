@@ -23,4 +23,4 @@ def test_AB_derivs(nterms, sgn, eps=1E-8, rseed=42):
     B2 = utils.Bvec(x + eps, c, s, sgn)
     B1 = utils.Bvec(x, c, s, sgn)
     dB = utils.dBvec(x, c, s, sgn)
-    assert_allclose(dA, (A2 - A1) / eps, rtol=1E-5)
+    assert_allclose(dB, (B2 - B1) / eps, rtol=1E-5)

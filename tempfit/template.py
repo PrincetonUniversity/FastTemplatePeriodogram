@@ -77,7 +77,6 @@ class Template(object):
             force_recompute : bool, optional
                 Ignores previous computations
         """
-
         if force_recompute:
             self._computed = {}
         # properties are computed by referencing them

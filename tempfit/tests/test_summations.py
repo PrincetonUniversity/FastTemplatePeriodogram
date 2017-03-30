@@ -4,7 +4,6 @@ from ..summations import fast_summations, direct_summations
 from ..utils import weights
 
 from numpy.testing import assert_allclose
-from scipy.interpolate import interp1d
 
 
 import pytest
@@ -75,6 +74,3 @@ def test_covariance_matrices_are_symmetric(nharmonics, data, samples_per_peak, n
     for freq, fast_sums in zip(freqs, all_fast_sums):
         assert_allclose(fast_sums.CC, fast_sums.CC.T)
         assert_allclose(fast_sums.SS, fast_sums.SS.T)
-
-
-        

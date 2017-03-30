@@ -1,5 +1,5 @@
 from pynfft.nfft import NFFT
-from .utils import Summations, weights
+from .utils import Summations
 import numpy as np
 from math import floor
 
@@ -19,11 +19,11 @@ def inspect_freqs(freqs):
     dnf = int(round(freqs[0] / df))
 
     return nf, df, dnf
-    
+
 
 def direct_summations_single_freq(t, y, w, freq, nharmonics):
-    """ 
-    Compute summations (C, S, CC, ...) via direct summation 
+    """
+    Compute summations (C, S, CC, ...) via direct summation
     for a single frequency
     """
 
@@ -66,8 +66,8 @@ def direct_summations_single_freq(t, y, w, freq, nharmonics):
     return Summations(C=C, S=S, YC=YC, YS=YS, CC=CC, CS=CS, SS=SS)
 
 def direct_summations(t, y, w, freqs, nh):
-    """ 
-    Compute summations (C, S, CC, ...) via direct summation 
+    """
+    Compute summations (C, S, CC, ...) via direct summation
     for one or more frequencies
     """
 
@@ -77,7 +77,7 @@ def direct_summations(t, y, w, freqs, nh):
         return [ direct_summations_single_freq(t, y, w, frq, nh)\
                                                       for frq in freqs ]
     else:
-        return direct_summations_single_freq(t, y, w, freqs, nh) 
+        return direct_summations_single_freq(t, y, w, freqs, nh)
 
 def assert_close(x, y, tol=1E-5):
     assert( abs(x - y) < tol * 0.5 * (x + y) )
@@ -95,7 +95,7 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     # infer samples per peak
     baseline = max(t) - tmin
     samples_per_peak = 1./(baseline * df)
-    
+
     eps = 1E-5
     a = 0.5 - eps
     r = 2 * a / df
@@ -109,7 +109,7 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     nf_nfft_w = 2 * ( 2 * nh * (nf + dnf - 1) + 1)
     n_w0 = int(floor(nf_nfft_w/2))
     n_u0 = int(floor(nf_nfft_u/2))
-    
+
     # transform y -> w_i * y_i - ybar
     ybar = np.dot(w, y)
     u = np.multiply(w, y - ybar)

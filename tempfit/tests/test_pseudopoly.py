@@ -2,7 +2,6 @@ import numpy as np
 from numpy.polynomial import polynomial as pol
 from numpy.testing import assert_allclose
 from ..pseudo_poly import PseudoPolynomial
-from scipy.optimize import newton
 import pytest
 
 
@@ -110,7 +109,7 @@ def test_pseudopoly_root_finding(r, Np, Nq, rseed=42):
     rand = np.random.RandomState(rseed)
 
     poly = random_polynomial(Np, Nq, r, rseed=rand.randint(1000))
-    
+
     zeros = poly.complex_roots()
 
     pzeros = [ abs(poly(z)) for z in zeros ]
@@ -155,10 +154,3 @@ def test_pathological_roots(r, nroots, delta, rseed=42, tol=1E-5):
     for root in roots:
         dr = min(np.absolute(np.array(pproots) - root) / max([ tol, np.absolute(root) ]))
         assert( abs(pp(root)) < tol and dr < tol )
-
-
-
-
-
-
-    
