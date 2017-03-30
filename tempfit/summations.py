@@ -24,42 +24,29 @@ def direct_summations_single_freq(t, y, w, freq, nharmonics):
     Compute summations (C, S, CC, ...) via direct summation
     for a single frequency
     """
-
     ybar = np.dot(w, y)
-
     wt = 2 * np.pi * freq * t
+    h = 1 + np.arange(nharmonics)[:, np.newaxis]
 
+    C = np.dot(np.cos(h * wt), w)
+    S = np.dot(np.sin(h * wt), w)
 
-    YC = np.array([ np.dot(w, np.multiply(y-ybar, np.cos(wt * (h+1))))\
-                                 for h in range(nharmonics) ])
-
-    YS = np.array([ np.dot(w, np.multiply(y-ybar, np.sin(wt * (h+1))))\
-                                 for h in range(nharmonics) ])
-
-    C = np.array([ np.dot(w, np.cos(wt * (h+1)))\
-                                 for h in range(nharmonics) ])
-
-    S = np.array([ np.dot(w, np.sin(wt * (h+1)))\
-                                 for h in range(nharmonics) ])
+    YC = np.dot((y - ybar) * np.cos(h * wt), w)
+    YS = np.dot((y - ybar) * np.sin(h * wt), w)
 
     CC = np.zeros((nharmonics, nharmonics))
     CS = np.zeros((nharmonics, nharmonics))
     SS = np.zeros((nharmonics, nharmonics))
 
-    for h1 in range(nharmonics):
-        for h2 in range(nharmonics):
-            CC[h1][h2] = np.dot(w, np.multiply(np.cos(wt * (h1+1)),
-                                               np.cos(wt * (h2+1))))
+    hT = h[:, :, np.newaxis]
 
-            CS[h1][h2] = np.dot(w, np.multiply(np.cos(wt * (h1+1)),
-                                               np.sin(wt * (h2+1))))
+    CC = np.dot(np.cos(hT * wt) * np.cos(h * wt), w)
+    CS = np.dot(np.cos(hT * wt) * np.sin(h * wt), w)
+    SS = np.dot(np.sin(hT * wt) * np.sin(h * wt), w)
 
-            SS[h1][h2] = np.dot(w, np.multiply(np.sin(wt * (h1+1)),
-                                               np.sin(wt * (h2+1))))
-
-            CC[h1][h2] -= C[h1] * C[h2]
-            CS[h1][h2] -= C[h1] * S[h2]
-            SS[h1][h2] -= S[h1] * S[h2]
+    CC -= C[:, np.newaxis] * C
+    CS -= C[:, np.newaxis] * S
+    SS -= S[:, np.newaxis] * S
 
     return Summations(C=C, S=S, YC=YC, YS=YS, CC=CC, CS=CS, SS=SS)
 
@@ -84,7 +71,6 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     Computes C, S, YC, YS, CC, CS, SS using
     pyNFFT
     """
-
     nf, df, dnf = inspect_freqs(freqs)
     tmin = min(t)
 
