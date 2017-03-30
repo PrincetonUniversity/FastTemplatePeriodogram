@@ -143,38 +143,31 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
 
     # Now compute the summation values at each frequency
     for i in range(0, nf):
-        computed_sums = Summations(C=np.zeros(nh),
-                                   S=np.zeros(nh),
-                                   YC=np.zeros(nh),
-                                   YS=np.zeros(nh),
-                                   CC=np.zeros((nh,nh)),
-                                   CS=np.zeros((nh,nh)),
-                                   SS=np.zeros((nh,nh)))
-
         j = np.arange(2 * nh)
         k = (j + 1) * (i + dnf)
-        C_ = f_hat_w[k].real
-        S_ = f_hat_w[k].imag
-        computed_sums.YC[:] = f_hat_u[k[:nh]].real
-        computed_sums.YS[:] = f_hat_u[k[:nh]].imag
+        C = f_hat_w[k].real
+        S = f_hat_w[k].imag
+        YC = f_hat_u[k[:nh]].real
+        YS = f_hat_u[k[:nh]].imag
 
         k = np.arange(nh)
         j = k[:, np.newaxis]
-        Sn  = np.sign(k - j) * S_[abs(k - j) - 1]
+
+        Sn  = np.sign(k - j) * S[abs(k - j) - 1]
         Sn.flat[::nh + 1] = 0
-        Cn = C_[abs(k - j) - 1]
+
+        Cn = C[abs(k - j) - 1]
         Cn.flat[::nh + 1] = 1
 
-        Sp = S_[j + k + 1]
-        Cp = C_[j + k + 1]
+        Sp = S[j + k + 1]
+        Cp = C[j + k + 1]
 
-        computed_sums.CC[:] = 0.5 * ( Cn + Cp ) - C_[j] * C_[k]
-        computed_sums.CS[:] = 0.5 * ( Sn + Sp ) - C_[j] * S_[k]
-        computed_sums.SS[:] = 0.5 * ( Cn - Cp ) - S_[j] * S_[k]
+        CC = 0.5 * (Cn + Cp) - C[j] * C[k]
+        CS = 0.5 * (Sn + Sp) - C[j] * S[k]
+        SS = 0.5 * (Cn - Cp) - S[j] * S[k]
 
-        computed_sums.C[:] = C_[:nh]
-        computed_sums.S[:] = S_[:nh]
-
-        all_computed_sums.append(computed_sums)
+        all_computed_sums.append(Summations(C=C[:nh], S=S[:nh],
+                                            YC=YC, YS=YS,
+                                            CC=CC, CS=CS, SS=SS))
 
     return all_computed_sums
