@@ -14,8 +14,40 @@ by a truncated Fourier series of length `H`. The Non-equispaced Fast Fourier Tra
 [NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) is used
 to efficiently compute frequency-dependent sums.
 
-Because the FTP is a non-linear extension of the GLS, the zeros of 
-a polynomial of order `~6H` must be computed at each frequency.
+The `tempfit` library is complete with API documentation and consistency
+checks using `py.test`.
+
+Installing
+----------
+
+See the `CONDA_INSTALL.md` for installing `tempfit` with 
+[`conda`](https://www.continuum.io/downloads)) (recommended).
+
+Examples
+--------
+
+See the `Examples.ipynb` located in the `notebooks/` directory.
+
+To run this notebook, use the `jupyter notebook` command from
+inside the `notebooks/` directory
+
+```
+$ cd notebooks/
+$ jupyter notebook
+```
+
+Updates
+-------
+
+* See the [issues](https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues) 
+section for known bugs! You can also submit bugs through this interface.
+
+
+More information
+----------------
+
+
+### Older methods
 
 The [gatspy](http://www.astroml.org/gatspy/) library has an implementation of
 both single and multiband template fitting, however this implementation
@@ -30,10 +62,19 @@ template fitting procedure to multiband Pan-STARRS photometry and found that
 of RR Lyrae stars, but that (2) it required a substantial amount of 
 computational resources to perform these fits.
 
-However, if the templates are sufficiently smooth to be
-well-approximated by a short truncated Fourier series of length `H`. Using this 
-representation, the optimal parameters (amplitude, phase, offset) 
-of the template fit can then be found exactly after finding the roots of 
+### How do we speed this up?
+
+* The non-equispaced fast Fourier transform (NFFT)
+* Polynomial zero-finding
+
+The FTP is a non-linear extension of the GLS. The nonlinearity
+of the problem can be reduced to finding the zeros of 
+an order `~6H` polynomial at each trial frequency.
+
+Templates must be well-approximated by a short truncated Fourier series 
+of length `H`. Using this representation, the optimal parameters 
+(amplitude, phase, offset) of the template fit at a given trial frequency
+can then be found *exactly* after finding the roots of 
 a polynomial at each trial frequency.
 
 The coefficients of these polynomials involve sums that can be efficiently
@@ -50,9 +91,7 @@ about twice as fast as the `gatspy` template modeler. And, the speedup over
 `gatspy` grows linearly with `N_obs`! 
 
 
-How is this different than the multi-harmonic periodogram?
-----------------------------------------------------------
-
+### How is this different than the multi-harmonic periodogram?
 
 The multi-harmonic periodogram ([Schwarzenberg-Czerny (1996)](http://iopscience.iop.org/article/10.1086/309985/meta)) is another 
 extension of Lomb-Scargle that fits a truncated Fourier series to the data 
@@ -69,19 +108,7 @@ more likely to detect a multiple of the true frequency. For a discussion of this
 effect, possible remedies with Tikhonov regularization, and an illuminating review
 of periodograms in general, see [Vanderplas et al. (2015)](http://adsabs.harvard.edu/abs/2015ApJ...812...18V).
 
-Example usage
--------------
-See the `Examples.ipynb` located in the `notebooks/` directory.
-
- 
-Updates
--------
-
-* See the [issues](https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues) 
-section for known bugs! You can also submit bugs through this interface.
-
-Timing
-------
+### Timing
 
 ![timing](plots/timing_vs_ndata.png "Timing compared to gatspy")
 
@@ -101,9 +128,7 @@ The FTP scales sub-linearly to linearly with the number of harmonics `H`
 for `H < 10`, and for larger number of harmonics scales as `H^4`. This
 is the main limitation of FTP.
 
-
-Accuracy
---------
+### Accuracy
 
 Compared with the Gatspy template modeler, the FTP provides improved accuracy as well as speed. 
 For large values of `p(freq)`, the FTP correlates strongly with the Gatspy template algorithm; however,

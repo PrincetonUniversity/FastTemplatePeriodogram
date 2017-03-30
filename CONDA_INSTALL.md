@@ -4,8 +4,8 @@ Installation with Conda
 You can use [conda](http://conda.pydata.org) to install all the required dependencies:
 
 ```
-$ conda create -n fast-template-periodogram python=3.5
-$ source activate fast-template-periodogram
+$ conda create -n tempfit python=3.5
+$ source activate tempfit
 $ conda install jupyter notebook scipy astropy pytest matplotlib
 $ conda install pynfft -c conda-forge
 ```
