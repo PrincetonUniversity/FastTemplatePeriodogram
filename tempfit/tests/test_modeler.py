@@ -11,13 +11,12 @@ from scipy.interpolate import interp1d
 import pytest
 
 #nharms_to_test = [ 1, 2, 3, 4, 5 ]
-nharms_to_test = [ 1, 2, 3 ]
-ndata_to_test  = [ 50 ]
+nharms_to_test = [ 1, 3 ]
+ndata_to_test  = [ 30 ]
 samples_per_peak_to_test = [ 1, 3 ]
-nyquist_factors_to_test = [ 1, 3 ]
+nyquist_factors_to_test = [ 1, 2 ]
 rseeds_to_test = [ 42 ]
-plot_fit = False
-ndata0 = 50
+ndata0 = ndata_to_test[0]
 
 
 def template_function(phase,
@@ -96,7 +95,7 @@ def chi2_template_fit(freq, template, data):
     return np.dot(w, (y - amp * M - offset)**2)
 
 
-def direct_periodogram(freq, template, data, nshifts=300):
+def direct_periodogram(freq, template, data, nshifts=50):
     """
     computes periodogram at a given frequency directly, 
     using grid search for the best phase shift
@@ -176,7 +175,7 @@ def test_fast_template_method(nharmonics, template, data, samples_per_peak, nyqu
 
     dp = power_template - direct_power_template
 
-    assert(all(np.sort(dp) > -5E-3))
+    assert(all(np.sort(dp) > -1E-2))
 
 
 @pytest.mark.parametrize('nharmonics', nharms_to_test)
@@ -442,6 +441,6 @@ def test_inject_and_recover(nharmonics, ndata, rseed, period=1.2, tol=1E-2):
     dftau = ftau - ftau_fit
     if abs(dftau) > 0.5:
         dftau -= np.sign(dftau) * 0.5
-    assert(dftau < tol)    
+    assert(dftau < tol)
 
     

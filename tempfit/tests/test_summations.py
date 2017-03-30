@@ -9,13 +9,11 @@ from scipy.interpolate import interp1d
 
 import pytest
 
-nharms_to_test = [ 1, 2, 3, 4, 5 ]
-ndata_to_test  = [ 30, 50 ]
+nharms_to_test = [ 1, 3, 5 ]
+ndata_to_test  = [ 10, 30 ]
 samples_per_peak_to_test = [ 1, 3 ]
-nyquist_factors_to_test = [ 1, 3 ]
-rseeds_to_test = [ 42, 50 ]
-plot_fit = False
-
+nyquist_factors_to_test = [ 1, 2 ]
+rseeds_to_test = [ 42 ]
 
 def template_function(phase,
                       c_n=[-0.181, -0.075, -0.020],
