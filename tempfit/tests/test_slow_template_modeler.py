@@ -1,6 +1,6 @@
 import numpy as np
 
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_less
 import pytest
 
 try:
@@ -24,6 +24,7 @@ def generate_data(template, N, tmin, tmax, freq, dy=0.1,
     t = tmin + (tmax - tmin) * np.random.rand(N)
     t.sort()
     y = offset + amp * template(t * freq - phase) + dy * rng.randn(N)
+    dy = dy * np.ones_like(y)
     return t, y, dy
 
 
@@ -50,3 +51,18 @@ def test_zero_noise(nharmonics):
     dy = None
     power = SlowTemplateModeler(template=template).fit(t, y, dy).power(0.1)
     assert_allclose(power, 1)
+
+
+@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4])
+def test_slow_vs_fast(nharmonics):
+    # Slow periodogram has convergence issues, and will undershoot the power
+    # in some cases. This means the fast periodogram should always be larger
+    # than the slow periodogram, up to a small floating point error.
+    template = generate_template(nharmonics)
+    t, y, dy = generate_data(template, N=100, tmin=0, tmax=100, freq=0.1)
+    freq = 0.01 * np.arange(1, 101)
+
+    power_slow = SlowTemplateModeler(template).fit(t, y, dy).power(freq)
+    power_fast = FastTemplateModeler(template).fit(t, y, dy).power(freq)
+
+    assert_array_less(power_slow, power_fast + 1E-4)
