@@ -27,16 +27,6 @@ class Template(object):
             raise ValueError("c_n and s_n must be one-dimensional")
         self._computed = {}
 
-    @property
-    def cn(self):
-        """ Cosine Fourier coefficients """
-        return self.c_n
-
-    @property
-    def sn(self):
-        """ Sine Fourier coefficients """
-        return self.s_n
-
     @classmethod
     def from_sampled(cls, y, nharmonics=0.9, **kwargs):
         """Create a template from a regularly sampled function

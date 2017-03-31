@@ -177,14 +177,11 @@ class FastTemplateModeler(object):
         model : TemplateModel
             The best-fit model at this frequency
         """
-        if not any([ isinstance(freq, type_) for type_ in [ float, np.floating ] ]) :
-            raise ValueError('fit_model requires float argument')
-
+        freq = float(freq)
         p, parameters = pdg.fit_template(self.t, self.y, self.dy,
-                                         self.template.cn, self.template.sn,
+                                         self.template.c_n, self.template.s_n,
                                          self.template.ptensors, freq,
                                          allow_negative_amplitudes=self.allow_negative_amplitudes)
-
         return TemplateModel(self.template, parameters=parameters,
                              frequency=freq)
 
@@ -261,15 +258,16 @@ class FastTemplateModeler(object):
             The frequency and template periodogram power
         """
         frequency = self.autofrequency(**kwargs)
-        p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy, self.template.cn,
-                            self.template.sn, frequency,
+        p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy, self.template.c_n,
+                            self.template.s_n, frequency,
                             ptensors=self.template.ptensors, fast=fast,
                             allow_negative_amplitudes=self.allow_negative_amplitudes)
 
         if save_best_model:
             i = np.argmax(p)
-            self._save_best_model(TemplateModel(self.template, frequency = frequency[i],
-                                                       parameters = bfpars[i]))
+            self._save_best_model(TemplateModel(self.template,
+                                                frequency = frequency[i],
+                                                parameters = bfpars[i]))
         return frequency, p
 
     @requires_data
@@ -293,29 +291,28 @@ class FastTemplateModeler(object):
         power : float or ndarray
             The frequency and template periodogram power, a
         """
-        fitter = lambda frq : pdg.fit_template(self.t, self.y, self.dy,
-                    self.template.cn, self.template.sn, self.template.ptensors, frq,
-            allow_negative_amplitudes=self.allow_negative_amplitudes)
+        # Allow inputs of any shape; we'll reshape output to match
+        frequency = np.asarray(frequency)
+        shape = frequency.shape
+        frequency = frequency.ravel()
 
-        multiple_frequencies = hasattr(frequency, '__iter__')
+        def fitter(freq):
+            return pdg.fit_template(self.t, self.y, self.dy,
+                                    self.template.c_n, self.template.s_n,
+                                    self.template.ptensors, freq,
+                                    allow_negative_amplitudes=self.allow_negative_amplitudes)
 
-        # Do I need to initialize these if they're definied within if statements?
-        p, best_model = None, None
-        if multiple_frequencies:
-            p, bfpars = zip(*map(fitter, frequency))
-            p = np.array(p)
-            i = np.argmax(p)
-            best_model = TemplateModel(self.template, frequency = frequency[i],
-                                       parameters = bfpars[i])
-        else:
-            p, bfpars = fitter(frequency)
-            best_model = TemplateModel(self.template, frequency = frequency,
-                                       parameters = bfpars)
+        p, bfpars = zip(*map(fitter, frequency))
+        p = np.array(p)
 
         if save_best_model:
+            i = np.argmax(p)
+            best_model = TemplateModel(self.template,
+                                       frequency=frequency[i],
+                                       parameters=bfpars[i])
             self._save_best_model(best_model)
 
-        return p
+        return p.reshape(shape)
 
     def _save_best_model(self, model, overwrite=False):
         if overwrite or self.best_model is None:
@@ -388,7 +385,7 @@ class FastMultiTemplateModeler(FastTemplateModeler):
             raise ValueError('fit_model requires float argument')
 
         p, parameters = zip(*[pdg.fit_template(self.t, self.y, self.dy,
-                                               template.cn, template.sn,
+                                               template.c_n, template.s_n,
                                                template.ptensors, freq,
                                                allow_negative_amplitudes=self.allow_negative_amplitudes)
                               for template in self.templates ])
@@ -419,8 +416,8 @@ class FastMultiTemplateModeler(FastTemplateModeler):
         """
         frequency = self.autofrequency(**kwargs)
 
-        results = [pdg.template_periodogram(self.t, self.y, self.dy, template.cn,
-                                            template.sn, frequency,
+        results = [pdg.template_periodogram(self.t, self.y, self.dy, template.c_n,
+                                            template.s_n, frequency,
                                             ptensors=template.ptensors, fast=fast,
                                             allow_negative_amplitudes=self.allow_negative_amplitudes)
                    for template in self.templates]
@@ -458,30 +455,23 @@ class FastMultiTemplateModeler(FastTemplateModeler):
         power : float or ndarray
             The frequency and template periodogram power, a
         """
-        multiple_frequencies = hasattr(frequency, '__iter__')
+        # Allow inputs of any shape; we'll reshape output to match
+        frequency = np.asarray(frequency)
+        shape = frequency.shape
+        frequency = frequency.ravel()
 
-        # Do I need to initialize these if they're definied within if statements?
-        p, best_model = None, None
-        if multiple_frequencies:
-            p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy,
-                    template.cn, template.sn, frequency, ptensors=template.ptensors, fast=fast,
-                            allow_negative_amplitudes=self.allow_negative_amplitudes)
-
+        p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy,
+                                             template.c_n, template.s_n,
+                                             frequency, ptensors=template.ptensors,
+                                             fast=fast, allow_negative_amplitudes=self.allow_negative_amplitudes)
+        p = np.asarray(p)
+        if save_best_model:
             i = np.argmax(p)
             best_model = TemplateModel(template, frequency = frequency[i],
-                                                          parameters = bfpars[i])
-        else:
-            p, bfpars = pdg.fit_template(self.t, self.y, self.dy,
-                    template.cn, template.sn, template.ptensors, frequency,
-            allow_negative_amplitudes=self.allow_negative_amplitudes)
-
-            best_model = TemplateModel(template, frequency = frequency,
-                                                          parameters = bfpars)
-
-        if save_best_model:
+                                       parameters = bfpars[i])
             self._save_best_model(best_model)
 
-        return p
+        return p.reshape(shape)
 
     @requires_data
     @requires_templates
@@ -503,8 +493,9 @@ class FastMultiTemplateModeler(FastTemplateModeler):
         power : float or ndarray
             The frequency and template periodogram power, a
         """
-        all_power = [ self.power_from_single_template(frequency, template,
-                                fast=fast, save_best_model=save_best_model)\
-                        for template in self.templates ]
+        all_power = [self.power_from_single_template(frequency, template,
+                                                     fast=fast,
+                                                     save_best_model=save_best_model)\
+                     for template in self.templates ]
 
         return np.max(all_power, axis=0)
