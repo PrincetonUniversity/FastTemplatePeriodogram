@@ -25,23 +25,6 @@ from .pseudo_poly import compute_polynomial_tensors,\
 from .utils import Avec, Bvec, ModelFitParams, weights
 
 
-def get_a_from_b(b, cn, sn, sums, A=None, B=None,
-                 AYCBYS=None, sgn=1):
-    """ return the optimal amplitude & offset for a given value of b """
-
-    if A is None:
-        A = Avec(b, cn, sn, sgn=sgn)
-    if B is None:
-        B = Bvec(b, cn, sn, sgn=sgn)
-    if AYCBYS is None:
-        AYCBYS = np.dot(A, sums.YC) + np.dot(B, sums.YS)
-
-    D = (    np.einsum('i,j,ij', A, A, sums.CC) \
-       + 2 * np.einsum('i,j,ij', A, B, sums.CS) \
-       +     np.einsum('i,j,ij', B, B, sums.SS))
-
-    return AYCBYS / D
-
 
 def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
                        allow_negative_amplitudes=True):
@@ -90,7 +73,6 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
     if sums is None:
         sums   = direct_summations(t, y, w, freq, nh)
 
-    # Get a list of zeros
     zeros = compute_zeros(ptensors, sums)
 
     # Check boundaries, too
@@ -106,11 +88,18 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
             A = Avec(b, cn, sn, sgn=sgn)
             B = Bvec(b, cn, sn, sgn=sgn)
 
-            AYCBYS = np.dot(A, sums.YC[:nh]) + np.dot(B, sums.YS[:nh])
-            ACBS   = np.dot(A, sums.C[:nh])  + np.dot(B, sums.S[:nh])
+            AYCBYS = np.dot(A, sums.YC) + np.dot(B, sums.YS)
+            ACBS   = np.dot(A, sums.C)  + np.dot(B, sums.S)
+
+            #D = (    np.einsum('i,j,ij', A, A, sums.CC) \
+            #   + 2 * np.einsum('i,j,ij', A, B, sums.CS) \
+            #   +     np.einsum('i,j,ij', B, B, sums.SS))
+
+            D = np.dot(np.dot(A, sums.CC), A) + 2 * np.dot(np.dot(A, sums.CS), B)\
+                 + np.dot(np.dot(B, sums.SS), B)
 
             # Obtain amplitude for a given b=cos(wtau) and sign(sin(wtau))
-            a = get_a_from_b(b, cn, sn, sums, A=A, B=B, AYCBYS=AYCBYS)
+            a = AYCBYS / D
 
             # Skip negative amplitude solutions
             if a < 0 and (not allow_negative_amplitudes or nh == 1):
@@ -121,6 +110,7 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 
             # Record the best-fit parameters for this template
             if power is None or p > power:
+
                 # Get offset
                 c = ybar - a * ACBS
 
@@ -137,7 +127,7 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 
 def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
                         summations=None, allow_negative_amplitudes=True,
-                        fast=True):
+                        fast=True, use_old_b=True):
     r"""
     Produces a template periodogram using a single template
 
@@ -196,9 +186,11 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
 
     # Iterate through frequency values (sums contains C, S, YC, ...)
     for frq, sums in zip(freqs, summations):
+
         power, params = fit_template(t, y, dy, cn, sn, ptensors, frq, sums=sums,
                           allow_negative_amplitudes=allow_negative_amplitudes)
 
+        
         best_fit_params.append(params)
         powers.append(power)
 

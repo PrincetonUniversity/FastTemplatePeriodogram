@@ -178,25 +178,28 @@ class PseudoPolynomial(object):
             Coefficients of the derivative of the root finding polynomial
         """
         p  = self.root_finding_poly()
-        dp = remove_zeros(pol.polyder(p))
+        #dp = remove_zeros(pol.polyder(p))
 
-        roots_p = pol.polyroots(self.p)
-        roots_q = pol.polyroots(self.q)
+        #roots_p = pol.polyroots(self.p)
+        #roots_q = pol.polyroots(self.q)
 
-        roots = []
-        for root in roots_p:
-            if any([ abs(rq - root) < 1E-5 for rq in roots_q ]):
-                roots.append(root)
+        #roots = []
+        #for root in roots_p:
+        #    if any([ abs(rq - root) < 1E-5 for rq in roots_q ]):
+        #        roots.append(root)
 
-        pr    = remove_zeros(pol.polyfromroots(roots))
-        p2, _ = pol.polydiv(p, pol.polymul(pr, pr))
-        p2    = remove_zeros(p2)
+        #pr    = remove_zeros(pol.polyfromroots(roots))
+        #p2, _ = pol.polydiv(p, pol.polymul(pr, pr))
+        #p2    = remove_zeros(p2)
 
-        new_roots = list(pol.polyroots(p2))
+        #new_roots = list(pol.polyroots(p2))
 
-        roots.extend(new_roots)
+        #roots.extend(new_roots)
 
-        return roots, p, dp
+        roots0 = pol.polyroots(p) 
+        roots = [ r.real for r in roots0 if not abs(r.imag) > 1E-5 ]
+
+        return roots, p
 
     def complex_roots(self, tol=1E-9):
         """
@@ -215,7 +218,7 @@ class PseudoPolynomial(object):
         roots : array_like
             List of (unique) complex roots of the pseudopolynomial
         """
-        roots0, p, dp = self._roots0()
+        roots0, p = self._roots0()
 
         roots = []
         for root in roots0:
@@ -242,10 +245,14 @@ class PseudoPolynomial(object):
         roots : array_like
             List of (unique) real roots of the root-finding poly
         """
-        roots0, p, dp = self._roots0()
+        roots0, p = self._roots0()
 
         f = lambda x, p=p : pol.polyval( x, p)
-        fprime = lambda x, dp=dp : pol.polyval( x, dp )
+
+        fprime = None
+        if use_newton:
+            dp = pol.polyder(p)
+            fprime = lambda x, dp=dp : pol.polyval( x, dp )
 
         return correct_real_roots(roots0, f, fprime=fprime,
                                   use_newton=use_newton)
@@ -267,10 +274,14 @@ class PseudoPolynomial(object):
         roots : array_like
             List of (unique) real roots of the PseudoPolynomial
         """
-        roots0, p, dp = self._roots0()
+        roots0, p = self._roots0()
 
         f = lambda x, p=p : pol.polyval( x, p)
-        fprime = lambda x, dp=dp : pol.polyval( x, dp )
+
+        fprime = None
+        if use_newton:
+            dp = pol.polyder(p)
+            fprime = lambda x, dp=dp : pol.polyval( x, dp )
 
         criterion = lambda x, P=self.p, Q=self.q : pol.polyval(x, P) * pol.polyval(x, Q) < tol
 
@@ -423,7 +434,7 @@ def correct_real_roots(roots0, func, fprime=None,use_newton=True,
         if use_newton:
             try:
                 nz = newton(func, root.real, maxiter=maxiter, fprime=fprime)
-                if not any([ abs(nz - cr) < tol for cr in corr_roots ]):
+                if not any([ abs(nz - cr) < tol for cr in corr_roots ]) and abs(nz) < 1 - tol:
                     if not check(nz):
                         continue
                     corr_roots.append(nz)
@@ -437,7 +448,7 @@ def correct_real_roots(roots0, func, fprime=None,use_newton=True,
     return corr_roots
 
 
-def get_final_ppoly(ptensors, sums):
+def get_final_ppoly_components(ptensors, sums):
     """
     Calculates the `PseudoPolynomial` used to determine
     a set of candidates for the optimal phase-shift
@@ -483,26 +494,46 @@ def get_final_ppoly(ptensors, sums):
     Kbbdb = np.einsum('i,jk->ijk', sums.YS[:H], sums.SS[:H,:H]) \
           - np.einsum('k,ij->ijk', sums.YS[:H], sums.SS[:H,:H])
 
-    Pp  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
-    Pp += np.einsum('ijkl,ijk->l', AAdBp, Kaadb)
-    Pp += np.einsum('ijkl,ijk->l', ABdAp, Kabda)
-    Pp += np.einsum('ijkl,ijk->l', ABdBp, Kabdb)
-    Pp += np.einsum('ijkl,ijk->l', BBdAp, Kbbda)
-    Pp += np.einsum('ijkl,ijk->l', BBdBp, Kbbdb)
+    p  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
+    p += np.einsum('ijkl,ijk->l', AAdBp, Kaadb)
+    p += np.einsum('ijkl,ijk->l', ABdAp, Kabda)
+    p += np.einsum('ijkl,ijk->l', ABdBp, Kabdb)
+    p += np.einsum('ijkl,ijk->l', BBdAp, Kbbda)
+    p += np.einsum('ijkl,ijk->l', BBdBp, Kbbdb)
 
-    Pq  = np.einsum('ijkl,ijk->l', AAdAq, Kaada)
-    Pq += np.einsum('ijkl,ijk->l', AAdBq, Kaadb)
-    Pq += np.einsum('ijkl,ijk->l', ABdAq, Kabda)
-    Pq += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
-    Pq += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
-    Pq += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
+    q  = np.einsum('ijkl,ijk->l', AAdAq, Kaada)
+    q += np.einsum('ijkl,ijk->l', AAdBq, Kaadb)
+    q += np.einsum('ijkl,ijk->l', ABdAq, Kabda)
+    q += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
+    q += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
+    q += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
 
-    PP = PseudoPolynomial(p=Pp, q=Pq, r=0)
+    return p, q
 
-    return PP
+def get_final_roots_faster(p, q):
+
+    p2 = pol.polymul(p, p)
+    q2 = pol.polymul(q, q)
+
+    P = pol.polysub(p2, pol.polymul(q2, (1, 0, -1)))
+
+    roots = pol.polyroots(P)
+
+    rroots = np.sort([ r.real for r in roots if not abs(r.imag) > 1E-5 and abs(r.real) < 1 - 1E-5 ]).tolist()
+    
+    nroots = []
+    for r in rroots:
+        if len(nroots) == 0 or not abs(r - nroots[-1]) < 1E-5:
+            nroots.append(r)
+    return nroots
 
 
-def compute_zeros(ptensors, sums, b_guess=None, tol=1E-3):
+
+def get_final_ppoly(ptensors, sums):
+    p, q = get_final_ppoly_components(ptensors, sums)
+    return PseudoPolynomial(p=p, q=q, r=0)
+
+def compute_zeros_slow(ptensors, sums, b_guess=None, tol=1E-3):
     """
     Compute frequency-dependent polynomial coefficients,
     then find real roots
@@ -538,3 +569,61 @@ def compute_zeros(ptensors, sums, b_guess=None, tol=1E-3):
                                   use_newton=True)
 
     return PP.real_roots_pm()
+
+
+def compute_zeros(ptensors, sums):
+    AAdAp, AAdAq, \
+    AAdBp, AAdBq, \
+    ABdAp, ABdAq, \
+    ABdBp, ABdBq, \
+    BBdAp, BBdAq, \
+    BBdBp, BBdBq = ptensors
+
+    H = len(AAdAp)
+
+    Kaada = np.einsum('i,jk->ijk', sums.YC, sums.CC) \
+          - np.einsum('k,ij->ijk', sums.YC, sums.CC)
+
+    Kaadb = np.einsum('i,jk->ijk', sums.YC, sums.CS) \
+          - np.einsum('k,ij->ijk', sums.YS, sums.CC)
+
+    Kabda = np.einsum('i,kj->ijk', sums.YC, sums.CS) \
+          + np.einsum('j,ik->ijk', sums.YS, sums.CC)
+
+    Kabdb = np.einsum('i,jk->ijk', sums.YC, sums.SS) \
+          + np.einsum('j,ik->ijk', sums.YS, sums.CS)
+
+    Kbbda = np.einsum('i,kj->ijk', sums.YS, sums.CS) \
+          - np.einsum('k,ij->ijk', sums.YC, sums.SS)
+
+    Kbbdb = np.einsum('i,jk->ijk', sums.YS, sums.SS) \
+          - np.einsum('k,ij->ijk', sums.YS, sums.SS)
+
+    p  = np.einsum('ijkl,ijk->l', AAdAp, Kaada)
+    p += np.einsum('ijkl,ijk->l', AAdBp, Kaadb)
+    p += np.einsum('ijkl,ijk->l', ABdAp, Kabda)
+    p += np.einsum('ijkl,ijk->l', ABdBp, Kabdb)
+    p += np.einsum('ijkl,ijk->l', BBdAp, Kbbda)
+    p += np.einsum('ijkl,ijk->l', BBdBp, Kbbdb)
+
+    q  = np.einsum('ijkl,ijk->l', AAdAq, Kaada)
+    q += np.einsum('ijkl,ijk->l', AAdBq, Kaadb)
+    q += np.einsum('ijkl,ijk->l', ABdAq, Kabda)
+    q += np.einsum('ijkl,ijk->l', ABdBq, Kabdb)
+    q += np.einsum('ijkl,ijk->l', BBdAq, Kbbda)
+    q += np.einsum('ijkl,ijk->l', BBdBq, Kbbdb)
+
+    p2 = pol.polymul(p, p)
+    q2 = pol.polymul(q, q)
+
+    P = pol.polysub(p2, pol.polymul(q2, (1, 0, -1)))
+
+    roots = pol.polyroots(P)
+
+    rroots = np.sort([ r.real for r in roots if not abs(r.imag) > 1E-5 and abs(r.real) < 1 - 1E-5 ])
+    
+    nroots = []
+    for r in rroots:
+        if len(nroots) == 0 or not abs(r - nroots[-1]) < 1E-5:
+            nroots.append(r)
+    return nroots
