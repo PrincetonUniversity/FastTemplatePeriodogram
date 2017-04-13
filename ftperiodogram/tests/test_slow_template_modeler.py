@@ -65,4 +65,11 @@ def test_slow_vs_fast(nharmonics):
     power_slow = SlowTemplatePeriodogram(template).fit(t, y, dy).power(freq)
     power_fast = FastTemplatePeriodogram(template).fit(t, y, dy).power(freq)
 
+    inds = np.arange(len(freq))
+    mask = power_slow > power_fast + 1E-4
+    for i in inds[mask]:
+        print("frequency %d (%.3e) is problematic because (p_slow = %e) > (p_fast = %e) + 1E-4"%((i, 
+                     freq[i], power_slow[i], power_fast[i])))
+        print("          p_slow is %.e times larger than p_fast"%(p_slow/p_fast - 1))
+
     assert_array_less(power_slow, power_fast + 1E-4)

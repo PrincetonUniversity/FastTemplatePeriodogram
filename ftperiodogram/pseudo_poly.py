@@ -214,7 +214,7 @@ class PseudoPolynomial(object):
 
             pr *= pr
 
-            prf = p / pr
+            prf = p // pr
 
         roots.extend(list(prf.roots()))
         return roots, p
