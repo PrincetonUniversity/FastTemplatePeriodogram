@@ -505,7 +505,7 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         return np.max(all_power, axis=0)
 
 
-class SlowTemplateModeler(object):
+class SlowTemplatePeriodogram(object):
     """Slow periodogram built from a template model.
 
     When computing the periodogram, this performs a nonlinear optimization at

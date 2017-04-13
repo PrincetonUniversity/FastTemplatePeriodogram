@@ -8,7 +8,7 @@ try:
 except ImportError:
     astropy_LombScargle = None
 
-from ..modeler import SlowTemplateModeler, FastTemplateModeler
+from ..modeler import SlowTemplatePeriodogram, FastTemplatePeriodogram
 from ..template import Template
 
 
@@ -36,7 +36,7 @@ def test_vs_lombscargle():
     t, y, dy = generate_data(template, N=100, tmin=0, tmax=100, freq=0.1)
 
     freq = np.linspace(0.01, 1, 10)
-    power1 = SlowTemplateModeler(template=template).fit(t, y, dy).power(freq)
+    power1 = SlowTemplatePeriodogram(template=template).fit(t, y, dy).power(freq)
     power2 = astropy_LombScargle(t, y, dy, fit_mean=True).power(freq)
 
     assert_allclose(power1, power2)
@@ -49,7 +49,7 @@ def test_zero_noise(nharmonics):
     template = generate_template(nharmonics)
     t, y, _ = generate_data(template, N=100, tmin=0, tmax=100, freq=0.1, dy=0)
     dy = None
-    power = SlowTemplateModeler(template=template).fit(t, y, dy).power(0.1)
+    power = SlowTemplatePeriodogram(template=template).fit(t, y, dy).power(0.1)
     assert_allclose(power, 1)
 
 
@@ -62,7 +62,7 @@ def test_slow_vs_fast(nharmonics):
     t, y, dy = generate_data(template, N=100, tmin=0, tmax=100, freq=0.1)
     freq = 0.01 * np.arange(1, 101)
 
-    power_slow = SlowTemplateModeler(template).fit(t, y, dy).power(freq)
-    power_fast = FastTemplateModeler(template).fit(t, y, dy).power(freq)
+    power_slow = SlowTemplatePeriodogram(template).fit(t, y, dy).power(freq)
+    power_fast = FastTemplatePeriodogram(template).fit(t, y, dy).power(freq)
 
     assert_array_less(power_slow, power_fast + 1E-4)
