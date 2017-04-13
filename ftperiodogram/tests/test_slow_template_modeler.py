@@ -68,8 +68,10 @@ def test_slow_vs_fast(nharmonics):
     inds = np.arange(len(freq))
     mask = power_slow > power_fast + 1E-4
     for i in inds[mask]:
+        p_slow = power_slow[i]
+        p_fast = power_fast[i]
         print("frequency %d (%.3e) is problematic because (p_slow = %e) > (p_fast = %e) + 1E-4"%((i, 
-                     freq[i], power_slow[i], power_fast[i])))
+                     freq[i], p_slow, p_fast)))
         print("          p_slow is %.e times larger than p_fast"%(p_slow/p_fast - 1))
 
     assert_array_less(power_slow, power_fast + 1E-4)
