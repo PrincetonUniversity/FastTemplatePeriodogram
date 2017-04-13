@@ -271,8 +271,8 @@ class PseudoPolynomial(object):
         tol: float, optional (default=1E-8)
             Small number for comparing roots and evaluations of the PseudoPolynomial.
         use_newton: bool, optional (default = False)
-            If true, uses Halley’s method to improve estimates of zeros.
-            
+            If true, uses Halley's method to improve estimates of zeros.
+
         Returns
         -------
         roots : array_like
