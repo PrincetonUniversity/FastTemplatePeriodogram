@@ -1,7 +1,7 @@
 from pyftp.summations import direct_summations, fast_summations
 from pyftp.utils import weights
 from pyftp.template import Template
-from pyftp.modeler import FastTemplateModeler, FastMultiTemplateModeler, TemplateModel
+from pyftp.modeler import FastTemplatePeriodogram, FastMultiTemplatePeriodogram, TemplateModel
 from pyftp.utils import ModelFitParams, weights
 from pyftp.periodogram import fit_template
 import matplotlib

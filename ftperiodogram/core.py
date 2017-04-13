@@ -1,15 +1,7 @@
 """
-FAST TEMPLATE PERIODOGRAM (prototype)
+Core algorithm for the Fast Template Periodogram
 
-Uses NFFT to make the template periodogram scale as H*N log(H*N)
-where H is the number of harmonics in which to expand the template and
-N is the number of observations.
-
-Previous routines scaled as N^2 and used non-linear least-squares
-minimization (e.g. Levenberg-Marquardt) at each frequency.
-
-(c) John Hoffman 2016
-
+(c) John Hoffman, Jake Vanderplas 2017
 """
 from __future__ import print_function
 
@@ -20,14 +12,15 @@ from .summations import fast_summations, direct_summations
 
 from .pseudo_poly import compute_polynomial_tensors,\
                          get_polynomial_vectors,\
-                         compute_zeros
+                         compute_zeros, compute_zeros_multifrequency
 
 from .utils import Avec, Bvec, ModelFitParams, weights
 
 
 
 def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
-                       allow_negative_amplitudes=True):
+                       allow_negative_amplitudes=True, zeros=None,
+                       small=1E-7):
     r"""
     Fits periodic template to data at a single frequency
 
@@ -73,16 +66,15 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
     if sums is None:
         sums   = direct_summations(t, y, w, freq, nh)
 
-    zeros = compute_zeros(ptensors, sums)
+    if zeros is None:
+        zeros = compute_zeros(ptensors, sums)
 
     # Check boundaries, too
-    small=1E-7
     for edge in [1 - small, -1 + small]:
         if not edge in zeros:
             zeros.append(edge)
 
     power, params = None, None
-
     for b in zeros:
         for sgn in [-1, 1]:
             A = Avec(b, cn, sn, sgn=sgn)
@@ -90,10 +82,6 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 
             AYCBYS = np.dot(A, sums.YC) + np.dot(B, sums.YS)
             ACBS   = np.dot(A, sums.C)  + np.dot(B, sums.S)
-
-            #D = (    np.einsum('i,j,ij', A, A, sums.CC) \
-            #   + 2 * np.einsum('i,j,ij', A, B, sums.CS) \
-            #   +     np.einsum('i,j,ij', B, B, sums.SS))
 
             D = np.dot(np.dot(A, sums.CC), A) + 2 * np.dot(np.dot(A, sums.CS), B)\
                  + np.dot(np.dot(B, sums.SS), B)
@@ -127,7 +115,7 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
 
 def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
                         summations=None, allow_negative_amplitudes=True,
-                        fast=True, use_old_b=True):
+                        fast=True):
     r"""
     Produces a template periodogram using a single template
 
@@ -182,15 +170,15 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
         else:
             summations = direct_summations(t, y, w, freqs, nh)
 
+    all_zeros = compute_zeros_multifrequency(ptensors, summations)
     powers, best_fit_params = [], []
 
     # Iterate through frequency values (sums contains C, S, YC, ...)
-    for frq, sums in zip(freqs, summations):
-
+    for frq, sums, zeros in zip(freqs, summations, all_zeros):
         power, params = fit_template(t, y, dy, cn, sn, ptensors, frq, sums=sums,
-                          allow_negative_amplitudes=allow_negative_amplitudes)
+                          allow_negative_amplitudes=allow_negative_amplitudes,
+                          zeros=zeros)
 
-        
         best_fit_params.append(params)
         powers.append(power)
 

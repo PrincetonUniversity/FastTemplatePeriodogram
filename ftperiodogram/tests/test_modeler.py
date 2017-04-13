@@ -1,10 +1,10 @@
 """Tests of high-level methods for revised modeler class"""
 import numpy as np
 
-from ..modeler import FastTemplateModeler, FastMultiTemplateModeler, TemplateModel
+from ..modeler import FastTemplatePeriodogram, FastMultiTemplatePeriodogram, TemplateModel
 from ..template import Template
 from ..utils import weights, ModelFitParams
-from ..periodogram import fit_template
+from ..core import fit_template
 
 from numpy.testing import assert_allclose
 import pytest
@@ -163,7 +163,7 @@ def test_fast_template_method(nharmonics, template, data, samples_per_peak, nyqu
     temp = Template(c_n, s_n)
     temp.precompute()
 
-    model = FastTemplateModeler(template=temp)
+    model = FastTemplatePeriodogram(template=temp)
     model.fit(t, y, yerr)
     freq_template, power_template = model.autopower(samples_per_peak=samples_per_peak,
                                                       nyquist_factor=nyquist_factor)
@@ -192,7 +192,7 @@ def test_fast_vs_slow(nharmonics, template, data, samples_per_peak, nyquist_fact
     temp = Template(c_n, s_n)
     temp.precompute()
 
-    model = FastTemplateModeler(template=temp)
+    model = FastTemplatePeriodogram(template=temp)
     model.fit(t, y, yerr)
     freq_template, power_template_fast = model.autopower(samples_per_peak=samples_per_peak,
                                                       nyquist_factor=nyquist_factor, fast=True)
@@ -217,7 +217,7 @@ def test_best_model(nharmonics, template, data, samples_per_peak, nyquist_factor
     c_n, s_n = truncate_template(phase, y_phase, nharmonics)
     temp = Template(c_n, s_n)
 
-    modeler = FastTemplateModeler(template=temp).fit(t, y, yerr)
+    modeler = FastTemplatePeriodogram(template=temp).fit(t, y, yerr)
 
     freq, P = modeler.autopower(samples_per_peak = samples_per_peak,
                                   nyquist_factor = nyquist_factor,
@@ -254,15 +254,15 @@ def test_multi_template_method(nharmonics, template, data, samples_per_peak, nyq
     temp.precompute()
     temp2.precompute()
 
-    model1 = FastTemplateModeler(template=temp).fit(t, y, yerr)
-    model2 = FastTemplateModeler(template=temp2).fit(t, y, yerr)
+    model1 = FastTemplatePeriodogram(template=temp).fit(t, y, yerr)
+    model2 = FastTemplatePeriodogram(template=temp2).fit(t, y, yerr)
 
     freq, p1 = model1.autopower(samples_per_peak=samples_per_peak,
                      nyquist_factor=nyquist_factor, save_best_model=False)
     freq, p2 = model2.autopower(samples_per_peak=samples_per_peak,
                      nyquist_factor=nyquist_factor, save_best_model=False)
 
-    model = FastMultiTemplateModeler(templates=[ temp, temp2 ])
+    model = FastMultiTemplatePeriodogram(templates=[ temp, temp2 ])
     model.fit(t, y, yerr)
     freq_template, p_multi = model.autopower(samples_per_peak=samples_per_peak,
                      nyquist_factor=nyquist_factor, save_best_model=False)
@@ -287,10 +287,10 @@ def test_autopower_and_power_are_consistent(nharmonics, template,
                      s_n = rand.rand(nharmonics))
 
     temp2.precompute()
-    modeler_single = FastTemplateModeler(template=temp).fit(t, y, yerr)
+    modeler_single = FastTemplatePeriodogram(template=temp).fit(t, y, yerr)
 
     # MULTI-template
-    modeler_multi = FastMultiTemplateModeler(templates=[temp, temp2])
+    modeler_multi = FastMultiTemplatePeriodogram(templates=[temp, temp2])
     modeler_multi.fit(t, y, yerr)
 
     for modeler in [ modeler_single, modeler_multi ]:
@@ -322,9 +322,9 @@ def test_best_model_and_fit_model_are_consistent(nharmonics, template, ndata,
                      s_n = rand.rand(nharmonics))
 
     temp2.precompute()
-    modeler_single = FastTemplateModeler(template = temp).fit(t, y, yerr)
+    modeler_single = FastTemplatePeriodogram(template = temp).fit(t, y, yerr)
 
-    modeler_multi = FastMultiTemplateModeler(templates = [temp, temp2])
+    modeler_multi = FastMultiTemplatePeriodogram(templates = [temp, temp2])
     modeler_multi.fit(t, y, yerr)
 
     for modeler in [ modeler_single, modeler_multi ]:
@@ -357,7 +357,7 @@ def test_best_model_and_fit_model_are_consistent(nharmonics, template, ndata,
 def test_errors_are_raised(nharmonics, template, data):
     t, y, yerr = data
 
-    modeler = FastTemplateModeler()
+    modeler = FastTemplatePeriodogram()
 
     with pytest.raises(ValueError):
         modeler.autopower()
@@ -371,7 +371,7 @@ def test_errors_are_raised(nharmonics, template, data):
 
     freq, p = modeler.autopower()
 
-    modeler = FastMultiTemplateModeler()
+    modeler = FastMultiTemplatePeriodogram()
 
     with pytest.raises(ValueError):
         modeler.autopower()

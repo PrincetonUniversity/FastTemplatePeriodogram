@@ -1,9 +1,9 @@
 test : 
-	py.test tempfit
+	py.test ftperiodogram
 
 test-coverage :
-	py.test --cov=tempfit tempfit
+	py.test --cov=ftperiodogram ftperiodogram
 
 
 test-coverage-report :
-	py.test --cov-report term-missing --cov=tempfit tempfit
+	py.test --cov-report term-missing --cov=ftperiodogram ftperiodogram

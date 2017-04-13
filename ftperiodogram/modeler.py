@@ -7,7 +7,7 @@ from scipy import optimize
 
 from .utils import weights, ModelFitParams
 from .template import Template
-from . import periodogram as pdg
+from . import core as pdg
 
 
 # function wrappers for performing checks
@@ -92,11 +92,11 @@ class TemplateModel(object):
         return self.parameters.a * self.template(phase) + self.parameters.c
 
 
-class FastTemplateModeler(object):
-    """Base class for template modelers
+class FastTemplatePeriodogram(object):
+    """Base class for template periodogram instances
 
     Fits a single template to the data. For
-    fitting multiple templates, use the FastMultiTemplateModeler
+    fitting multiple templates, use the FastMultiTemplatePeriodogram
 
     Parameters
     ----------
@@ -128,8 +128,8 @@ class FastTemplateModeler(object):
         if any([ X is None for X in [ self.t, self.y, self.dy ] ]):
             raise ValueError("One or more of t, y, dy is None; "
                              "fit(t, y, dy) must be called first.")
-
-        if any([ self.t[i] > self.t[i+1] for i in range(len(self.t) - 1)]):
+        inds = np.arange(len(self.t) - 1)
+        if any(self.t[inds] > self.t[inds+1]):
             raise ValueError("One or more observations are not consecutive.")
 
         if not (len(self.t) == len(self.y) and len(self.y) == len(self.dy)):
@@ -153,7 +153,7 @@ class FastTemplateModeler(object):
 
         Returns
         -------
-        self : FastTemplateModeler
+        self : FastTemplatePeriodogram
             Returns self
         """
         # TODO: validate dy when it is float or None
@@ -333,7 +333,7 @@ class FastTemplateModeler(object):
                 self.best_model = model
 
 
-class FastMultiTemplateModeler(FastTemplateModeler):
+class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
     """
     Template modeler that fits multiple templates
 
@@ -466,7 +466,8 @@ class FastMultiTemplateModeler(FastTemplateModeler):
         p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy,
                                              template.c_n, template.s_n,
                                              frequency, ptensors=template.ptensors,
-                                             fast=fast, allow_negative_amplitudes=self.allow_negative_amplitudes)
+                                             fast=fast, 
+                                             allow_negative_amplitudes=self.allow_negative_amplitudes)
         p = np.asarray(p)
         if save_best_model:
             i = np.argmax(p)

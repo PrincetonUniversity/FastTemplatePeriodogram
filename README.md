@@ -14,13 +14,13 @@ by a truncated Fourier series of length `H`. The Non-equispaced Fast Fourier Tra
 [NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) is used
 to efficiently compute frequency-dependent sums.
 
-The `tempfit` library is complete with API documentation and consistency
+The `ftperiodogram` library is complete with API documentation and consistency
 checks using `py.test`.
 
 Installing
 ----------
 
-See the `CONDA_INSTALL.md` for installing `tempfit` with 
+See the `CONDA_INSTALL.md` for installing `ftperiodogram` with 
 [`conda`](https://www.continuum.io/downloads)) (recommended).
 
 Examples

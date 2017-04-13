@@ -29,16 +29,16 @@ def version(path):
     raise RuntimeError("Unable to find version string.")
 
 
-VERSION = version('tempfit/__init__.py')
+VERSION = version('ftperiodogram/__init__.py')
 
-setup(name='tempfit',
+setup(name='ftperiodogram',
       version=VERSION,
       description="Tools for efficiently fitting periodic templates to irregularly-sampled timeseries data",
       author='John Hoffman, Jake Vanderplas',
       author_email='jah5@princeton.edu, jakevdp@cs.washington.edu',
       url='https://github.com/PrincetonUniversity/FastTemplatePeriodogram',
-      packages=['tempfit',
-                'tempfit.tests'],
+      packages=['ftperiodogram',
+                'ftperiodogram.tests'],
       requires=['numpy', 'scipy', 'pynfft'],
       classifiers=[
         'Development Status :: 4 - Beta',

@@ -66,6 +66,7 @@ def direct_summations(t, y, w, freqs, nh):
         return direct_summations_single_freq(t, y, w, freqs, nh)
 
 
+
 def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     """
     Computes C, S, YC, YS, CC, CS, SS using

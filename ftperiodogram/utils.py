@@ -26,6 +26,7 @@ def dAfunc(n, x, p, q, sgn=1):
 def Avec(x, c, s, sgn=1):
     """Vector expression of A"""
     s = np.asarray(s)
+    c = np.asarray(c)
     n = np.arange(1, len(s) + 1).reshape(s.shape)
     return Afunc(n, x, c, s, sgn=sgn)
 
