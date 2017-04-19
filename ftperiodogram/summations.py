@@ -1,4 +1,5 @@
-from pynfft.nfft import NFFT
+#from future import __division__
+from nfft import nfft_adjoint
 from .utils import Summations
 import numpy as np
 from math import floor
@@ -67,11 +68,16 @@ def direct_summations(t, y, w, freqs, nh):
 
 
 
-def fast_summations(t, y, w, freqs, nh, eps=1E-5):
+def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None, 
+                        kernel='gaussian', use_fft=True, truncated=True):
     """
     Computes C, S, YC, YS, CC, CS, SS using
-    pyNFFT
+    nfft Python implementation by Jake Vanderplas
     """
+    nfft_kwargs = dict(sigma=sigma, tol=tol, m=m, 
+                        kernel=kernel, use_fft=use_fft, 
+                        truncated=truncated)
+
     nf, df, dnf = inspect_freqs(freqs)
     tmin = min(t)
 
@@ -79,8 +85,7 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     baseline = max(t) - tmin
     samples_per_peak = 1./(baseline * df)
 
-    eps = 1E-5
-    a = 0.5 - eps
+    a = 0.5 - 1E-8
     r = 2 * a / df
 
     tshift = a * (2 * (t - tmin) / r - 1)
@@ -90,30 +95,16 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     #      nf_nfft_w / 2 - 1 = 2H * (nf - 1 + dnf)
     nf_nfft_u = 2 * (     nh * (nf + dnf - 1) + 1)
     nf_nfft_w = 2 * ( 2 * nh * (nf + dnf - 1) + 1)
-    n_w0 = int(floor(nf_nfft_w/2))
-    n_u0 = int(floor(nf_nfft_u/2))
 
     # transform y -> w_i * y_i - ybar
     ybar = np.dot(w, y)
     u = np.multiply(w, y - ybar)
 
-    # plan NFFT's and precompute
-    plan = NFFT(nf_nfft_w, len(tshift))
-    plan.x = tshift
-    plan.precompute()
-
-    plan2 = NFFT(nf_nfft_u, len(tshift))
-    plan2.x = tshift
-    plan2.precompute()
-
-    # NFFT(weights)
-    plan.f = w
-
-    f_hat_w = plan.adjoint()[n_w0:]
-
-    # NFFT(y - ybar)
-    plan2.f = u
-    f_hat_u = plan2.adjoint()[n_u0:]
+    
+    n_w0 = int(floor(nf_nfft_w/2))
+    n_u0 = int(floor(nf_nfft_u/2))
+    f_hat_u = nfft_adjoint(tshift, u, nf_nfft_u, **nfft_kwargs )[n_u0:]
+    f_hat_w = nfft_adjoint(tshift, w, nf_nfft_w, **nfft_kwargs )[n_w0:]
 
     # now correct for phase shift induced by transforming t -> (-1/2, 1/2)
     beta = -a * (2 * tmin / r + 1)
@@ -121,7 +112,6 @@ def fast_summations(t, y, w, freqs, nh, eps=1E-5):
     twiddles = np.exp(- I * 2 * np.pi * np.arange(0, n_w0) * beta)
     f_hat_u *= twiddles[:len(f_hat_u)]
     f_hat_w *= twiddles[:len(f_hat_w)]
-
     all_computed_sums = []
 
     # Now compute the summation values at each frequency
