@@ -7,18 +7,97 @@ from __future__ import print_function
 
 
 import numpy as np
+import numpy.polynomial as pol
 
 from .summations import fast_summations, direct_summations
 
-from .pseudo_poly import compute_polynomial_tensors,\
-                         get_polynomial_vectors,\
-                         compute_zeros, compute_zeros_multifrequency
+from .utils import ModelFitParams, weights
 
-from .utils import Avec, Bvec, ModelFitParams, weights
+from time import time
 
 
+def new_solution(cn, sn, sums, ybar, YY):
+    H = len(cn)
 
-def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
+    alpha = 0.5 * (np.asarray(cn) + 1j * np.asarray(sn))
+    alpha_conj = np.conj(alpha)
+
+    CC =  (sums.CC - sums.SS - 1j * (sums.CS + sums.CS.T)) * np.outer(alpha, alpha)
+    CS =  2 * ((sums.CC + sums.SS + 1j * (sums.CS - sums.CS.T)) * np.outer(alpha, alpha_conj))#[:,::-1]
+    SS = np.conj(CC)#[::-1, ::-1]
+    
+    YC = np.array(sums.YC - 1j * sums.YS, dtype=np.complex64)
+
+    aYC = alpha * YC
+    YM = pol.Polynomial(np.concatenate((np.conj(aYC)[::-1], [0], aYC)).astype(np.complex64))
+
+
+    AC = alpha * (sums.C - 1j * sums.S)
+    MM = np.zeros(4 * H + 1, dtype=np.complex64)
+
+    #for k in range(0, 2 * H - 1):
+    #    n0 = max([ 0, k - (H-1) ])
+    #    m0 = min([ H-1, k ])
+
+    #    inds = np.arange(k + 1)
+    #    if k + 1 > H:
+    #        inds = np.arange(2 * H - k - 1)
+
+
+    #    MM[k + 2 * H + 2] = np.sum(CC[n0 + inds, m0 - inds])
+    #    MM[k + H + 1]     = np.sum(CS[n0 + inds, m0 - inds])
+    #    MM[k]             = np.sum(SS[n0 + inds, m0 - inds])
+    for n in range(H):
+        for m in range(H):
+            MM[2*H + (n + 1) + (m + 1)] += CC[n][m]
+            MM[2*H + (n + 1) - (m + 1)] += CS[n][m]
+            MM[2*H - (n + 1) - (m + 1)] += SS[n][m]
+
+
+    MM = pol.Polynomial(MM)
+
+    
+    alpha_phi = pol.Polynomial(np.concatenate(([0], AC)))
+
+    #phiH = np.zeros(H+1)
+    #phiH[-1] = 1.
+
+    #YMphiH = pol.Polynomial(phiH) * YM
+
+    p = 2 * MM * YM.deriv() - MM.deriv() * YM
+
+    #dt = time() - t0
+    #print("%.3e s to come up with arrays"%dt)
+
+    #t0 = time()
+    roots = np.exp(1j * np.imag(np.log(p.roots())))
+    #dt = time() - t0
+    #print("%.3e s to find roots"%dt)
+    #roots = np.array([ np.imag(np.log(r))%(2 * np.pi) for r in roots ])
+
+    #t0 = time()
+    pdg_phi = np.real(YM(roots) ** 2 / MM(roots))
+
+    i = np.argmax(pdg_phi)
+    best_phi = roots[i]
+
+    
+    theta_1 = np.real(np.power(best_phi, H) * YM(best_phi) /  MM(best_phi))
+    theta_2 = np.imag(np.log(best_phi)) % (2 * np.pi)
+
+    mbar = 2 * np.real(alpha_phi(best_phi))
+    theta_3 = ybar - mbar * theta_1
+
+    best_params = ModelFitParams(a=theta_1, 
+                                 b=np.cos(theta_2), 
+                                 c=theta_3, 
+                                 sgn=np.sign(np.sin(theta_2)))
+
+    #dt = time() - t0
+    #print("%.3e s to find best root and derive other parameters"%dt)
+    return best_params, pdg_phi[i] / YY
+
+def fit_template(t, y, dy, cn, sn, freq, sums=None,
                        allow_negative_amplitudes=True, zeros=None,
                        small=1E-7):
     r"""
@@ -61,59 +140,18 @@ def fit_template(t, y, dy, cn, sn, ptensors, freq, sums=None,
     nh   = len(cn)
     w    = weights(dy)
     ybar = np.dot(w, y)
-    yy   = np.dot(w, (y - ybar)**2)
+    YY   = np.dot(w, np.power(y - ybar, 2))
 
     if sums is None:
         sums   = direct_summations(t, y, w, freq, nh)
 
-    if zeros is None:
-        zeros = compute_zeros(ptensors, sums)
-
-    # Check boundaries, too
-    for edge in [1 - small, -1 + small]:
-        if not edge in zeros:
-            zeros.append(edge)
-
-    power, params = None, None
-    for b in zeros:
-        for sgn in [-1, 1]:
-            A = Avec(b, cn, sn, sgn=sgn)
-            B = Bvec(b, cn, sn, sgn=sgn)
-
-            AYCBYS = np.dot(A, sums.YC) + np.dot(B, sums.YS)
-            ACBS   = np.dot(A, sums.C)  + np.dot(B, sums.S)
-
-            D = np.dot(np.dot(A, sums.CC), A) + 2 * np.dot(np.dot(A, sums.CS), B)\
-                 + np.dot(np.dot(B, sums.SS), B)
-
-            # Obtain amplitude for a given b=cos(wtau) and sign(sin(wtau))
-            a = AYCBYS / D
-
-            # Skip negative amplitude solutions
-            if a < 0 and (not allow_negative_amplitudes or nh == 1):
-                continue
-
-            # Compute periodogram
-            p = a * AYCBYS / yy
-
-            # Record the best-fit parameters for this template
-            if power is None or p > power:
-
-                # Get offset
-                c = ybar - a * ACBS
-
-                # Store best-fit parameters
-                params = ModelFitParams(a=a, b=b, c=c, sgn=sgn)
-
-                power = p
-
-    if params is None:
-        return 0, ModelFitParams(a=0, b=1, c=ybar, sgn=1)
+    params, power = new_solution(cn, sn, sums, ybar, YY) 
 
     return power, params
 
 
-def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
+
+def template_periodogram(t, y, dy, cn, sn, freqs,
                         summations=None, allow_negative_amplitudes=True,
                         fast=True):
     r"""
@@ -159,10 +197,9 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
     nh = len(cn)
     w = weights(dy)
 
-    if ptensors is None:
-        pvectors = get_polynomial_vectors(cn, sn, sgn=1)
-        ptensors = compute_polynomial_tensors(*pvectors)
-
+    ybar = np.dot(w, y)
+    YY = np.dot(w, np.power(y - ybar, 2))
+    
     if summations is None:
         # compute sums using NFFT
         if fast:
@@ -170,16 +207,7 @@ def template_periodogram(t, y, dy, cn, sn, freqs, ptensors=None,
         else:
             summations = direct_summations(t, y, w, freqs, nh)
 
-    all_zeros = compute_zeros_multifrequency(ptensors, summations)
-    powers, best_fit_params = [], []
-
-    # Iterate through frequency values (sums contains C, S, YC, ...)
-    for frq, sums, zeros in zip(freqs, summations, all_zeros):
-        power, params = fit_template(t, y, dy, cn, sn, ptensors, frq, sums=sums,
-                          allow_negative_amplitudes=allow_negative_amplitudes,
-                          zeros=zeros)
-
-        best_fit_params.append(params)
-        powers.append(power)
+    best_fit_params, powers = zip(*[ new_solution(cn, sn, sums, ybar, YY) \
+                                             for sums in summations ])
 
     return np.array(powers), best_fit_params

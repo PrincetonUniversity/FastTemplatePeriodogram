@@ -125,7 +125,6 @@ def convert_template(temp, nharmonics):
     c_n, s_n = truncate_template(phase, y_phase, nharmonics)
 
     template = Template(c_n, s_n)
-    template.precompute()
     return template
 
 def get_ftau(parameters):
@@ -161,7 +160,6 @@ def test_fast_template_method(nharmonics, template, data, samples_per_peak, nyqu
     c_n, s_n = truncate_template(phase, y_phase, nharmonics)
 
     temp = Template(c_n, s_n)
-    temp.precompute()
 
     model = FastTemplatePeriodogram(template=temp)
     model.fit(t, y, yerr)
@@ -190,7 +188,6 @@ def test_fast_vs_slow(nharmonics, template, data, samples_per_peak, nyquist_fact
     c_n, s_n = truncate_template(phase, y_phase, nharmonics)
 
     temp = Template(c_n, s_n)
-    temp.precompute()
 
     model = FastTemplatePeriodogram(template=temp)
     model.fit(t, y, yerr)
@@ -251,9 +248,6 @@ def test_multi_template_method(nharmonics, template, data, samples_per_peak, nyq
     temp = Template(c_n, s_n)
     temp2 = Template(c_n2, s_n2)
 
-    temp.precompute()
-    temp2.precompute()
-
     model1 = FastTemplatePeriodogram(template=temp).fit(t, y, yerr)
     model2 = FastTemplatePeriodogram(template=temp2).fit(t, y, yerr)
 
@@ -286,7 +280,6 @@ def test_autopower_and_power_are_consistent(nharmonics, template,
     temp2 = Template(c_n = rand.rand(nharmonics),
                      s_n = rand.rand(nharmonics))
 
-    temp2.precompute()
     modeler_single = FastTemplatePeriodogram(template=temp).fit(t, y, yerr)
 
     # MULTI-template
@@ -321,7 +314,6 @@ def test_best_model_and_fit_model_are_consistent(nharmonics, template, ndata,
     temp2 = Template(c_n = rand.rand(nharmonics),
                      s_n = rand.rand(nharmonics))
 
-    temp2.precompute()
     modeler_single = FastTemplatePeriodogram(template = temp).fit(t, y, yerr)
 
     modeler_multi = FastMultiTemplatePeriodogram(templates = [temp, temp2])
@@ -410,13 +402,10 @@ def test_inject_and_recover(nharmonics, ndata, rseed, period=1.2, tol=1E-2):
 
     template = Template(c_n=c_n, s_n=s_n)
 
-    template.precompute()
-
     t, y, yerr = data_from_template(template, parameters, period=period,
                                          yerr=0.0001, rseed=rseed)
 
-    max_p, best_pars = fit_template(t, y, yerr, template.c_n, template.s_n,
-                                    template.ptensors, 1./period,
+    max_p, best_pars = fit_template(t, y, yerr, template.c_n, template.s_n, 1./period,
                                     allow_negative_amplitudes=True)
 
     # if nharmonics == 1 and best_pars.a < 0:
@@ -432,7 +421,7 @@ def test_inject_and_recover(nharmonics, ndata, rseed, period=1.2, tol=1E-2):
     # no absolute value here, its possible to find better fit with noise
     assert(signal_power - fit_power < tol)
 
-    assert(abs(best_pars.a - parameters.a) / parameters.a < tol)
+    assert(abs(abs(best_pars.a) - abs(parameters.a)) / parameters.a < tol)
     assert(abs(best_pars.c - parameters.c) / parameters.c < tol)
 
     ftau     = get_ftau(parameters)

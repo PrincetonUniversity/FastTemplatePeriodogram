@@ -122,7 +122,7 @@ class FastTemplatePeriodogram(object):
         if not isinstance(self.template, Template):
             raise ValueError("template is not a Template instance.")
 
-        self.template.precompute()
+        #self.template.precompute()
 
     def _validate_data(self):
         if any([ X is None for X in [ self.t, self.y, self.dy ] ]):
@@ -182,8 +182,7 @@ class FastTemplatePeriodogram(object):
         """
         freq = float(freq)
         p, parameters = pdg.fit_template(self.t, self.y, self.dy,
-                                         self.template.c_n, self.template.s_n,
-                                         self.template.ptensors, freq,
+                                         self.template.c_n, self.template.s_n, freq,
                                          allow_negative_amplitudes=self.allow_negative_amplitudes)
         return TemplateModel(self.template, parameters=parameters,
                              frequency=freq)
@@ -262,8 +261,7 @@ class FastTemplatePeriodogram(object):
         """
         frequency = self.autofrequency(**kwargs)
         p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy, self.template.c_n,
-                            self.template.s_n, frequency,
-                            ptensors=self.template.ptensors, fast=fast,
+                            self.template.s_n, frequency, fast=fast,
                             allow_negative_amplitudes=self.allow_negative_amplitudes)
 
         if save_best_model:
@@ -301,8 +299,7 @@ class FastTemplatePeriodogram(object):
 
         def fitter(freq):
             return pdg.fit_template(self.t, self.y, self.dy,
-                                    self.template.c_n, self.template.s_n,
-                                    self.template.ptensors, freq,
+                                    self.template.c_n, self.template.s_n,freq,
                                     allow_negative_amplitudes=self.allow_negative_amplitudes)
 
         p, bfpars = zip(*map(fitter, frequency))
@@ -365,7 +362,7 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         for template in self.templates:
             if not isinstance(template, Template):
                 raise ValueError("One or more templates are not Template instances.")
-            template.precompute()
+            #template.precompute()
 
     @requires_data
     @requires_templates
@@ -388,8 +385,7 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
             raise ValueError('fit_model requires float argument')
 
         p, parameters = zip(*[pdg.fit_template(self.t, self.y, self.dy,
-                                               template.c_n, template.s_n,
-                                               template.ptensors, freq,
+                                               template.c_n, template.s_n, freq,
                                                allow_negative_amplitudes=self.allow_negative_amplitudes)
                               for template in self.templates ])
 
@@ -420,8 +416,7 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         frequency = self.autofrequency(**kwargs)
 
         results = [pdg.template_periodogram(self.t, self.y, self.dy, template.c_n,
-                                            template.s_n, frequency,
-                                            ptensors=template.ptensors, fast=fast,
+                                            template.s_n, frequency, fast=fast,
                                             allow_negative_amplitudes=self.allow_negative_amplitudes)
                    for template in self.templates]
 
@@ -465,7 +460,7 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
 
         p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy,
                                              template.c_n, template.s_n,
-                                             frequency, ptensors=template.ptensors,
+                                             frequency, 
                                              fast=fast, 
                                              allow_negative_amplitudes=self.allow_negative_amplitudes)
         p = np.asarray(p)

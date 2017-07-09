@@ -57,35 +57,6 @@ class Template(object):
         c_n, s_n = coeffs.real, -coeffs.imag
         return cls(c_n, s_n, **kwargs)
 
-    def precompute(self, force_recompute=False):
-        """
-        Precompute `pvectors` and `ptensors`, which are
-        needed by the Fast Template Periodogram
-
-        Parameters
-        ----------
-            force_recompute : bool, optional
-                Ignores previous computations
-        """
-        if force_recompute:
-            self._computed = {}
-        # properties are computed by referencing them
-        pvectors, ptensors = self.pvectors, self.ptensors
-
-    @property
-    def pvectors(self):
-        if 'pvectors' not in self._computed:
-            self._computed['pvectors'] =\
-                ppol.get_polynomial_vectors(self.c_n, self.s_n, sgn=1)
-        return self._computed['pvectors']
-
-    @property
-    def ptensors(self):
-        if 'ptensors' not in self._computed:
-            self._computed['ptensors'] =\
-                ppol.compute_polynomial_tensors(*self.pvectors)
-        return self._computed['ptensors']
-
     def __call__(self, phase):
         # evaluate the template
         phase = np.asarray(phase)[..., np.newaxis]
