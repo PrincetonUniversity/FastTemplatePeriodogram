@@ -12,7 +12,7 @@ env:
   global:
     - TEST_DIR=/tmp/ftperiodogram
     - CONDA_DEPS="numpy scipy pytest pip"
-    - PIP_DEPS="coverage codecov pytest-cov"
+    - PIP_DEPS="coverage codecov pytest-cov nfft"
 
 before_install:
     - export MINICONDA=$HOME/miniconda
