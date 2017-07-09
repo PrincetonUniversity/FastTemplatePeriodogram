@@ -1,5 +1,4 @@
 import numpy as np
-from . import pseudo_poly as ppol
 
 
 class Template(object):
