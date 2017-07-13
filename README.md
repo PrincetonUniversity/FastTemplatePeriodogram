@@ -122,7 +122,7 @@ and small-ish meaning less than about 10).
 It may be surprising that FTP appears to scale as `NH`, instead of
 `NH log NH`, but that's because the NFFT is not the limiting factor (yet).
 Most of the computation time is spent calculating polynomial coefficients,
-and this computation scales as roughly `NH^4`. 
+and this computation scales as roughly `NH^3`. 
 
 ![timingnh](plots/timing_vs_nharm.png "Timing vs harmonics")
 
