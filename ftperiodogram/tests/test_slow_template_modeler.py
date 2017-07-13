@@ -33,7 +33,7 @@ def test_vs_lombscargle():
     # one-component template should be identical to a
     # Lomb-Scargle periodogram with floating-mean
     template = generate_template(1)
-    t, y, dy = generate_data(template, N=100, tmin=0, tmax=100, freq=0.1)
+    t, y, dy = generate_data(template, N=50, tmin=0, tmax=100, freq=0.1)
 
     freq = np.linspace(0.01, 1, 10)
     power1 = SlowTemplatePeriodogram(template=template).fit(t, y, dy).power(freq)
@@ -42,29 +42,33 @@ def test_vs_lombscargle():
     assert_allclose(power1, power2)
 
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4])
-def test_zero_noise(nharmonics):
+@pytest.mark.parametrize('nharmonics', [1, 2, 3])
+@pytest.mark.parametrize('nguesses', [None, 2])
+def test_zero_noise(nharmonics, nguesses):
     # in the zero-noise perfect template case, the true frequency should
     # have power = 1
     template = generate_template(nharmonics)
-    t, y, _ = generate_data(template, N=100, tmin=0, tmax=100, freq=0.1, dy=0)
+    t, y, _ = generate_data(template, N=50, tmin=0, tmax=100, freq=0.1, dy=0)
     dy = None
-    power = SlowTemplatePeriodogram(template=template).fit(t, y, dy).power(0.1)
+    power = SlowTemplatePeriodogram(nguesses=nguesses, template=template).fit(t, y, dy).power(0.1)
     assert_allclose(power, 1)
 
 
-@pytest.mark.parametrize('nharmonics', [1, 2, 3, 4])
-def test_slow_vs_fast(nharmonics):
+@pytest.mark.parametrize('nharmonics', [1, 2, 3])
+@pytest.mark.parametrize('nguesses', [None, 2])
+def test_slow_vs_fast(nharmonics, nguesses):
     # Slow periodogram has convergence issues, and will undershoot the power
     # in some cases. This means the fast periodogram should always be larger
     # than the slow periodogram, up to a small floating point error.
     template = generate_template(nharmonics)
-    t, y, dy = generate_data(template, N=100, tmin=0, tmax=100, freq=0.1)
+    t, y, dy = generate_data(template, N=50, tmin=0, tmax=100, freq=0.1)
     freq = 0.01 * np.arange(1, 101)
 
-    power_slow = SlowTemplatePeriodogram(template).fit(t, y, dy).power(freq)
+    power_slow = SlowTemplatePeriodogram(template, nguesses=nguesses).fit(t, y, dy).power(freq)
     power_fast = FastTemplatePeriodogram(template).fit(t, y, dy).power(freq)
 
+    assert(all(power_fast + 1E-5 >= power_slow))
+    """
     inds = np.arange(len(freq))
     mask = power_slow > power_fast + 1E-4
     for i in inds[mask]:
@@ -80,3 +84,4 @@ def test_slow_vs_fast(nharmonics):
     # hint at a larger issue...
     assert(all(np.sort(power_fast - power_slow)[1:] > -1E-4))
     #assert_array_less(power_slow, power_fast + 1E-4)
+    """

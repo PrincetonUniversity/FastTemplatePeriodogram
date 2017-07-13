@@ -511,12 +511,15 @@ class SlowTemplatePeriodogram(object):
     ----------
     template : Template object
         callable object that returns the template value as a function of phase
+    nguesses : int, optional (default: 10)
+        number of initial guesses for the phase shift parameter (to avoid local minima)
     """
     # TODO: match the full API of FastTemplateModeler.
     # Perhaps factor-out common routines into a base class?
 
-    def __init__(self, template=None):
+    def __init__(self, template=None, nguesses=10):
         self.template = template
+        self.nguesses = nguesses
 
     def fit(self, t, y, dy=None):
         """Fit periodogram to given data
@@ -550,7 +553,7 @@ class SlowTemplatePeriodogram(object):
         ymean = np.dot(weights, self.y)
         return np.sum((self.y - ymean) ** 2 / self.dy ** 2)
 
-    def _minimize_chi2_at_single_freq(self, freq):
+    def _minimize_chi2_at_single_freq(self, freq, nguesses=None):
         # at each phase, use a linear model to find best [offset, amplitude]
         # and then minimize this scalar function of phase
         def chi2(phase):
@@ -560,7 +563,28 @@ class SlowTemplatePeriodogram(object):
                                           np.dot(X.T, self.y))
             y_model = offset + amp * shifted
             return np.sum((self.y - y_model) ** 2 / self.dy ** 2)
-        return optimize.minimize_scalar(chi2)
+        
+        nguesses = nguesses if not nguesses is None else self.nguesses
+
+        # User can opt to run minimize scalar (faster)
+        if nguesses is None:
+            return optimize.minimize_scalar(chi2, bounds=(0, 1))
+
+        # initial guesses for phase shift
+        guesses = np.random.rand(nguesses)
+
+        local_minimum = lambda x0 : optimize.minimize(chi2, x0, bounds=[(0, 1)])
+
+        # get solutions for each initial guess
+        local_minima = [ local_minimum(guess) for guess in guesses ]
+
+        local_minima  = [ res for res in local_minima if res.success ]
+
+        if len(local_minima) == 0:
+            return optimize.minimize_scalar(chi2, bounds=(0, 1))
+
+        # return the best one
+        return local_minima[np.argmin([ res.fun for res in local_minima ])]
 
     def power(self, freq):
         """Compute a template-based periodogram at the given frequencies
@@ -577,7 +601,7 @@ class SlowTemplatePeriodogram(object):
         """
         freq = np.asarray(freq)
         results = list(map(self._minimize_chi2_at_single_freq, freq.flat))
-        failures = sum([not res.success for res in results])
+        failures = sum([ not res.success for res in results])
         if failures:
             raise RuntimeError("{0}/{1} frequency values failed to converge"
                                "".format(failures, freq.size))

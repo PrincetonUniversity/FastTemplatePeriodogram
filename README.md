@@ -69,31 +69,30 @@ computational resources to perform these fits.
 
 The FTP is a non-linear extension of the GLS. The nonlinearity
 of the problem can be reduced to finding the zeros of 
-an order `~6H` polynomial at each trial frequency.
+a complex, order `6H-1` polynomial at each trial frequency.
 
-Templates must be well-approximated by a short truncated Fourier series 
+Templates are assumed to be well-approximated by a short truncated Fourier series 
 of length `H`. Using this representation, the optimal parameters 
 (amplitude, phase, offset) of the template fit at a given trial frequency
 can then be found *exactly* after finding the roots of 
 a polynomial at each trial frequency.
 
 The coefficients of these polynomials involve sums that can be efficiently
-computed with (non-equispaced) fast Fourier transforms. These sums
-can be computed in `HN_f log(HN_f)` time.
+evaluated with non-equispaced fast Fourier transforms. These sums
+can be computed in `O(HN_f log(HN_f))` time.
 
 In its current state, the root-finding procedure is the rate limiting step.
 This unfortunately means that for now the fast template periodogram scales as 
-`N_f*(H^4)`. We are working to reduce the computation time so that the entire 
+`N_f*(H^3)`. We are working to reduce the computation time so that the entire 
 procedure scales as `HN_f log(HN_f)` for reasonable values of `H` (`< 10`).
 
 However, even for small cases where `H=6` and `N_obs=10`, this procedure is 
-about twice as fast as the `gatspy` template modeler. And, the speedup over
-`gatspy` grows linearly with `N_obs`! 
+about an order of magnitude faster than the `gatspy` template modeler.
 
 
 ### How is this different than the multi-harmonic periodogram?
 
-The multi-harmonic periodogram ([Schwarzenberg-Czerny (1996)](http://iopscience.iop.org/article/10.1086/309985/meta)) is another 
+The multi-harmonic periodogram ([Bretthorst 1988](https://link.springer.com/book/10.1007%2F978-1-4684-9399-3), [Schwarzenberg-Czerny (1996)](http://iopscience.iop.org/article/10.1086/309985/meta)) is another 
 extension of Lomb-Scargle that fits a truncated Fourier series to the data 
 at each trial frequency. This is nice if you have a strong non-sinusoidal signal 
 and a large dataset. This algorithm can also be made to scale as
@@ -102,20 +101,23 @@ and a large dataset. This algorithm can also be made to scale as
 However, the multi-harmonic periodogram is fundamentally different than template fitting. 
 In template fitting, the relative amplitudes and phases of the Fourier series are *fixed*. 
 In a multi-harmonic periodogram, the relative amplitudes and phases of the Fourier series are 
-*free parameters*. These extra free parameters mean that (1) you need a larger
-number of observations `N_obs` to reach the same signal to noise, and (2) you are
-more likely to detect a multiple of the true frequency. For a discussion of this
-effect, possible remedies with Tikhonov regularization, and an illuminating review
-of periodograms in general, see [Vanderplas et al. (2015)](http://adsabs.harvard.edu/abs/2015ApJ...812...18V).
+*free parameters*. These extra free parameters mean that
+
+1. you need a larger number of observations `N_obs` to reach the same signal to noise, and 
+2. you are more likely to detect a multiple of the true frequency. 
+
+For a discussion of number (2) and possible remedies with Tikhonov regularization, and for an illuminating review
+of periodograms in general, see [Vanderplas et al. (2015)](http://adsabs.harvard.edu/abs/2015ApJ...812...18V) and
+[Vanderplas (2017)](https://arxiv.org/abs/1703.09824).
 
 ### Timing
 
-![timing](plots/timing_vs_ndata.png "Timing compared to gatspy")
+![timing](plots/timing_vs_ndata.png "Timing compared to non-linear optimization (10 initial guesses)")
 
-The Fast Template Periodogram seems to do better than Gatspy
+The Fast Template Periodogram seems to do better than Gatspy-like template fitting
 for virtually all reasonable cases (reasonable meaning a small-ish
 number of harmonics are needed to accurately approximate the template,
-small-ish meaning less than about 10).
+and small-ish meaning less than about 10).
 
 It may be surprising that FTP appears to scale as `NH`, instead of
 `NH log NH`, but that's because the NFFT is not the limiting factor (yet).
@@ -125,31 +127,29 @@ and this computation scales as roughly `NH^4`.
 ![timingnh](plots/timing_vs_nharm.png "Timing vs harmonics")
 
 The FTP scales sub-linearly to linearly with the number of harmonics `H`
-for `H < 10`, and for larger number of harmonics scales as `H^4`. This
-is the main limitation of FTP.
+for `H < 10`, and for larger number of harmonics scales as `H^3` (since
+zeros are found via singular value decomposition of the polynomial companion matrix). 
+This limits the set of templates to those that are sufficiently approximated by a small
+number of Fourier terms.
 
 ### Accuracy
 
 Compared with the Gatspy template modeler, the FTP provides improved accuracy as well as speed. 
-For large values of `p(freq)`, the FTP correlates strongly with the Gatspy template algorithm; however,
-since Gatspy uses non-linear function fitting (Levenberg-Marquardt), the predicted value for
-`p(freq)` may not be optimal if the data is poorly modeled by the template. FTP, on the other 
-hand, solves for the optimal solution directly, and thus tends to find equally good or 
-better solutions when `p(freq)` is small.
+For many values of `p(freq)`, the FTP correlates strongly with results obtained from
+non-linear optimization. However, since the problem is not convex, the solution recovered from
+non-linear optimization techniques may only represent a *local* minima. FTP, on the other 
+hand, solves for all local minima simultaneously, from which the globally optimal solution can be
+found easily.
 
-![corrwithgats](plots/correlation_with_gatspy.png "Correlation to gatspy")
+![corrwithgats](plots/correlation_with_nonlinopt.png "Correlation with non-linear optimization")
+
+
+The FTP requires that templates be *approximated* by a truncated Fourier expansion. The figure
+below compares the template periodograms for a single template approximated by different numbers
+of harmonics:
+
 ![accuracy](plots/correlation_with_large_H.png "How many harmonics do we need?")
 
-For some frequencies, the Gatspy modeler finds no improvement over a constant fit 
-(`p_gatspy(freq) = 0`). However, for these frequencies, the FTP consistently finds better 
-solutions.
-
-At frequencies where the template models the data at least moderately well (`p(freq) ~> 0.01`),
-the Gatspy modeler and the FTP are in good agreement.
-
-Assuming, then, that the FTP is indeed producing the "correct" periodogram, we can then
-ask how many harmonics we must use in order to achieve an estimate of the periodogram to
-a given accuracy.
 
 TODO
 ----

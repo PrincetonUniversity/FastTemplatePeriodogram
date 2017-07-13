@@ -56,6 +56,15 @@ class Template(object):
         c_n, s_n = coeffs.real, -coeffs.imag
         return cls(c_n, s_n, **kwargs)
 
+    def precompute(self, *args, **kwargs):
+        """
+        Included for consistency with previous versions. Deprecated.
+
+        Does nothing now.
+
+        """
+        pass
+
     def __call__(self, phase):
         # evaluate the template
         phase = np.asarray(phase)[..., np.newaxis]
