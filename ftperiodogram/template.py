@@ -58,10 +58,9 @@ class Template(object):
 
     def precompute(self, *args, **kwargs):
         """
-        Included for consistency with previous versions. Deprecated.
+        Included for backward compatibility. Deprecated.
 
-        Does nothing now.
-
+        Does nothing.
         """
         pass
 
