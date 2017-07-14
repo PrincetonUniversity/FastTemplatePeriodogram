@@ -59,13 +59,13 @@ def template_fit_from_sums(alpha, AA, Aa, sums, ybar, YY):
     CS = sums.CC + sums.SS + 1j * (sums.CS - sums.CS.T)
 
     CC_diags = get_diags(CC[::-1, :], (-H + 1, H))
-    CS_diags = get_diags(CS.T, (0, H))
+    CS_diags = get_diags(CS.T, (0, 2*H))
 
     inds = np.arange(2 * H - 1)
     mm = np.zeros(2 * H + 1, dtype=np.complex64)
 
     mm[inds[:H]] += 2 * CS_diags[inds[:H]]
-    mm[inds + 1] += CC_diags[inds]
+    mm[inds + 2] +=     CC_diags[inds]
 
     MM = pol.Polynomial(np.concatenate((np.conj(mm)[::-1], mm[1:])))
 
