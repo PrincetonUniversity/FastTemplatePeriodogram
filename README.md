@@ -7,6 +7,8 @@ Description
 
 ![examples](plots/templates_and_periodograms.png "Examples")
 
+[Scipy 2017 talk is now on Youtube!](https://www.youtube.com/watch?v=7STeeVnfYFM)
+
 The Fast Template Periodogram extends the Generalized Lomb-Scargle
 periodogram ([Zechmeister and Kurster 2009](http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:0901.2573])) 
 for arbitrary (periodic) signal shapes. A template is first approximated
@@ -21,7 +23,7 @@ Installing
 ----------
 
 See the `CONDA_INSTALL.md` for installing `ftperiodogram` with 
-[`conda`](https://www.continuum.io/downloads)) (recommended).
+[`conda`](https://www.continuum.io/downloads) (recommended).
 
 Examples
 --------
