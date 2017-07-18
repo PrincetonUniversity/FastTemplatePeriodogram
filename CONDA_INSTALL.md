@@ -6,8 +6,7 @@ You can use [conda](http://conda.pydata.org) to install all the required depende
 ```
 $ conda create -n tempfit python=3.5
 $ source activate tempfit
-$ conda install jupyter notebook scipy astropy pytest matplotlib
-$ conda install pynfft -c conda-forge
+$ conda install nfft jupyter notebook scipy astropy pytest matplotlib
 ```
 
 Next, make sure that things are working by running the unit tests:

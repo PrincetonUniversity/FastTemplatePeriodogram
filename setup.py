@@ -39,7 +39,7 @@ setup(name='ftperiodogram',
       url='https://github.com/PrincetonUniversity/FastTemplatePeriodogram',
       packages=['ftperiodogram',
                 'ftperiodogram.tests'],
-      requires=['numpy', 'scipy', 'pynfft'],
+      requires=['numpy', 'scipy', 'nfft'],
       classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
