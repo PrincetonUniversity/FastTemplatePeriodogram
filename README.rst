@@ -1,11 +1,25 @@
-# Fast Template Periodogram [![build status](http://img.shields.io/travis/PrincetonUniversity/FastTemplatePeriodogram/master.svg?style=flat)](https://travis-ci.org/PrincetonUniversity/FastTemplatePeriodogram) [![codecov.io](https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram/coverage.svg?branch=master)](https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram)
+Fast Template Periodogram
+=========================
 
-(c) 2016; John Hoffman, Jake Vanderplas
+.. image:: http://img.shields.io/travis/PrincetonUniversity/FastTemplatePeriodogram/master.svg?style=flat
+	:target: https://travis-ci.org/PrincetonUniversity/FastTemplatePeriodogram
+
+.. image:: https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram/coverage.svg?branch=master
+	:target: https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram
+
+:Authors:
+	John Hoffman (mailto:jah5@princeton.edu)
+	Jake Vanderplas (mailto:jakevdp@uw.edu)
+
+:Version:
+	0.9.5.dev
+
+Check out the `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>_`
 
 Description
 -----------
 
-![examples](plots/templates_and_periodograms.png "Examples")
+.. image:: plots/templates_and_periodograms.png
 
 [Scipy 2017 talk is now on Youtube!](https://www.youtube.com/watch?v=7STeeVnfYFM)
 

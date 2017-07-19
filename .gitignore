@@ -79,3 +79,5 @@ work/
 *.gif
 *.mp4
 work/
+.ensure_files_exist_before_commit
+*.in

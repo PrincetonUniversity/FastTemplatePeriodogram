@@ -33,15 +33,16 @@ CLASSIFIERS = [
         'Programming Language :: Python :: 3.6']
 
 # Description should be a one-liner:
-description = "nfft: lightweight non-equispaced fast Fourier transform"
+description = "ftperiodogram: NlogN periodic template fitting"
 # Long description will go up on the pypi page
 long_description = """
 ftperiodogram package
 =====================
-``ftperiodogram`` is a lightweight implementation of the non-equispaced fast Fourier
-transform. Its performance is comparable to that of pynfft_, but it contains
-no compiled code and requires no links to external C libraries, beyond standard
-dependencies on numpy_ and scipy_.
+`ftperiodogram` is a lightweight implementation of the fast template periodogram.
+The fast template periodogram extends the [Lomb-Scargle]_ periodogram to arbitrary
+signal shapes. It uses the nfft_ library to compute the non-equispaced fast Fourier
+transform, and numpy_ and scipy_ libraries for other math-related computations.
+
 For more information and links to usage examples, please see the
 repository README_.
 
@@ -49,6 +50,7 @@ repository README_.
 .. _nfft: https://github.com/jakevdp/nfft
 .. _numpy: https://www.numpy.org
 .. _scipy: https://www.scipy.org
+.. [Lomb-Scargle] http://docs.astropy.org/en/stable/stats/lombscargle.html
 
 License
 =======
@@ -57,16 +59,16 @@ License
 for usage, and a DISCLAIMER OF ALL WARRANTIES.
 """
 
-NAME = "nfft"
-MAINTAINER = "Jake VanderPlas"
-MAINTAINER_EMAIL = "jakevdp@uw.edu"
+NAME = "ftperiodogram"
+MAINTAINER = "John Hoffman"
+MAINTAINER_EMAIL = "jah5@princeton.edu"
 DESCRIPTION = description
 LONG_DESCRIPTION = long_description
 URL = "http://github.com/jakevdp/nfft/"
 DOWNLOAD_URL = ""
 LICENSE = "MIT"
-AUTHOR = "Jake VanderPlas"
-AUTHOR_EMAIL = "jakevdp@uw.edu"
+AUTHOR = "John Hoffman, Jake VanderPlas"
+AUTHOR_EMAIL = "jah5@princeton.edu, jakevdp@uw.edu"
 PLATFORMS = "OS Independent"
 MAJOR = _version_major
 MINOR = _version_minor
