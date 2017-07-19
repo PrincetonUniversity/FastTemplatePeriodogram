@@ -2,9 +2,7 @@
 # python package
 # Version info: don't use any relative imports here, because setup.py
 # runs this as a standalone script to extract the following information
-
 from __future__ import absolute_import, division, print_function
-from os.path import join as pjoin
 
 # Format expected by setup.py and doc/source/conf.py: string of form "X.Y.Z"
 _version_major = 0
