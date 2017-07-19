@@ -22,7 +22,7 @@ Description
 .. image:: plots/templates_and_periodograms.png
 
 The Fast Template Periodogram extends the Generalized Lomb-Scargle
-periodogram ([Barning (1963)], [Vanicek (1971)], [Lomb (1976)], [Scargle (1982)], [Zechmeister and Kurster (2009)]) for arbitrary (periodic) signal shapes. It
+periodogram ([Barning1963]_, [Vanicek1971]_, [Lomb1976]_, [Scargle1982]_, [ZechmeisterKurster2009]_) for arbitrary (periodic) signal shapes. It
 naturally handles non-uniformly sampled time-series data.
 
 :Template:
@@ -31,24 +31,24 @@ naturally handles non-uniformly sampled time-series data.
 :Periodogram:
 	Least-squares estimator of the power spectral density (Lomb-Scargle); for more
 	general models, proportional to the "goodness of fit" statistic for the best-fit
-	model at that frequency. See [VanderPlas (2017)] for more details.
+	model at that frequency. See [VanderPlas2017]_ for more details.
 
 Uses the the `non-equispaced Fast Fourier Transform <https://www-user.tu-chemnitz.de/~potts/nfft>`_ to efficiently compute frequency-dependent sums.
 
 The ``ftperiodogram`` library is complete with API documentation and consistency
 checks using ``py.test``.
 
-.. [Zechmeister and Kurster (2009)] `Paper <http://adsabs.harvard.edu/abs/2009A%26A...496..577Z>`_
+.. [ZechmeisterKurster2009] `Paper <http://adsabs.harvard.edu/abs/2009A%26A...496..577Z>`_
 
-.. [Lomb (1976)] `Least-squares frequency analysis of unequally spaced data <http://adsabs.harvard.edu/abs/1976Ap%26SS..39..447L>`_
+.. [Lomb1976] `Least-squares frequency analysis of unequally spaced data <http://adsabs.harvard.edu/abs/1976Ap%26SS..39..447L>`_
 
-.. [Scargle (1982)] `Studies in astronomical time series analysis. II - Statistical aspects of spectral analysis of unevenly spaced data <http://adsabs.harvard.edu/abs/1982ApJ...263..835S>`_
+.. [Scargle1982] `Studies in astronomical time series analysis. II - Statistical aspects of spectral analysis of unevenly spaced data <http://adsabs.harvard.edu/abs/1982ApJ...263..835S>`_
 
-.. [Barning (1963)] `The numerical analysis of the light-curve of 12 Lacertae <http://adsabs.harvard.edu/abs/1963BAN....17...22B>`_
+.. [Barning1963] `The numerical analysis of the light-curve of 12 Lacertae <http://adsabs.harvard.edu/abs/1963BAN....17...22B>`_
 
-.. [Vanicek (1971)] `Further Development and Properties of the Spectral Analysis by Least-Squares <http://adsabs.harvard.edu/abs/1971Ap%26SS..12...10V>`_
+.. [Vanicek1971] `Further Development and Properties of the Spectral Analysis by Least-Squares <http://adsabs.harvard.edu/abs/1971Ap%26SS..12...10V>`_
 
-.. [VanderPlas (2017)] `'Understanding the Lomb-Scargle Periodogram <https://arxiv.org/abs/1703.09824>`_
+.. [VanderPlas2017] `'Understanding the Lomb-Scargle Periodogram <https://arxiv.org/abs/1703.09824>`_
 
 
 
@@ -95,13 +95,13 @@ uses non-linear least-squares fitting to compute the optimal parameters
 process scales as ``N_obs*N_f``, where ``N`` is the number of observations and
 ``N_f`` is the number of frequencies at which to calculate the periodogram.
 
-This is more or less the procedure used in [Sesar *et al.* (2017)] to perform
+This is more or less the procedure used in [Sesar2017]_ to perform
 template fits to Pan-STARRS photometry, however they used a more sophisticated
 multiband model that locked the phases, amplitudes and
 offsets of all bands together. They found that template fitting was significantly more accurate for estimating periods of RR Lyrae stars, but the computational resources
 needed for these fits were enormous (~30 minutes per object per CPU core).
 
-.. [Sesar *et al.* (2017)] https://arxiv.org/abs/1611.08596
+.. [Sesar2017] https://arxiv.org/abs/1611.08596
 
 How does the fast template periodogram improve things?
 ------------------------------------------------------
