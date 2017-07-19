@@ -14,71 +14,113 @@ Fast Template Periodogram
 :Version:
 	${VERSION}
 
-Check out the `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>_`
+Check out the `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_
 
 Description
 -----------
 
 .. image:: plots/templates_and_periodograms.png
 
-[Scipy 2017 talk is now on Youtube!](https://www.youtube.com/watch?v=7STeeVnfYFM)
-
 The Fast Template Periodogram extends the Generalized Lomb-Scargle
-periodogram ([Zechmeister and Kurster 2009](http://adsabs.harvard.edu/cgi-bin/bib_query?arXiv:0901.2573]))
-for arbitrary (periodic) signal shapes. A template is first approximated
-by a truncated Fourier series of length `H`. The Non-equispaced Fast Fourier Transform
-[NFFT](https://www-user.tu-chemnitz.de/~potts/nfft/) is used
-to efficiently compute frequency-dependent sums.
+periodogram ([Barning (1963)], [Vanicek (1971)], [Lomb (1976)], [Scargle (1982)], [Zechmeister and Kurster (2009)]) for arbitrary (periodic) signal shapes. It
+naturally handles non-uniformly sampled time-series data.
 
-The `ftperiodogram` library is complete with API documentation and consistency
-checks using `py.test`.
+:Template:
+	Periodic signal shape, expressed as a truncated Fourier series of length ``H``.
+
+:Periodogram:
+	Least-squares estimator of the power spectral density (Lomb-Scargle); for more
+	general models, proportional to the "goodness of fit" statistic for the best-fit
+	model at that frequency. See [VanderPlas (2017)] for more details.
+
+Uses the the `non-equispaced Fast Fourier Transform <https://www-user.tu-chemnitz.de/~potts/nfft>`_ to efficiently compute frequency-dependent sums.
+
+The ``ftperiodogram`` library is complete with API documentation and consistency
+checks using ``py.test``.
+
+.. [Zechmeister and Kurster (2009)] `Paper <http://adsabs.harvard.edu/abs/2009A%26A...496..577Z>`_
+
+.. [Lomb (1976)] `Least-squares frequency analysis of unequally spaced data <http://adsabs.harvard.edu/abs/1976Ap%26SS..39..447L>`_
+
+.. [Scargle (1982)] `Studies in astronomical time series analysis. II - Statistical aspects of spectral analysis of unevenly spaced data <http://adsabs.harvard.edu/abs/1982ApJ...263..835S>`_
+
+.. [Barning (1963)] `The numerical analysis of the light-curve of 12 Lacertae <http://adsabs.harvard.edu/abs/1963BAN....17...22B>`_
+
+.. [Vanicek (1971)] `Further Development and Properties of the Spectral Analysis by Least-Squares <http://adsabs.harvard.edu/abs/1971Ap%26SS..12...10V>`_
+
+.. [VanderPlas (2017)] `'Understanding the Lomb-Scargle Periodogram <https://arxiv.org/abs/1703.09824>`_
+
+
 
 Installing
 ----------
 
-See the `CONDA_INSTALL.md` for installing `ftperiodogram` with
-[`conda`](https://www.continuum.io/downloads) (recommended).
+**THIS IS NOT TRUE YET!**
+
+As long as you have ``scipy`` and ``numpy`` installed, you should be able to run
+``pip install ftperiodogram`` and everything should work fine.
+
+If this doesn't work, consult the instructions in ``CONDA_INSTALL.md`` for installing ``ftperiodogram`` and its dependencies with with
+```conda`` <https://www.continuum.io/downloads>`_.
 
 Examples
 --------
 
-See the `Examples.ipynb` located in the `notebooks/` directory.
+See the ``Examples.ipynb`` located in the ``notebooks/`` directory.
 
-To run this notebook, use the `jupyter notebook` command from
-inside the `notebooks/` directory
+To run this notebook, use the ``jupyter notebook`` command from
+inside the ``notebooks/`` directory::
 
-```
-$ cd notebooks/
-$ jupyter notebook
-```
+	$ cd notebooks/
+	$ jupyter notebook
+
 
 Updates
 -------
 
-* See the [issues](https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues)
+* See the `issues <https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues>`_
 section for known bugs! You can also submit bugs through this interface.
 
 
 More information
-----------------
+================
 
+Previous implementations
+------------------------
 
-### Older methods
-
-The [gatspy](http://www.astroml.org/gatspy/) library has an implementation of
+The `gatspy <http://www.astroml.org/gatspy/>`_ library has an implementation of
 both single and multiband template fitting, however this implementation
 uses non-linear least-squares fitting to compute the optimal parameters
 (amplitude, phase, constant offset) of the template fit at each frequency. That
-process scales as `N_obs*N_f`, where `N` is the number of observations and
-`N_f` is the number of frequencies at which to calculate the periodogram.
+process scales as ``N_obs*N_f``, where ``N`` is the number of observations and
+``N_f`` is the number of frequencies at which to calculate the periodogram.
 
-This process is extremely slow. [Sesar et al. (2016)](https://arxiv.org/abs/1611.08596) applied a similar
-template fitting procedure to multiband Pan-STARRS photometry and found that
-(1) template fitting was significantly more accurate for estimating periods
-of RR Lyrae stars, but that (2) it required a substantial amount of
-computational resources to perform these fits.
+This is more or less the procedure used in [Sesar *et al.* (2017)] to perform
+template fits to Pan-STARRS photometry, however they used a more sophisticated
+multiband model that locked the phases, amplitudes and
+offsets of all bands together. They found that template fitting was significantly more accurate for estimating periods of RR Lyrae stars, but the computational resources
+needed for these fits were enormous (~30 minutes per object per CPU core).
 
-### How do we speed this up?
+.. [Sesar *et al.* (2017)] https://arxiv.org/abs/1611.08596
+
+How does the fast template periodogram improve things?
+------------------------------------------------------
+
+By rederiving periodic template fitting (or periodic matched filter analysis)
+in the context of least-squares spectral analysis, we found a significantly
+better way to perform these fits. Details will be presented in a paper
+(Hoffman *et al.* 2017, *in prep*), but the important part is you can reduce
+the non-linearity of the problem to the following:
+
+* Finding the zeros of an order ``6H-1`` complex polynomial at each trial frequency
+	* This is done via the ``numpy.polynomial`` library, which performs singular-value decomposition on the polynomial "companion matrix", and scales as ``O(H^3)``.
+* Computing the coefficients of these polynomials for all trial frequencies simultaneously by leveraging the non-equispaced fast Fourier transform, a process that scales as ``O(HN_f log(HN_f))``.
+
+This provides two advantages:
+
+:Computational speed and scaling:
+	.. image:: plots/timing_vs_ndata_const_freq.png
+
 
 * The non-equispaced fast Fourier transform (NFFT)
 * Polynomial zero-finding

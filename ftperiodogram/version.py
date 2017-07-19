@@ -73,4 +73,4 @@ MINOR = _version_minor
 MICRO = _version_micro
 VERSION = __version__
 PACKAGE_DATA = {}
-REQUIRES = ["numpy", "scipy", "nfft", "pytest"]
+REQUIRES = ["nfft", "pytest", "scipy", "numpy"]
