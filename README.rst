@@ -14,7 +14,7 @@ Fast Template Periodogram
 :Version:
 	1.0.0
 
-**Check out the ** `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_!
+**Check out the** `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_
 
 Description
 -----------
