@@ -63,7 +63,7 @@ inside the ``notebooks/`` directory::
 Updates
 -------
 
-See the `issues <https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues>`_section for known bugs. You can also submit bugs and suggest improvements through that interface.
+See the `issues <https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues>`_ section for known bugs. You can also submit bugs and suggest improvements through that interface.
 
 More information
 ================
