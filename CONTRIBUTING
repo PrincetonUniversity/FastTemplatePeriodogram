@@ -1,5 +1,16 @@
-Last updated: July 14, 2017; John Hoffman; jah5@princeton.edu
+=================
+How to contribute
+=================
+
+Last updated: July 17, 2017; John Hoffman; jah5@princeton.edu
 
 See the [github page](https://github.com/PrincetonUniversity/FastTemplatePeriodogram) for more details and for the latest version.
 
-* Raise any issues that you find on the Issues page, and feel free to send me an e-mail with any ideas, etc.
+This project only requires the following external packages for running the FTP:
+
+* [nfft](https://github.com/jakevdp/nfft/) -- a Python only implementation of the non-equispaced fast Fourier transform
+* scipy & numpy.
+* (optional) [matplotlib](https://matplotlib.org/) if you wish to run the Example notebook.
+* (optional) [astropy](http://www.astropy.org/) for running tests using their implementation of the Lomb Scargle periodogram.
+
+If you encounter any issues or bugs, please report to the `Issues` section of the Github page.
