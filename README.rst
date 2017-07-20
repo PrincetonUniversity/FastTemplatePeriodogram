@@ -42,8 +42,9 @@ checks using ``py.test``.
 Installing
 ----------
 
-As long as you have ``scipy`` and ``numpy`` installed, you should be able to run
-``pip install ftperiodogram`` and everything should work fine.
+Installing with ``pip`` should work::
+
+    $ pip install ftperiodogram
 
 If this doesn't work, consult the instructions in ``CONDA_INSTALL.md`` for installing ``ftperiodogram`` and its dependencies with with
 `conda <https://www.continuum.io/downloads>`_.
