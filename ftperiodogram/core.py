@@ -15,7 +15,12 @@ from .utils import ModelFitParams, weights
 
 from time import time
 
-get_diags = lambda mat, shape : np.array([ sum(mat.diagonal(i)) for i in range(*shape) ])
+from scipy.optimize import newton
+
+
+def get_diags(mat, shape):
+    return np.array([sum(mat.diagonal(i)) for i in range(*shape)])
+
 
 def template_fit_from_sums(alpha, AA, Aa, sums, ybar, YY):
     r"""
@@ -52,36 +57,52 @@ def template_fit_from_sums(alpha, AA, Aa, sums, ybar, YY):
 
     # compute YM
     aYC = alpha * (sums.YC - 1j * sums.YS)
-    YM = pol.Polynomial(np.concatenate((np.conj(aYC)[::-1], [0], aYC)).astype(np.complex64))
+    YM = pol.Polynomial(np.concatenate((np.conj(aYC)[::-1], [0], aYC)))
 
     # compute MM
-    CC = sums.CC - sums.SS - 1j * (sums.CS + sums.CS.T)
-    CS = sums.CC + sums.SS + 1j * (sums.CS - sums.CS.T)
+    CC = (sums.CC - sums.SS - 1j * (sums.CS + sums.CS.T)) * AA
+    CS = (sums.CC + sums.SS + 1j * (sums.CS - sums.CS.T)) * Aa
+    SS = np.conj(CC)
 
-    CC_diags = get_diags(CC[::-1, :], (-H + 1, H))
-    CS_diags = get_diags(CS.T, (0, 2*H))
+    # TODO : speed this up by
+    # 1) Doing multiple frequencies simultaneously
+    # 2) Using the fact that MM is real to reduce number
+    #    of computations
+    # 3) Look for a shortcut -- there may be a lower order polynomial
+    #    that we can solve instead (O(H+1) would make sense, maybe).
+    MM = np.zeros(4 * H + 1, dtype=np.complex64)
+
+    CC = CC[::-1, :]
+    CS = CS.T
+    SS = SS[:, ::-1]
+
+    CC_diags = get_diags(CC, (-H+1, H))
+    CS_diags = get_diags(CS, (-H+1, H))
+    SS_diags = get_diags(SS, (-H+1, H))
 
     inds = np.arange(2 * H - 1)
-    mm = np.zeros(2 * H + 1, dtype=np.complex64)
 
-    mm[inds[:H]] += 2 * CS_diags[inds[:H]]
-    mm[inds + 2] +=     CC_diags[inds]
+    MM[inds] += SS_diags[inds]
+    MM[inds + H + 1] += 2 * CS_diags[inds]
+    MM[inds + 2 * H + 2] += CC_diags[inds]
 
-    MM = pol.Polynomial(np.concatenate((np.conj(mm)[::-1], mm[1:])))
+    MM = pol.Polynomial(MM)
 
     # Polynomial math + root finding!
     p = 2 * MM * YM.deriv() - MM.deriv() * YM
 
-    roots = p.roots()
+    roots_raw = p.roots()
 
-    # only keep non-zero roots.
-    roots = roots[np.absolute(roots) > 0]
+    # only keep roots close to the unit circle.
+    roots = roots_raw[np.absolute(np.absolute(roots_raw) - 1) < 1E-4]
 
     # ensure they are on the unit circle.
     roots /= np.absolute(roots)
-    
+
+    thetas = np.imag(np.log(roots))
+
     # Get periodogram values at each root
-    pdg_phi = np.real(YM(roots) ** 2 /  MM(roots)) / YY
+    pdg_phi = np.real(YM(roots) ** 2 / MM(roots)) / YY
 
     # find root that maximizes periodogram
     i = np.argmax(pdg_phi)
@@ -90,20 +111,21 @@ def template_fit_from_sums(alpha, AA, Aa, sums, ybar, YY):
     # get optimal model parameters
     mbar = 2 * np.real(alpha_phi(best_phi))
 
-    theta_1 = np.real(np.power(best_phi, H) * YM(best_phi) /  MM(best_phi))
+    theta_1 = np.real(np.power(best_phi, H) * YM(best_phi) / MM(best_phi))
     theta_2 = np.imag(np.log(best_phi)) % (2 * np.pi)
     theta_3 = ybar - mbar * theta_1
 
-    best_params = ModelFitParams(a=theta_1, 
-                                 b=np.cos(theta_2), 
-                                 c=theta_3, 
+    best_params = ModelFitParams(a=theta_1,
+                                 b=np.cos(theta_2),
+                                 c=theta_3,
                                  sgn=np.sign(np.sin(theta_2)))
 
     return best_params, pdg_phi[i]
 
+
 def fit_template(t, y, dy, cn, sn, freq, sums=None,
-                       allow_negative_amplitudes=True, zeros=None,
-                       small=1E-7):
+                 allow_negative_amplitudes=True, thetas=None,
+                 small=1E-7):
     r"""
     Fits periodic template to data at a single frequency
 
@@ -141,10 +163,10 @@ def fit_template(t, y, dy, cn, sn, freq, sums=None,
     params : ModelFitParams
         Best fit template parameters
     """
-    nh   = len(cn)
-    w    = weights(dy)
+    nh = len(cn)
+    w = weights(dy)
     ybar = np.dot(w, y)
-    YY   = np.dot(w, np.power(y - ybar, 2))
+    YY = np.dot(w, np.power(y - ybar, 2))
 
     alpha = 0.5 * (np.asarray(cn) + 1j * np.asarray(sn))
 
@@ -152,17 +174,17 @@ def fit_template(t, y, dy, cn, sn, freq, sums=None,
     Aa = np.outer(alpha, np.conj(alpha))
 
     if sums is None:
-        sums   = direct_summations(t, y, w, freq, nh)
+        sums = direct_summations(t, y, w, freq, nh)
 
-    params, power = template_fit_from_sums(alpha, AA, Aa, sums, ybar, YY) 
+    params, power = template_fit_from_sums(alpha, AA, Aa, sums,
+                                           ybar, YY)
 
     return power, params
 
 
-
 def template_periodogram(t, y, dy, cn, sn, freqs,
-                        summations=None, allow_negative_amplitudes=True,
-                        fast=True):
+                         summations=None, allow_negative_amplitudes=True,
+                         fast=True):
     r"""
     Produces a template periodogram using a single template
 
@@ -200,7 +222,7 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$ at each frequency in `freqs`,
         where $\chi^2_0$ is for a flat model with $\hat{y}_0 = \bar{y}$,
         the weighted mean.
-    best_fit_params : list of `ModelFitParams`
+    params : list of `ModelFitParams`
         List of best-fit model parameters at each frequency in `freqs`
     """
     nh = len(cn)
@@ -213,7 +235,7 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
 
     AA = np.outer(alpha, alpha)
     Aa = np.outer(alpha, np.conj(alpha))
-    
+
     if summations is None:
         # compute sums using NFFT
         if fast:
@@ -221,7 +243,8 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         else:
             summations = direct_summations(t, y, w, freqs, nh)
 
-    best_fit_params, powers = zip(*[ template_fit_from_sums(alpha, AA, Aa, sums, ybar, YY) \
-                                             for sums in summations ])
+    params, powers = zip(*[template_fit_from_sums(alpha, AA, Aa, sums,
+                                                  ybar, YY)
+                           for sums in summations])
 
-    return np.array(powers), best_fit_params
+    return np.array(powers), params

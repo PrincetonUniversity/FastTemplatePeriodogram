@@ -1,4 +1,5 @@
-#from future import __division__
+# from future import __division__
+
 from nfft import nfft_adjoint
 from .utils import Summations
 import numpy as np
@@ -61,22 +62,21 @@ def direct_summations(t, y, w, freqs, nh):
     multi_freq = hasattr(freqs, '__iter__')
 
     if multi_freq:
-        return [ direct_summations_single_freq(t, y, w, frq, nh)\
-                                                      for frq in freqs ]
+        return [direct_summations_single_freq(t, y, w, frq, nh)
+                for frq in freqs]
     else:
         return direct_summations_single_freq(t, y, w, freqs, nh)
 
 
-
-def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None, 
-                        kernel='gaussian', use_fft=True, truncated=True):
+def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
+                    kernel='gaussian', use_fft=True, truncated=True):
     """
     Computes C, S, YC, YS, CC, CS, SS using
     nfft Python implementation by Jake Vanderplas
     """
-    nfft_kwargs = dict(sigma=sigma, tol=tol, m=m, 
-                        kernel=kernel, use_fft=use_fft, 
-                        truncated=truncated)
+    nfft_kwargs = dict(sigma=sigma, tol=tol, m=m,
+                       kernel=kernel, use_fft=use_fft,
+                       truncated=truncated)
 
     nf, df, dnf = inspect_freqs(freqs)
     tmin = min(t)
@@ -93,18 +93,17 @@ def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
     # number of frequencies needed for NFFT
     # need nf_nfft_u / 2 - 1 =  H * (nf - 1 + dnf)
     #      nf_nfft_w / 2 - 1 = 2H * (nf - 1 + dnf)
-    nf_nfft_u = 2 * (     nh * (nf + dnf - 1) + 1)
-    nf_nfft_w = 2 * ( 2 * nh * (nf + dnf - 1) + 1)
+    nf_nfft_u = 2 * (nh * (nf + dnf - 1) + 1)
+    nf_nfft_w = 2 * (2 * nh * (nf + dnf - 1) + 1)
 
     # transform y -> w_i * y_i - ybar
     ybar = np.dot(w, y)
     u = np.multiply(w, y - ybar)
 
-    
     n_w0 = int(floor(nf_nfft_w/2))
     n_u0 = int(floor(nf_nfft_u/2))
-    f_hat_u = nfft_adjoint(tshift, u, nf_nfft_u, **nfft_kwargs )[n_u0:]
-    f_hat_w = nfft_adjoint(tshift, w, nf_nfft_w, **nfft_kwargs )[n_w0:]
+    f_hat_u = nfft_adjoint(tshift, u, nf_nfft_u, **nfft_kwargs)[n_u0:]
+    f_hat_w = nfft_adjoint(tshift, w, nf_nfft_w, **nfft_kwargs)[n_w0:]
 
     # now correct for phase shift induced by transforming t -> (-1/2, 1/2)
     beta = -a * (2 * tmin / r + 1)
@@ -123,12 +122,12 @@ def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
         YC = f_hat_u[k[:nh]].real
         YS = f_hat_u[k[:nh]].imag
 
-        #-------------------------------
+        # -------------------------------
         # Note: redefining j and k here!
         k = np.arange(nh)
         j = k[:, np.newaxis]
 
-        Sn  = np.sign(k - j) * S[abs(k - j) - 1]
+        Sn = np.sign(k - j) * S[abs(k - j) - 1]
         Sn.flat[::nh + 1] = 0  # set diagonal to zero
 
         Cn = C[abs(k - j) - 1]
