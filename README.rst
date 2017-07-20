@@ -8,13 +8,13 @@ Fast Template Periodogram
 	:target: https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram
 
 :Authors:
-	|John Hoffman (jah5@princeton.edu)
-	|Jake Vanderplas (jakevdp@uw.edu)
+	John Hoffman (jah5@princeton.edu)
+	Jake VanderPlas (jakevdp@uw.edu)
 
 :Version:
-	0.9.5.dev
+	1.0.0
 
-Check out the `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_
+**Check out the `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_!**
 
 Description
 -----------
