@@ -42,8 +42,6 @@ checks using ``py.test``.
 Installing
 ----------
 
-**THIS IS NOT TRUE YET!**
-
 As long as you have ``scipy`` and ``numpy`` installed, you should be able to run
 ``pip install ftperiodogram`` and everything should work fine.
 
