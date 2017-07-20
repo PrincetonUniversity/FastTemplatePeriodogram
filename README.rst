@@ -14,7 +14,7 @@ Fast Template Periodogram
 :Version:
 	1.0.0
 
-**Check out the `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_!**
+**Check out the ** `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_!
 
 Description
 -----------
@@ -63,8 +63,7 @@ inside the ``notebooks/`` directory::
 Updates
 -------
 
-* See the `issues <https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues>`_section for known bugs! You can also submit bugs through this interface.
-
+See the `issues <https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues>`_section for known bugs. You can also submit bugs and suggest improvements through that interface.
 
 More information
 ================
@@ -91,7 +90,7 @@ How does the fast template periodogram improve things?
 By rederiving periodic template fitting (or periodic matched filter analysis)
 in the context of least-squares spectral analysis, we found a significantly
 better way to perform these fits. Details will be presented in a paper
-(Hoffman *et al.* 2017, *in prep*), but the important part is you can reduce
+(Hoffman et al. 2017, in prep), but the important part is you can reduce
 the non-linearity of the problem to the following:
 
 
