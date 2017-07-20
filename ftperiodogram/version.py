@@ -7,7 +7,7 @@ from __future__ import absolute_import, division, print_function
 # Format expected by setup.py and doc/source/conf.py: string of form "X.Y.Z"
 _version_major = 1
 _version_minor = 0
-_version_micro = '0'  # use '' for first of series, number for 1 and above
+_version_micro = '1'  # use '' for first of series, number for 1 and above
 _version_extra = ''
 # _version_extra = ''  # Uncomment this for full releases
 
@@ -36,10 +36,11 @@ description = "ftperiodogram: NlogN periodic template fitting"
 long_description = """
 ftperiodogram package
 =====================
-`ftperiodogram` is a lightweight implementation of the fast template periodogram.
-The fast template periodogram extends the [Lomb-Scargle]_ periodogram to arbitrary
-signal shapes. It uses the nfft_ library to compute the non-equispaced fast Fourier
-transform, and numpy_ and scipy_ libraries for other math-related computations.
+`ftperiodogram` is a lightweight implementation of the fast template
+periodogram. The fast template periodogram extends the [Lomb-Scargle]_
+periodogram to arbitrary signal shapes. It uses the nfft_ library to
+compute the non-equispaced fast Fourier transform, and numpy_ and scipy_
+libraries for other math-related computations.
 
 For more information and links to usage examples, please see the
 repository README_.
@@ -53,8 +54,8 @@ repository README_.
 License
 =======
 `ftperiodogram` is licensed under the terms of the MIT license. See the file
-"LICENSE.txt" for information on the history of this software, terms & conditions
-for usage, and a DISCLAIMER OF ALL WARRANTIES.
+"LICENSE.txt" for information on the history of this software,
+terms & conditions for usage, and a DISCLAIMER OF ALL WARRANTIES.
 """
 
 NAME = "ftperiodogram"

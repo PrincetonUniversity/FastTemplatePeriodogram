@@ -1,11 +1,12 @@
 from __future__ import print_function
 
 from functools import wraps
+import warnings
 
 import numpy as np
 from scipy import optimize
 
-from .utils import weights, ModelFitParams
+from .utils import weights, ModelFitParams, AltModelFitParams, power_from_fit
 from .template import Template
 from . import core as pdg
 
@@ -35,16 +36,6 @@ def requires_data(func):
     return wrap
 
 
-def power_from_fit(t, y, dy, yfit):
-    w = weights(dy)
-    ybar = np.dot(w, y)
-
-    chi2_0 = np.dot(w, (y-ybar)**2)
-    chi2   = np.dot(w, (y-yfit)**2)
-
-    return 1. - (chi2 / chi2_0)
-
-
 class TemplateModel(object):
     """
     Template for models of the form :math:`a * M(t - tau) + c` for
@@ -56,9 +47,10 @@ class TemplateModel(object):
         Template for the model
     frequency : float, optional (default = 1.0)
         Frequency of the signal
-    parameters : ModelFitParams
-        Parameters for the model (a, b, c, sgn); must be a `ModelFitParams`
-        instance
+    parameters : ``ModelFitParams`` or ``AltModelFitParams``
+        Parameters for the model (a, b, c, sgn); must be a ``ModelFitParams``
+        instance or an ``AltModelFitParams`` instance
+        (``theta_1``, ``theta_2``, ``theta_3``)
 
     Examples
     --------
@@ -67,29 +59,57 @@ class TemplateModel(object):
     >>> model = TemplateModel(template, frequency=1.0, parameters=params)
     >>> t = np.linspace(0, 10, 100)
     >>> y_fit = model(t)
+    >>> params_alt = ModelFitParams(theta_1=1, theta_2=0, theta_3=0)
+    >>> model_alt = TemplateModel(template, frequency=1.0,
+    ...                                     parameters=params_alt)
+    >>> assert(max(np.absolute(model(t) - model_alt(t))) < 1E-9)
     """
     def __init__(self, template, frequency=1.0, parameters=None):
         self.template = template
         self.frequency = frequency
         self.parameters = parameters
 
+        self._thetas = self.convert_to_theta(self.parameters)
+
     def _validate(self):
         if not isinstance(self.template, Template):
             raise TypeError("template must be a Template instance")
-        if not isinstance(self.parameters, ModelFitParams):
-            raise TypeError("parameters must be ModelFitParams instance (type = {0}".format(type(self.parameters)))
+        if not isinstance(self.parameters, ModelFitParams) and\
+           not isinstance(self.parameters, AltModelFitParams):
+            raise TypeError("parameters must be `ModelFitParams` or "
+                            "`AltModelFitParams` instance "
+                            "(type={0})".format(type(self.parameters)))
+
+    @staticmethod
+    def convert_to_theta(parameters):
+        """
+        Convert `ModelFitParams` instance to `AltModelFitParams`
+        instance
+        """
+        if isinstance(parameters, AltModelFitParams):
+            return parameters
+
+        if not isinstance(parameters, ModelFitParams):
+            raise TypeError("parameters must be `ModelFitParams` or "
+                            "`AltModelFitParams` instance "
+                            "(type={0})".format(type(parameters)))
+
+        theta_2 = np.arccos(parameters.b)
+        if parameters.sgn == -1:
+            theta_2 = 2 * np.pi - theta_2
+
+        return AltModelFitParams(theta_1=parameters.a,
+                                 theta_2=theta_2,
+                                 theta_3=parameters.c)
 
     def __call__(self, t):
         self._validate()
 
-        wtau = np.arccos(self.parameters.b)
-        if self.parameters.sgn == -1:
-            wtau = 2 * np.pi - wtau
+        wt = t * self.frequency
 
-        tau = wtau / (2 * np.pi * self.frequency)
-        phase = (self.frequency * (t - tau)) % 1.0
+        th1, th2, th3 = self._thetas
 
-        return self.parameters.a * self.template(phase) + self.parameters.c
+        return th1 * self.template(wt - th2) + th3
 
 
 class FastTemplatePeriodogram(object):
@@ -100,19 +120,21 @@ class FastTemplatePeriodogram(object):
 
     Parameters
     ----------
-    template : Template
-        Template to fit (must be Template instance)
-    allow_negative_amplitudes : bool (optional, default=True)
-        if False, then negative optimal template amplitudes
-        will be replaced with zero-amplitude solutions. A False
-        value prevents the modeler from fitting an inverted
-        template to the data, but does not attempt to find the
-        best positive amplitude solution, which would require
-        substantially more computational resources.
+    template : Template, optional
+        Template to fit (must be Template instance). Doesn't have to be
+        supplied to `__init__` but must be set before running `power`,
+        `autopower`, or `fit_model`.
+
+    Notes
+    -----
+    `allow_negative_amplitudes` is deprecated as of `v1.0.1`
+    to simplify things. Earlier versions were inconsistent in
+    whether or not they actually checked for negative amplitudes,
+    since this was an experimental feature -- don't trust that
+    earlier versions do anything useful with this parameter!
     """
-    def __init__(self, template=None, allow_negative_amplitudes=True):
+    def __init__(self, template=None):
         self.template = template
-        self.allow_negative_amplitudes = allow_negative_amplitudes
         self.t, self.y, self.dy = None, None, None
         self.best_model = None
 
@@ -122,10 +144,8 @@ class FastTemplatePeriodogram(object):
         if not isinstance(self.template, Template):
             raise ValueError("template is not a Template instance.")
 
-        #self.template.precompute()
-
     def _validate_data(self):
-        if any([ X is None for X in [ self.t, self.y, self.dy ] ]):
+        if any([X is None for X in [self.t, self.y, self.dy]]):
             raise ValueError("One or more of t, y, dy is None; "
                              "fit(t, y, dy) must be called first.")
         inds = np.arange(len(self.t) - 1)
@@ -133,7 +153,8 @@ class FastTemplatePeriodogram(object):
             raise ValueError("One or more observations are not consecutive.")
 
         if not (len(self.t) == len(self.y) and len(self.y) == len(self.dy)):
-            raise ValueError("One or more of (t, y, dy) arrays are unequal lengths")
+            raise ValueError("One or more of (t, y, dy) arrays are"
+                             " unequal lengths")
 
     def _validate_frequencies(self, frequencies):
         raise NotImplementedError()
@@ -165,15 +186,17 @@ class FastTemplatePeriodogram(object):
 
     @requires_data
     @requires_template
-    def fit_model(self, freq):
+    def fit_model(self, freq, **kwargs):
         """Fit a template model to data.
 
-        y_model(t) = a * template(freq * (t - tau)) + c
+        y_model(t) = th1 * template(freq * t - th2) + th3
 
         Parameters
         ----------
         freq : float
             Frequency at which to fit a template model
+        **kwargs: dict, optional
+            Passed to ``fit_template``
 
         Returns
         -------
@@ -182,14 +205,15 @@ class FastTemplatePeriodogram(object):
         """
         freq = float(freq)
         p, parameters = pdg.fit_template(self.t, self.y, self.dy,
-                                         self.template.c_n, self.template.s_n, freq,
-                                         allow_negative_amplitudes=self.allow_negative_amplitudes)
+                                         self.template.c_n, self.template.s_n,
+                                         freq, **kwargs)
         return TemplateModel(self.template, parameters=parameters,
                              frequency=freq)
 
     @requires_data
     def autofrequency(self, nyquist_factor=5, samples_per_peak=5,
-                      minimum_frequency=None, maximum_frequency = None):
+                      minimum_frequency=None, maximum_frequency=None,
+                      **kwargs):
         """
         Determine a suitable frequency grid for data.
 
@@ -230,7 +254,7 @@ class FastTemplatePeriodogram(object):
         df = 1. / (baseline * samples_per_peak)
 
         if minimum_frequency is not None:
-            nf0 = min([ 1, np.floor(minimum_frequency / df) ])
+            nf0 = min([1, np.floor(minimum_frequency / df)])
         else:
             nf0 = 1
 
@@ -250,9 +274,10 @@ class FastTemplatePeriodogram(object):
         Parameters
         ----------
         save_best_model : optional, bool (default = True)
-            Save a TemplateModel instance corresponding to the best-fit model found
+            Save a TemplateModel instance corresponding to the best-fit model
+            found
         **kwargs : optional, dict
-            Passed to `autofrequency`
+            Passed to ``autofrequency`` and ``template_periodogram``
 
         Returns
         -------
@@ -260,20 +285,21 @@ class FastTemplatePeriodogram(object):
             The frequency and template periodogram power
         """
         frequency = self.autofrequency(**kwargs)
-        p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy, self.template.c_n,
-                            self.template.s_n, frequency, fast=fast,
-                            allow_negative_amplitudes=self.allow_negative_amplitudes)
+        p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy,
+                                             self.template.c_n,
+                                             self.template.s_n,
+                                             frequency, fast=fast, **kwargs)
 
         if save_best_model:
             i = np.argmax(p)
             self._save_best_model(TemplateModel(self.template,
-                                                frequency = frequency[i],
-                                                parameters = bfpars[i]))
+                                                frequency=frequency[i],
+                                                parameters=bfpars[i]))
         return frequency, p
 
     @requires_data
     @requires_template
-    def power(self, frequency, save_best_model=True):
+    def power(self, frequency, save_best_model=True, **kwargs):
         """
         Compute template periodogram at a given set of frequencies; slower than
         `autopower`, but frequencies are not restricted to being evenly spaced
@@ -285,7 +311,7 @@ class FastTemplatePeriodogram(object):
         save_best_model : optional, bool (default=True)
             Save best model fit, accessible via the `best_model` attribute
         **kwargs : optional, dict
-            Passed to `autofrequency`
+            Passed to ``fit_template``
 
         Returns
         -------
@@ -299,8 +325,8 @@ class FastTemplatePeriodogram(object):
 
         def fitter(freq):
             return pdg.fit_template(self.t, self.y, self.dy,
-                                    self.template.c_n, self.template.s_n,freq,
-                                    allow_negative_amplitudes=self.allow_negative_amplitudes)
+                                    self.template.c_n, self.template.s_n,
+                                    freq, **kwargs)
 
         p, bfpars = zip(*map(fitter, frequency))
         p = np.array(p)
@@ -323,8 +349,8 @@ class FastTemplatePeriodogram(object):
             y_fit = model(self.t)
             y_best = self.best_model(self.t)
 
-            p_fit = power_from_fit(self.t, self.y, self.dy, y_fit)
-            p_best = power_from_fit(self.t, self.y, self.dy, y_best)
+            p_fit = power_from_fit(self.y, self.dy, y_fit)
+            p_best = power_from_fit(self.y, self.dy, y_best)
 
             if p_fit > p_best:
                 self.best_model = model
@@ -338,17 +364,17 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
     ----------
     templates : list of Template
         Templates to fit (must be list of Template instances)
-    allow_negative_amplitudes : bool (optional, default=True)
-        if False, then negative optimal template amplitudes
-        will be replaced with zero-amplitude solutions. A False
-        value prevents the modeler from fitting an inverted
-        template to the data, but does not attempt to find the
-        best positive amplitude solution, which would require
-        substantially more computational resources.
+
+    Notes
+    -----
+    ``allow_negative_amplitudes`` is deprecated as of ``v1.0.1``
+    to simplify things. Earlier versions were inconsistent in
+    whether or not they actually checked for negative amplitudes,
+    since this was an experimental feature -- don't trust that
+    earlier versions do anything useful with this parameter!
     """
-    def __init__(self, templates=None, allow_negative_amplitudes=True):
+    def __init__(self, templates=None, **kwargs):
         self.templates = templates
-        self.allow_negative_amplitudes = allow_negative_amplitudes
         self.t, self.y, self.dy = None, None, None
         self.best_model = None
 
@@ -361,33 +387,36 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
             raise ValueError("No templates.")
         for template in self.templates:
             if not isinstance(template, Template):
-                raise ValueError("One or more templates are not Template instances.")
-            #template.precompute()
+                raise ValueError("One or more templates are not "
+                                 "Template instances.")
 
     @requires_data
     @requires_templates
-    def fit_model(self, freq):
+    def fit_model(self, freq, **kwargs):
         """Fit a template model to data.
 
-        y_model(t) = a * template(freq * (t - tau)) + c
+        y_model(t) = th1 * template(freq * t - th2) + th3
 
         Parameters
         ----------
         freq : float
             Frequency at which to fit a template model
+        **kwargs : dict, optional
+            Passed to ``fit_template``
 
         Returns
         -------
         model : TemplateModel
             The best-fit model at this frequency
         """
-        if not any([ isinstance(freq, type_) for type_ in [ float, np.floating ] ]) :
+        if not any([isinstance(freq, type_)
+                    for type_ in [float, np.floating]]):
             raise ValueError('fit_model requires float argument')
 
         p, parameters = zip(*[pdg.fit_template(self.t, self.y, self.dy,
-                                               template.c_n, template.s_n, freq,
-                                               allow_negative_amplitudes=self.allow_negative_amplitudes)
-                              for template in self.templates ])
+                                               template.c_n, template.s_n,
+                                               freq, **kwargs)
+                              for template in self.templates])
 
         i = np.argmax(p)
         params = parameters[i]
@@ -404,9 +433,10 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         Parameters
         ----------
         save_best_model : optional, bool (default = True)
-            Save a TemplateModel instance corresponding to the best-fit model found
+            Save a TemplateModel instance corresponding to the best-fit model
+            found
         **kwargs : optional, dict
-            Passed to `autofrequency`
+            Passed to ``autofrequency`` and ``template_periodogram``
 
         Returns
         -------
@@ -415,14 +445,14 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         """
         frequency = self.autofrequency(**kwargs)
 
-        results = [pdg.template_periodogram(self.t, self.y, self.dy, template.c_n,
-                                            template.s_n, frequency, fast=fast,
-                                            allow_negative_amplitudes=self.allow_negative_amplitudes)
+        results = [pdg.template_periodogram(self.t, self.y, self.dy,
+                                            template.c_n, template.s_n,
+                                            frequency, fast=fast, **kwargs)
                    for template in self.templates]
 
         p, bfpars = zip(*results)
         if save_best_model:
-            maxes = [ max(P) for P in p ]
+            maxes = [max(P) for P in p]
 
             i = np.argmax(maxes)
             j = np.argmax(p[i])
@@ -434,7 +464,8 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         return frequency, np.max(p, axis=0)
 
     @requires_data
-    def power_from_single_template(self, frequency, template, fast=False, save_best_model=True):
+    def power_from_single_template(self, frequency, template, fast=False,
+                                   save_best_model=True, **kwargs):
         """
         Compute template periodogram at a given set of frequencies; slower than
         `autopower`, but frequencies are not restricted to being evenly spaced
@@ -453,6 +484,7 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         power : float or ndarray
             The frequency and template periodogram power, a
         """
+
         # Allow inputs of any shape; we'll reshape output to match
         frequency = np.asarray(frequency)
         shape = frequency.shape
@@ -460,21 +492,19 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
 
         p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy,
                                              template.c_n, template.s_n,
-                                             frequency, 
-                                             fast=fast, 
-                                             allow_negative_amplitudes=self.allow_negative_amplitudes)
+                                             frequency, fast=fast, **kwargs)
         p = np.asarray(p)
         if save_best_model:
             i = np.argmax(p)
-            best_model = TemplateModel(template, frequency = frequency[i],
-                                       parameters = bfpars[i])
+            best_model = TemplateModel(template, frequency=frequency[i],
+                                       parameters=bfpars[i])
             self._save_best_model(best_model)
 
         return p.reshape(shape)
 
     @requires_data
     @requires_templates
-    def power(self, frequency, save_best_model=True, fast=False):
+    def power(self, frequency, save_best_model=True, fast=False, **kwargs):
         """
         Compute template periodogram at a given set of frequencies
 
@@ -492,10 +522,11 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         power : float or ndarray
             The frequency and template periodogram power, a
         """
-        all_power = [self.power_from_single_template(frequency, template,
-                                                     fast=fast,
-                                                     save_best_model=save_best_model)\
-                     for template in self.templates ]
+
+        power = self.power_from_single_template
+        all_power = [power(frequency, template, fast=fast,
+                           save_best_model=save_best_model)
+                     for template in self.templates]
 
         return np.max(all_power, axis=0)
 
@@ -512,14 +543,28 @@ class SlowTemplatePeriodogram(object):
     template : Template object
         callable object that returns the template value as a function of phase
     nguesses : int, optional (default: 10)
-        number of initial guesses for the phase shift parameter (to avoid local minima)
+        number of initial guesses for the phase shift parameter (to avoid local
+        minima)
+    ** minimize_kwargs: dict, optional
+        Passed to the `scipy.optimize.minimize` function (or `minimize_scalar`
+        if `nguesses` is None)
     """
     # TODO: match the full API of FastTemplateModeler.
     # Perhaps factor-out common routines into a base class?
 
-    def __init__(self, template=None, nguesses=10):
+    def __init__(self, template=None, nguesses=10, **minimize_kwargs):
         self.template = template
         self.nguesses = nguesses
+        self.minimize_kwargs = minimize_kwargs
+
+        if 'bounds' not in self.minimize_kwargs:
+            # minimize_scalar takes a single tuple
+            if self.nguesses is None:
+                self.minimize_kwargs['bounds'] = (0, 1)
+
+            # minimize() takes a list of tuples (for each dimension)
+            else:
+                self.minimize_kwargs['bounds'] = [(0, 1)]
 
     def fit(self, t, y, dy=None):
         """Fit periodogram to given data
@@ -537,6 +582,7 @@ class SlowTemplatePeriodogram(object):
         return self
 
     def _validate_inputs(self, t, y, dy):
+        """ Run consistency checks on data """
         if dy is None:
             # TODO: handle dy = None case more efficiently
             t, y, dy = np.broadcast_arrays(t, y, 1.0)
@@ -547,13 +593,24 @@ class SlowTemplatePeriodogram(object):
         return t, y, dy
 
     def _chi2_ref(self):
-        """Compute the reference chi-square"""
+        """ Compute the reference chi-square """
         weights = self.dy ** -2
         weights /= weights.sum()
         ymean = np.dot(weights, self.y)
         return np.sum((self.y - ymean) ** 2 / self.dy ** 2)
 
     def _minimize_chi2_at_single_freq(self, freq, nguesses=None):
+        """
+        Finds optimal phase-shift of template via non-linear optimization
+        with `scipy.optimize.minimize` or `scipy.optimize.minimize_scalar`.
+
+        Parameters
+        ----------
+        freq: float
+            Frequency of signal
+        nguesses: int, optional (default is self.nguesses)
+            Number of initial guesses to start the non-linear minimization
+        """
         # at each phase, use a linear model to find best [offset, amplitude]
         # and then minimize this scalar function of phase
         def chi2(phase):
@@ -563,28 +620,38 @@ class SlowTemplatePeriodogram(object):
                                           np.dot(X.T, self.y))
             y_model = offset + amp * shifted
             return np.sum((self.y - y_model) ** 2 / self.dy ** 2)
-        
-        nguesses = nguesses if not nguesses is None else self.nguesses
+
+        nguesses = nguesses if nguesses is not None else self.nguesses
 
         # User can opt to run minimize scalar (faster)
         if nguesses is None:
-            return optimize.minimize_scalar(chi2, bounds=(0, 1))
+            return optimize.minimize_scalar(chi2, **self.minimize_kwargs)
 
-        # initial guesses for phase shift
-        guesses = np.random.rand(nguesses)
+        # initial guesses for phase shift (linearly spaced)
+        guesses = np.linspace(0 + 0.5 / nguesses, 1, nguesses)
 
-        local_minimum = lambda x0 : optimize.minimize(chi2, x0, bounds=[(0, 1)])
+        def local_minimum(x0):
+            return optimize.minimize(chi2, x0,
+                                     **self.minimize_kwargs)
 
         # get solutions for each initial guess
-        local_minima = [ local_minimum(guess) for guess in guesses ]
+        local_minima = [local_minimum(guess) for guess in guesses]
 
-        local_minima  = [ res for res in local_minima if res.success ]
+        # keep the successful solutions
+        local_minima = [res for res in local_minima if res.success]
 
+        # if no optimizations are successful, just return results from
+        # `minimize_scalar`
         if len(local_minima) == 0:
+            warnings.warn(" ".join(["`scipy.optimize.minimize` did not find",
+                                    "an optimal solution for",
+                                    "freq={freq};".format(freq=freq),
+                                    "now running `minimize_scalar` with",
+                                    "bounds=(0, 1)"]))
             return optimize.minimize_scalar(chi2, bounds=(0, 1))
 
         # return the best one
-        return local_minima[np.argmin([ res.fun for res in local_minima ])]
+        return local_minima[np.argmin([res.fun for res in local_minima])]
 
     def power(self, freq):
         """Compute a template-based periodogram at the given frequencies
@@ -601,7 +668,7 @@ class SlowTemplatePeriodogram(object):
         """
         freq = np.asarray(freq)
         results = list(map(self._minimize_chi2_at_single_freq, freq.flat))
-        failures = sum([ not res.success for res in results])
+        failures = sum([not res.success for res in results])
         if failures:
             raise RuntimeError("{0}/{1} frequency values failed to converge"
                                "".format(failures, freq.size))

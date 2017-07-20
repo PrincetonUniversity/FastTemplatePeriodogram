@@ -8,11 +8,12 @@ from numpy.testing import assert_allclose
 
 import pytest
 
-nharms_to_test = [ 1, 3, 5 ]
-ndata_to_test  = [ 10, 30 ]
-samples_per_peak_to_test = [ 1, 3 ]
-nyquist_factors_to_test = [ 1, 2 ]
-rseeds_to_test = [ 42 ]
+nharms_to_test = [1, 3, 5]
+ndata_to_test = [10, 30]
+samples_per_peak_to_test = [1, 3]
+nyquist_factors_to_test = [1, 2]
+rseeds_to_test = [42]
+
 
 def template_function(phase,
                       c_n=[-0.181, -0.075, -0.020],
@@ -31,6 +32,7 @@ def data(N=30, T=5, period=0.9, coeffs=(5, 10),
     y += yerr * rand.randn(N)
     return t, y, yerr * np.ones_like(y)
 
+
 def get_frequencies(data, samples_per_peak, nyquist_factor):
     t, y, yerr = data
     df = 1. / (t.max() - t.min()) / samples_per_peak
@@ -46,7 +48,7 @@ def test_fast_vs_slow(nharmonics, data, samples_per_peak, nyquist_factor):
     w = weights(yerr)
     freqs = get_frequencies(data, samples_per_peak, nyquist_factor)
 
-    all_fast_sums =   fast_summations(t, y, w, freqs, nharmonics)
+    all_fast_sums = fast_summations(t, y, w, freqs, nharmonics)
     all_slow_sums = direct_summations(t, y, w, freqs, nharmonics)
 
     for freq, fast_sums, slow_sums in zip(freqs, all_fast_sums, all_slow_sums):
@@ -65,11 +67,12 @@ def test_fast_vs_slow(nharmonics, data, samples_per_peak, nyquist_factor):
 @pytest.mark.parametrize('nharmonics', nharms_to_test)
 @pytest.mark.parametrize('samples_per_peak', samples_per_peak_to_test)
 @pytest.mark.parametrize('nyquist_factor', nyquist_factors_to_test)
-def test_covariance_matrices_are_symmetric(nharmonics, data, samples_per_peak, nyquist_factor):
+def test_covariance_matrices_are_symmetric(nharmonics, data, samples_per_peak,
+                                           nyquist_factor):
     t, y, yerr = data
     w = weights(yerr)
     freqs = get_frequencies(data, samples_per_peak, nyquist_factor)
-    all_fast_sums =  fast_summations(t, y, w, freqs, nharmonics)
+    all_fast_sums = fast_summations(t, y, w, freqs, nharmonics)
 
     for freq, fast_sums in zip(freqs, all_fast_sums):
         assert_allclose(fast_sums.CC, fast_sums.CC.T)

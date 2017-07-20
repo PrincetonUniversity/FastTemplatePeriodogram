@@ -12,7 +12,7 @@ Fast Template Periodogram
 	Jake VanderPlas (jakevdp@uw.edu)
 
 :Version:
-	1.0.0
+	1.0.1
 
 **Check out the** `Scipy 2017 talk <https://www.youtube.com/watch?v=7STeeVnfYFM>`_
 
@@ -65,6 +65,18 @@ Updates
 -------
 
 See the `issues <https://github.com/PrincetonUniversity/FastTemplatePeriodogram/issues>`_ section for known bugs. You can also submit bugs and suggest improvements through that interface.
+
+What's new?
+
+:Version 1.0.1:
+	- PEP8 style conventions now followed
+	- ``allow_negative_amplitudes`` deprecated (wasn't consistently used anyway and it slows things down)
+	- More ``**kwargs`` passing for easier customization
+	- ``AltModelFitParams`` as an alternative for ``ModelFitParams`` is now available (though ``ModelFitParams``
+	  is still usable and nothing should break!). This uses the usual (``theta1``, ``theta2``, ``theta3``) convention
+	  for (amplitude, phase, offset), respectively instead of the awkward ``cos(theta_2)`` and ``sign(sin(theta_2))``
+	  that the ``ModelFitParams`` uses
+	- For ``SlowTemplatePeriodogram``: initial guesses for phase shift are no longer random but are a linearly-spaced grid
 
 More information
 ================

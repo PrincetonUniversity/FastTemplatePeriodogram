@@ -36,7 +36,8 @@ def test_vs_lombscargle():
     t, y, dy = generate_data(template, N=50, tmin=0, tmax=100, freq=0.1)
 
     freq = np.linspace(0.01, 1, 10)
-    power1 = SlowTemplatePeriodogram(template=template).fit(t, y, dy).power(freq)
+    stp = SlowTemplatePeriodogram(template=template).fit(t, y, dy)
+    power1 = stp.power(freq)
     power2 = astropy_LombScargle(t, y, dy, fit_mean=True).power(freq)
 
     assert_allclose(power1, power2)
@@ -50,7 +51,8 @@ def test_zero_noise(nharmonics, nguesses):
     template = generate_template(nharmonics)
     t, y, _ = generate_data(template, N=50, tmin=0, tmax=100, freq=0.1, dy=0)
     dy = None
-    power = SlowTemplatePeriodogram(nguesses=nguesses, template=template).fit(t, y, dy).power(0.1)
+    stp = SlowTemplatePeriodogram(nguesses=nguesses, template=template)
+    power = stp.fit(t, y, dy).power(0.1)
     assert_allclose(power, 1)
 
 
@@ -64,24 +66,8 @@ def test_slow_vs_fast(nharmonics, nguesses):
     t, y, dy = generate_data(template, N=50, tmin=0, tmax=100, freq=0.1)
     freq = 0.01 * np.arange(1, 101)
 
-    power_slow = SlowTemplatePeriodogram(template, nguesses=nguesses).fit(t, y, dy).power(freq)
+    stp = SlowTemplatePeriodogram(template, nguesses=nguesses)
+    power_slow = stp.fit(t, y, dy).power(freq)
     power_fast = FastTemplatePeriodogram(template).fit(t, y, dy).power(freq)
 
     assert(all(power_fast + 1E-5 >= power_slow))
-    """
-    inds = np.arange(len(freq))
-    mask = power_slow > power_fast + 1E-4
-    for i in inds[mask]:
-        p_slow = power_slow[i]
-        p_fast = power_fast[i]
-        print("frequency %d (%.3e) is problematic because (p_slow = %e) > (p_fast = %e) + 1E-4"%((i, 
-                     freq[i], p_slow, p_fast)))
-        print("          p_slow is %.e times larger than p_fast at this frequency"%(p_slow/p_fast - 1))
-
-    # occaisionally (and randomly) there will be one frequency for which
-    # the slow periodogram finds a slightly better solution; I've hacked around
-    # that for now since it seems like a relatively minor problem, but it may
-    # hint at a larger issue...
-    assert(all(np.sort(power_fast - power_slow)[1:] > -1E-4))
-    #assert_array_less(power_slow, power_fast + 1E-4)
-    """
