@@ -8,8 +8,8 @@ Fast Template Periodogram
 	:target: https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram
 
 :Authors:
-	John Hoffman (mailto:jah5@princeton.edu)
-	Jake Vanderplas (mailto:jakevdp@uw.edu)
+	|John Hoffman (jah5@princeton.edu)
+	|Jake Vanderplas (jakevdp@uw.edu)
 
 :Version:
 	0.9.5.dev
@@ -81,7 +81,7 @@ uses non-linear least-squares fitting to compute the optimal parameters
 process scales as ``N_obs*N_f``, where ``N`` is the number of observations and
 ``N_f`` is the number of frequencies at which to calculate the periodogram.
 
-This is more or less the procedure used in [Sesar2017]_ to perform
+This is more or less the procedure used in [Sesar_etal_2017]_ to perform
 template fits to Pan-STARRS photometry, however they used a more sophisticated
 multiband model that locked the phases, amplitudes and
 offsets of all bands together. They found that template fitting was significantly more accurate for estimating periods of RR Lyrae stars, but the computational resources
@@ -96,7 +96,8 @@ better way to perform these fits. Details will be presented in a paper
 (Hoffman *et al.* 2017, *in prep*), but the important part is you can reduce
 the non-linearity of the problem to the following:
 
-- Finding the zeros of an order ``6H-1`` complex polynomial at each trial frequency
+
+- Finding the zeros of an order ``6H-1`` complex polynomial at each trial frequency.
 	- This is done via the ``numpy.polynomial`` library, which performs singular-value decomposition on the polynomial "companion matrix", and scales as ``O(H^3)``.
 - Computing the coefficients of these polynomials for all trial frequencies simultaneously by leveraging the non-equispaced fast Fourier transform, a process that scales as ``O(HN_f log(HN_f))``.
 
@@ -122,7 +123,7 @@ This provides two advantages:
 How is this different than the multi-harmonic periodogram?
 ----------------------------------------------------------
 
-The multi-harmonic periodogram ([Bretthorst1988]_,[SchwarzenbergCzerny1996]_) is another
+The multi-harmonic periodogram ([Bretthorst1988]_, [SchwarzenbergCzerny1996]_) is another
 extension of Lomb-Scargle that fits a truncated Fourier series to the data
 at each trial frequency. This algorithm can also be made to scale as
 ``HN_f logHN_f`` [Palmer2009]_.
@@ -133,7 +134,7 @@ In a multi-harmonic periodogram, the relative amplitudes and phases of the Fouri
 
 The multiharmonic periodogram is more flexible than the template periodogram, but less
 sensitive to a given signal. If you're hoping to find a non-sinusoidal signal with an
-unknown shape, it might make more sense to use a multi-harmonic periodogram.]
+unknown shape, it might make more sense to use a multi-harmonic periodogram.
 
 For more discussion of the multiharmonic periodogram and related extensions, see [VanderPlas_etal_2015]_ and [VanderPlas2017]_.
 
@@ -148,7 +149,7 @@ References
 ----------
 
 
-.. [ZechmeisterKurster2009] `Paper <http://adsabs.harvard.edu/abs/2009A%26A...496..577Z>`_
+.. [ZechmeisterKurster2009] `The generalised Lomb-Scargle periodogram. A new formalism for the floating-mean and Keplerian periodograms <http://adsabs.harvard.edu/abs/2009A%26A...496..577Z>`_
 
 .. [Lomb1976] `Least-squares frequency analysis of unequally spaced data <http://adsabs.harvard.edu/abs/1976Ap%26SS..39..447L>`_
 
@@ -160,12 +161,12 @@ References
 
 .. [VanderPlas2017] `Understanding the Lomb-Scargle Periodogram <https://arxiv.org/abs/1703.09824>`_
 
-.. [Sesar2017] https://arxiv.org/abs/1611.08596
+.. [Sesar_etal_2017] `Machine-Learned Identification of RR Lyrae Stars from Sparse, Multi-band Data: the PS1 Sample <https://arxiv.org/abs/1611.08596>`_
 
-.. [Bretthorst1988] https://link.springer.com/book/10.1007%2F978-1-4684-9399-3
+.. [Bretthorst1988] `Bayesian Spectrum Analysis and Parameter Estimation <https://link.springer.com/book/10.1007%2F978-1-4684-9399-3>`_
 
-.. [SchwarzenbergCzerny1996] http://iopscience.iop.org/article/10.1086/309985/meta
+.. [SchwarzenbergCzerny1996] `Fast and Statistically Optimal Period Search in Uneven Sampled Observations <http://iopscience.iop.org/article/10.1086/309985/meta>`_
 
-.. [Palmer2009] http://iopscience.iop.org/article/10.1088/0004-637X/695/1/496/meta
+.. [Palmer2009] `A FAST CHI-SQUARED TECHNIQUE FOR PERIOD SEARCH OF IRREGULARLY SAMPLED DATA <http://iopscience.iop.org/article/10.1088/0004-637X/695/1/496/meta>`_
 
-.. [VanderPlas_etal_2015] http://adsabs.harvard.edu/abs/2015ApJ...812...18V
+.. [VanderPlas_etal_2015] `Periodograms for Multiband Astronomical Time Series <http://adsabs.harvard.edu/abs/2015ApJ...812...18V>`_
