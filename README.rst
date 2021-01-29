@@ -8,7 +8,7 @@ Fast Template Periodogram
 	:target: https://codecov.io/gh/PrincetonUniversity/FastTemplatePeriodogram
 
 :Authors:
-	John Hoffman (jah5@princeton.edu)
+	John Hoffman (johnh2o2@gmail.com)
 	Jake VanderPlas (jakevdp@uw.edu)
 
 :Version:
