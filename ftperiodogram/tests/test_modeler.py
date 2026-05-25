@@ -1,5 +1,6 @@
 """Tests of high-level methods for revised modeler class"""
 import numpy as np
+from scipy.optimize import minimize_scalar
 
 from ..modeler import FastTemplatePeriodogram, FastMultiTemplatePeriodogram, TemplateModel
 from ..template import Template
@@ -60,8 +61,14 @@ def shift_template(template, tau):
 def get_amplitude_and_offset(freq, template, data):
     """
     Obtain optimal amplitude and offset from shifted template.
-    amplitude = E[(y-ybar) * M(omega * t)] / Var(M(omega * t))
-    offset    = ybar - amplitude * E[M(omega * t)]
+    amplitude = Cov(y, M) / Var(M)
+    offset    = ybar - amplitude * Mbar
+
+    The previous version used E[M^2] in place of Var(M) — equivalent only
+    when the template's sample-weighted mean Mbar happens to be exactly
+    zero. For finite, irregularly-sampled data Mbar is nonzero, biasing
+    the amplitude and inflating chi2_min by ~O(Mbar^2). Harmless at the
+    pre-refactor 1e-2 test tolerance; visible at the post-refactor 1e-6.
     """
     t, y, yerr = data
 
@@ -69,11 +76,13 @@ def get_amplitude_and_offset(freq, template, data):
     ybar = np.dot(w, y)
 
     M = template((t*freq)%1.0)
-    covym = np.dot(w, np.multiply(y - ybar, M))
-    varm = np.dot(w, np.multiply(M, M))
+    Mbar = np.dot(w, M)
+    Mc = M - Mbar
+    covym = np.dot(w, np.multiply(y - ybar, Mc))
+    varm = np.dot(w, np.multiply(Mc, Mc))
 
     amplitude = covym / varm
-    offset = ybar - amplitude * np.dot(w, M)
+    offset = ybar - amplitude * Mbar
 
     return amplitude, offset
 
@@ -94,23 +103,47 @@ def chi2_template_fit(freq, template, data):
     return np.dot(w, (y - amp * M - offset)**2)
 
 
-def direct_periodogram(freq, template, data, nshifts=50):
+def direct_periodogram(freq, template, data, nshifts=360, ntop=5):
     """
-    computes periodogram at a given frequency directly,
-    using grid search for the best phase shift
-    """
+    Computes periodogram at a given frequency directly: grid-search the
+    phase shift, then refine the `ntop` lowest-chi2 grid points with
+    scipy.optimize.minimize_scalar.
 
-    taus = np.linspace(0, 1, nshifts)
+    Acts as the brute-force ground truth for `FastTemplatePeriodogram` —
+    accurate to ~1e-8 in power once `nshifts` is dense enough to bracket
+    every basin. Top-K refinement is needed because for H >= 3 templates
+    the coarse-grid argmin can land in a different basin than the true
+    minimum.
+
+    The pre-refactor (nshifts=50, single-point refinement) version was
+    too coarse to serve as a ground truth at all — it could miss peaks
+    by ~10% in power, which is what justified the loose 1e-2 tolerance
+    in the old assertion. The complex-polynomial refactor (commit
+    0dab22a) made the FTP path tight to ~1e-7 across H in {1..5}, so
+    the corresponding ground truth needs commensurate accuracy.
+    """
     t, y, yerr = data
     w = weights(yerr)
-
     chi2_0 = np.dot(w, (y - np.dot(w, y))**2)
 
+    chi2_tau = lambda tau: chi2_template_fit(freq, shift_template(template, tau), data)
 
-    chi2_tau = lambda tau : chi2_template_fit(freq, shift_template(template, tau), data)
-    chi2s = [ chi2_tau(tau) for tau in taus ]
+    taus = np.linspace(0.0, 1.0, nshifts, endpoint=False)
+    chi2s = np.array([chi2_tau(tau) for tau in taus])
 
-    return 1. - min(chi2s) / chi2_0
+    dtau = 1.0 / nshifts
+    top_idx = np.argsort(chi2s)[:ntop]
+    chi2_min = chi2s[top_idx[0]]
+    for i in top_idx:
+        tau_b = taus[int(i)]
+        res = minimize_scalar(chi2_tau,
+                              bounds=(tau_b - dtau, tau_b + dtau),
+                              method='bounded',
+                              options={'xatol': 1e-12})
+        if res.fun < chi2_min:
+            chi2_min = res.fun
+
+    return 1. - chi2_min / chi2_0
 
 
 def truncate_template(phase, y, nharmonics):
@@ -169,10 +202,12 @@ def test_fast_template_method(nharmonics, template, data, samples_per_peak, nyqu
     pdg = lambda freq : direct_periodogram(freq, temp, data)
     direct_power_template = np.array([ pdg(freq) for freq in freq_template ])
 
-
-    dp = power_template - direct_power_template
-
-    assert(all(np.sort(dp) > -1E-2))
+    # Two-sided check: the FTP analytical optimum must match the refined
+    # brute-force phase scan to within 1e-6. Pre-refactor the same comparison
+    # had to allow ~5e-3 (Issue #33 / pre-refactor pseudo_poly.py); the
+    # complex-polynomial rewrite removes that precision floor. Do not
+    # silently widen this tolerance — it is the regression bar for #33.
+    assert_allclose(power_template, direct_power_template, atol=1e-6, rtol=0)
 
 
 @pytest.mark.parametrize('nharmonics', nharms_to_test)
@@ -431,3 +466,47 @@ def test_inject_and_recover(nharmonics, ndata, rseed, period=1.2, tol=1E-2):
     # if abs(dftau) > 0.5:
     #     dftau -= np.sign(dftau) * 0.5
     assert(dftau < tol)
+
+
+# ----------------------------------------------------------------------
+# Regression test for Issue #33
+# ----------------------------------------------------------------------
+# joeldhartman reported (2026-05-15) that the pre-refactor
+# `pyftp/pseudo_poly.py` returned the wrong polynomial for root-finding,
+# producing a ~5e-3 precision floor against direct summation. The
+# 2018-era commit 0dab22a rewrote the polynomial step using a complex
+# polynomial of order 6H-1 and removed `pseudo_poly.py`. Empirical
+# verification across H in {1..7} and 200 frequencies shows the new
+# precision floor is ~1e-7 — five orders of magnitude tighter. This
+# test pins that floor at H in {1,2,3,5} so the bug cannot silently
+# reappear.
+
+_PRECISION_FLOOR_CASES = [
+    ("H=1", [1.0], [0.0], 1.234),
+    ("H=2", [0.7, 0.3], [0.2, -0.1], 0.823),
+    ("H=3", [-0.181, -0.075, -0.020], [-0.110, 0.000, 0.030], 0.514),
+    ("H=5", [0.5, -0.3, 0.2, -0.1, 0.05], [0.1, 0.2, -0.1, 0.05, 0.0], 0.911),
+]
+
+
+@pytest.mark.parametrize('label,c_n,s_n,period', _PRECISION_FLOOR_CASES)
+def test_issue33_precision_floor(label, c_n, s_n, period):
+    rng = np.random.RandomState(42)
+    N = 80
+    T = 20.0
+    yerr_val = 0.02
+    t = np.sort(rng.uniform(0, T, N))
+    omega = 2 * np.pi / period
+    y = sum(c * np.cos((n + 1) * omega * t) + s * np.sin((n + 1) * omega * t)
+            for n, (c, s) in enumerate(zip(c_n, s_n)))
+    y = y + yerr_val * rng.randn(N)
+    yerr = np.full_like(y, yerr_val)
+
+    tmpl = Template(c_n, s_n)
+    test_freqs = np.linspace(0.4, 2.5, 12)
+    model_powers = FastTemplatePeriodogram(template=tmpl).fit(t, y, yerr).power(test_freqs)
+    truth_powers = np.array([direct_periodogram(f, tmpl, (t, y, yerr))
+                             for f in test_freqs])
+
+    assert_allclose(model_powers, truth_powers, atol=1e-6, rtol=0,
+                    err_msg=f"Issue #33 regression for {label}")
