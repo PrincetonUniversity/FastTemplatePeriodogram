@@ -48,7 +48,7 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
     
     # compute YM
     aYC = alpha * (sums.YC - 1j * sums.YS)
-    YM = pol.Polynomial(np.concatenate((np.conj(aYC)[::-1], [0], aYC)).astype(np.complex64))
+    YM = pol.Polynomial(np.concatenate((np.conj(aYC)[::-1], [0], aYC)).astype(np.complex128))
 
     # compute MM
     UU = sums.CC + 1j * sums.CS
@@ -59,7 +59,7 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
     SS = np.conj(CC)
 
     # TODO : use numpy to speed this up.
-    MM = np.zeros(4 * H + 1, dtype=np.complex64)
+    MM = np.zeros(4 * H + 1, dtype=np.complex128)
 
     CC = CC[::-1, :]
     CS = CS.T
@@ -112,8 +112,7 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
     return best_params, pdg_phi[i]
 
 def fit_template(t, y, dy, cn, sn, freq, sums=None,
-                       allow_negative_amplitudes=True, zeros=None,
-                       small=1E-7):
+                       zeros=None, small=1E-7):
     r"""
     Fits periodic template to data at a single frequency
 
@@ -129,19 +128,11 @@ def fit_template(t, y, dy, cn, sn, freq, sums=None,
         Fourier (cosine) coefficients of the template
     sn : array_like
         Fourier (sine) coefficients of the template
-    ptensors : np.ndarray, shape = (H, H, H, L)
-        Polynomial coefficients from template; H is the number of
-        harmonics, L is the (maximum) length of the polynomial
     freq : float
         Frequency at which to fit the template
     sums : Summations, optional
         Precomputed summations (C, S, CC, CS, SS, YC, YS). Default
         is None, which means the sums are computed directly (no NFFT)
-    allow_negative_amplitudes : bool, optional, (default = True)
-        Specifies whether or not negative amplitude solutions are allowed.
-        They are automatically forbidden for H=1 (since this is equivalent
-        to a phase shift). If no positive amplitude solutions are found and
-        allow_negative_amplitudes = False, the periodogram is set to 0
 
     Returns
     -------
@@ -166,8 +157,7 @@ def fit_template(t, y, dy, cn, sn, freq, sums=None,
 
 
 def template_periodogram(t, y, dy, cn, sn, freqs,
-                        summations=None, allow_negative_amplitudes=True,
-                        fast=True):
+                        summations=None, fast=True):
     r"""
     Produces a template periodogram using a single template
 
@@ -183,9 +173,6 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         Fourier (cosine) coefficients of the template
     sn : array_like
         Fourier (sine) coefficients of the template
-    ptensors : np.ndarray, shape = (H, H, H, L), optional
-        Polynomial coefficients from template; H is the number of
-        harmonics, L is the (maximum) length of the polynomial
     freqs : array_like
         Frequencies at which to fit the template
     summations : list of Summations, optional
@@ -193,11 +180,6 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         in freqs. Default is None, which means the sums are computed via
         direct summations (if `fast=False`) or via fast summations (NFFT, if
         `fast=True`)
-    allow_negative_amplitudes : bool, optional, (default = True)
-        Specifies whether or not negative amplitude solutions are allowed.
-        They are automatically forbidden for H=1 (since this is equivalent
-        to a phase shift). If no positive amplitude solutions are found and
-        allow_negative_amplitudes = False, the periodogram is set to 0
 
     Returns
     -------

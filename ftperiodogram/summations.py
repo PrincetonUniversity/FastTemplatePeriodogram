@@ -1,4 +1,3 @@
-#from future import __division__
 from nfft import nfft_adjoint
 from .utils import Summations
 import numpy as np
