@@ -369,12 +369,82 @@ def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
         return MultibandModelFitParams(params_by_band, mode), float(power)
 
     if mode == 'shared_phase':
-        raise NotImplementedError(
-            "mode='shared_phase' (model B) is not implemented yet; it requires "
-            "a larger, separately-derived polynomial and is planned for a later "
-            "v0.2 commit. Use 'floating_offsets', 'sesar', or 'independent'.")
+        return _shared_phase_fit(template_dict, per_band_sums, stats)
 
     raise ValueError("Unknown mode {0!r}; must be one of {1}".format(mode, MODES))
+
+
+def _shared_phase_fit(template_dict, per_band_sums, stats):
+    r"""Solve model B (shared phase, per-band amplitude and offset) at one freq.
+
+    For a fixed shared phase :math:`\phi` each band fits independently, so the
+    total power is
+
+        F(phi) = sum_k W_k (P_YM^(k)(phi))^2 / P_MM^(k)(phi)
+
+    (normalized by the per-band-centered variance ``YY_combined``). Maximizing
+    over phi, after clearing the common denominator ``prod_l (P_MM^(l))^2``
+    (which is positive on the unit circle), gives the stationarity polynomial
+
+        G(phi) = sum_k W_k P_YM^(k) q_k prod_{l != k} (P_MM^(l))^2 = 0,
+        q_k = 2 P_MM^(k) (P_YM^(k))' - (P_MM^(k))' P_YM^(k),
+
+    of degree ``8 H K - 1`` -- a genuinely larger root problem than the
+    single-band case (cost grows as ``(H K)^3`` per frequency).
+
+    POSITIVITY: unlike the shared-amplitude modes, the phase here is shared, so
+    the per-band amplitudes cannot each be independently forced positive; this
+    routine returns the power-maximizing shared phase and reports the per-band
+    amplitudes as fitted (they are >= 0 for a genuine in-phase multiband signal,
+    but can be negative for a band that anti-correlates at the shared phase).
+    """
+    H = stats.H
+    bands = stats.bands
+
+    per_band = {band: pdg.YM_MM_from_sums(template_dict[band].c_n,
+                                          template_dict[band].s_n,
+                                          per_band_sums[band])
+                for band in bands}
+    PMM = {band: per_band[band][1] for band in bands}
+
+    G = None
+    for k in bands:
+        P_YM, P_MM, _ = per_band[k]
+        q = 2 * P_MM * P_YM.deriv() - P_MM.deriv() * P_YM
+        prod_others = pol.Polynomial([1.0 + 0j])
+        for l in bands:
+            if l != k:
+                prod_others = prod_others * (PMM[l] * PMM[l])
+        term = stats.W[k] * (P_YM * q * prod_others)
+        G = term if G is None else G + term
+
+    roots = G.roots()
+    roots = roots[np.absolute(roots) > 0]
+    roots /= np.absolute(roots)
+
+    # total power at each candidate shared phase
+    F = np.zeros(len(roots))
+    for k in bands:
+        P_YM, P_MM, _ = per_band[k]
+        F += stats.W[k] * np.real(P_YM(roots) ** 2 / P_MM(roots))
+
+    i = int(np.argmax(F))
+    best_phi = roots[i]
+    power = F[i] / stats.YY_combined
+
+    theta_2 = np.imag(np.log(best_phi)) % (2 * np.pi)
+    b = np.cos(theta_2)
+    sgn = np.sign(np.sin(theta_2))
+
+    params_by_band = {}
+    for k in bands:
+        P_YM, P_MM, AC_k = per_band[k]
+        theta_1_k = np.real(np.power(best_phi, H) * P_YM(best_phi) / P_MM(best_phi))
+        mbar_k = 2 * np.real(pol.Polynomial(np.concatenate(([0], AC_k)))(best_phi))
+        c_k = stats.ybar[k] - theta_1_k * mbar_k
+        params_by_band[k] = ModelFitParams(a=theta_1_k, b=b, c=c_k, sgn=sgn)
+
+    return MultibandModelFitParams(params_by_band, 'shared_phase'), float(power)
 
 
 def multiband_template_periodogram(t, y, bands, template_dict, freqs, dy=None,
@@ -456,10 +526,6 @@ class FastMultibandTemplatePeriodogram(object):
         if self.mode not in MODES:
             raise ValueError("Unknown mode {0!r}; must be one of {1}"
                              "".format(self.mode, MODES))
-        if self.mode == 'shared_phase':
-            raise NotImplementedError(
-                "mode='shared_phase' (model B) is not implemented yet; it is "
-                "planned for a later v0.2 commit.")
         if self.mode == 'sesar' and self.relative_offsets is None:
             raise ValueError("mode='sesar' requires relative_offsets="
                              "{band: lambda}.")

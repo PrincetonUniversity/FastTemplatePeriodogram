@@ -151,6 +151,51 @@ def _brute_power(t, y, bands, dy, template, freq, mode, relative_offsets=None,
     return 1 - best / chi2_0
 
 
+def _brute_power_shared_phase(t, y, bands, dy, template, freq, nphase=2000):
+    """Brute-force model-B power: scan a SHARED phase, per-band independent
+    linear fits, combine W_k-weighted explained variance. No positivity
+    constraint (model B does not enforce per-band positivity)."""
+    n = len(t)
+    w = _global_weights(dy, n)
+    band_labels = np.unique(bands)
+
+    # per-band within-band weights, means, variances, weight totals
+    info = {}
+    YY_C = 0.0
+    for k in band_labels:
+        m = bands == k
+        wk = w[m] / w[m].sum()
+        yk = y[m].astype(float)
+        ybark = np.dot(wk, yk)
+        YYk = np.dot(wk, (yk - ybark) ** 2)
+        info[k] = (t[m], yk, wk, w[m].sum())
+        YY_C += w[m].sum() * YYk
+
+    def neg_power(ph):
+        explained = 0.0
+        for k in band_labels:
+            tk, yk, wk, Wk = info[k]
+            X = np.column_stack([template((freq * tk - ph) % 1.0),
+                                 np.ones(len(tk))])
+            XtW = X.T * wk
+            beta = np.linalg.solve(XtW @ X, XtW @ yk)
+            chi2_k = np.dot(wk, (yk - X @ beta) ** 2)
+            ybark = np.dot(wk, yk)
+            YYk = np.dot(wk, (yk - ybark) ** 2)
+            explained += Wk * (YYk - chi2_k)
+        return -explained / YY_C
+
+    grid = np.linspace(0, 1, nphase, endpoint=False)
+    vals = np.array([neg_power(p) for p in grid])
+    i = int(np.argmin(vals))
+    best = vals[i]
+    lo, hi = grid[(i - 1) % nphase], grid[(i + 1) % nphase]
+    if lo < hi:
+        res = minimize_scalar(neg_power, bounds=(lo, hi), method='bounded')
+        best = min(best, res.fun)
+    return -best
+
+
 def _scan_and_refine(chi2_amp_fn, nphase=2000):
     """Minimize chi2 over phase subject to amplitude >= 0.
 
@@ -238,6 +283,44 @@ def test_k2_sesar_matches_brute_force():
                             relative_offsets=lam)
         assert abs(p_ftp - p_bf) < 2e-3, \
             "D: f=%.4f ftp=%.5f brute=%.5f" % (f, p_ftp, p_bf)
+
+
+def test_k1_shared_phase_reduces_to_single_band():
+    # model B does not enforce positivity, so it matches the (unfiltered)
+    # single-band public power exactly at K=1.
+    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=(0.0,))
+    order = np.argsort(t)   # single-band path requires globally-sorted t
+    sb = FastTemplatePeriodogram(TEMPLATE).fit(t[order], y[order],
+                                               dy[order]).power(FREQS)
+    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='shared_phase')
+    mb.fit(t, y, bands, dy)
+    p = mb.power(FREQS)
+    assert np.allclose(p, sb, atol=1e-6), \
+        "K=1 shared_phase deviates from single-band by %.2e" % np.max(np.abs(p - sb))
+
+
+def test_k2_shared_phase_matches_brute_force():
+    offs = (0.0, -0.6, 0.4)
+    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=offs)
+    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='shared_phase')
+    mb.fit(t, y, bands, dy)
+    for f in (0.123, 0.0917, 0.2013):
+        p_ftp = float(mb.power(f))
+        p_bf = _brute_power_shared_phase(t, y, bands, dy, TEMPLATE, f)
+        assert abs(p_ftp - p_bf) < 2e-3, \
+            "B: f=%.4f ftp=%.5f brute=%.5f" % (f, p_ftp, p_bf)
+
+
+def test_shared_phase_recovers_signal():
+    offs = (0.0, -0.8, 0.5)
+    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=offs)
+    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='shared_phase')
+    mb.fit(t, y, bands, dy)
+    f, p = mb.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+    assert abs(f[np.argmax(p)] - 0.123) < 1e-3
+    # all per-band amplitudes are positive for this genuine in-phase signal
+    for pars in mb.best_model.parameters.params_by_band.values():
+        assert pars.a > 0
 
 
 def test_k2_independent_matches_brute_force():
@@ -345,14 +428,6 @@ def test_sesar_without_offsets_raises():
     mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='sesar')
     mb.fit(t, y, bands, dy)
     with pytest.raises(ValueError):
-        mb.autopower()
-
-
-def test_shared_phase_raises_not_implemented():
-    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=(0.0, 0.3))
-    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='shared_phase')
-    mb.fit(t, y, bands, dy)
-    with pytest.raises(NotImplementedError):
         mb.autopower()
 
 
