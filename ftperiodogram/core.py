@@ -88,7 +88,7 @@ def YM_MM_from_sums(cn, sn, sums):
     return YM, MM, AC
 
 
-def roots_from_YM_MM(YM, MM, AC, H, ybar, YY):
+def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
     r"""
     Find the optimal phase root of the ``YM``/``MM`` polynomials and reconstruct
     the best-fit template parameters and periodogram power.
@@ -111,6 +111,13 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY):
         Weighted mean used to reconstruct the offset ``theta_3``.
     YY : float
         Weighted variance used to normalize the power.
+    positive_amplitude : bool, optional (default False)
+        If True, restrict the root selection to roots that yield a non-negative
+        amplitude ``theta_1`` and return the best-fitting such root. This is the
+        constant-time positivity filter over the same root set (paper item
+        K.18); the multiband solver uses it. The default (False) leaves the
+        single-band behavior unchanged: the global power-maximizing root is
+        returned regardless of the sign of ``theta_1``.
 
     Returns
     -------
@@ -136,6 +143,15 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY):
 
     # Get periodogram values at each root
     pdg_phi = np.real(YM(roots) ** 2 /  MM(roots)) / YY
+
+    if positive_amplitude:
+        # K.18: among the roots, keep only those whose amplitude theta_1 >= 0,
+        # then pick the best-fitting one. A half-phase flip would NOT preserve
+        # the fitted curve for H > 1, so we filter the root set instead.
+        theta_1_all = np.real(np.power(roots, H) * YM(roots) / MM(roots))
+        positive = theta_1_all >= 0
+        if np.any(positive):
+            pdg_phi = np.where(positive, pdg_phi, -np.inf)
 
     # find root that maximizes periodogram
     i = np.argmax(pdg_phi)
