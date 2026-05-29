@@ -61,6 +61,42 @@ inside the ``notebooks/`` directory::
 	$ jupyter notebook
 
 
+Multiband periodograms
+----------------------
+
+``FastMultibandTemplatePeriodogram`` fits a template to data observed in several
+photometric bands at once, using the flat ``(t, y, bands, dy)`` convention of
+``astropy``/``gatspy`` ``LombScargleMultiband`` (one row per observation, with a
+band label)::
+
+	from ftperiodogram import Template, FastMultibandTemplatePeriodogram
+
+	template = Template.from_sampled(my_phased_lightcurve, nharmonics=6)
+
+	model = FastMultibandTemplatePeriodogram(template, mode='floating_offsets')
+	model.fit(t, y, bands, dy)            # bands e.g. array of 'g'/'r'/'i'
+	frequency, power = model.autopower(minimum_frequency=1./10,
+	                                   maximum_frequency=10.)
+
+The ``mode`` selects what is shared across bands:
+
+* ``'independent'`` -- nothing shared (each band fit separately; the
+  multiphase model of VanderPlas & Ivezic 2015).
+* ``'shared_phase'`` -- the phase is shared; amplitudes and offsets float per band.
+* ``'floating_offsets'`` (default) -- amplitude and phase are shared; only the
+  per-band offset (zero point) floats. No extra inputs required.
+* ``'sesar'`` -- amplitude, phase and offset are all shared, with fixed per-band
+  relative offsets ``lambda^(k)`` supplied via ``relative_offsets`` (the
+  3-parameter model of Sesar et al. 2016). Pass
+  ``relative_offsets={band: lambda}``.
+
+For irregularly-sampled data, set ``minimum_frequency`` and ``maximum_frequency``
+explicitly rather than relying on a Nyquist heuristic. A list of templates (or
+``{band: Template}`` dicts) may be passed as a *catalog*; the periodogram then
+reports the best-fitting set at each frequency and records the winning set on
+``model.best_model.template_set_index``.
+
+
 Updates
 -------
 
@@ -139,7 +175,6 @@ For more discussion of the multiharmonic periodogram and related extensions, see
 TODO
 ----
 
-* Multi-band extensions
 * Speed improvements
 
 
