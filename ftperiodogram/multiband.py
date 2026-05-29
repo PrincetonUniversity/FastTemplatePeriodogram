@@ -483,6 +483,49 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
     return MultibandModelFitParams(params_by_band, 'shared_phase'), float(power)
 
 
+def compute_band_summations(t, y, bands, freqs, H, dy=None, mode=DEFAULT_MODE,
+                            relative_offsets=None, fast=True):
+    """Compute the per-band NFFT summations and per-band statistics.
+
+    The returned ``per_band_sumlists`` (one ``Summations`` per frequency, per
+    band) depend only on the data and ``(mode, relative_offsets, H)`` -- NOT on
+    the template shape -- so they can be computed once and reused across a whole
+    template catalog. Returns ``(per_band_sumlists, stats)``.
+    """
+    band_data, stats = _prepare_bands(t, y, bands, dy, mode,
+                                      relative_offsets, H)
+    freqs = np.asarray(freqs, dtype=float)
+
+    per_band_sumlists = OrderedDict()
+    for band, (t_k, y_k, w_k) in band_data.items():
+        if fast:
+            per_band_sumlists[band] = fast_summations(t_k, y_k, w_k, freqs, H)
+        else:
+            per_band_sumlists[band] = direct_summations(t_k, y_k, w_k, freqs, H)
+
+    return per_band_sumlists, stats
+
+
+def solve_over_frequencies(template_dict, per_band_sumlists, stats, nfreq,
+                           mode=DEFAULT_MODE, relative_offsets=None):
+    """Run the per-frequency multiband solve given precomputed per-band sums.
+
+    Pairs with :func:`compute_band_summations`; the template-dependent half of
+    the periodogram. Returns ``(powers, params_list)``.
+    """
+    bands = list(per_band_sumlists)
+    powers = np.empty(nfreq, dtype=float)
+    params_list = []
+    for i in range(nfreq):
+        per_band_sums = {band: per_band_sumlists[band][i] for band in bands}
+        mb_params, power = multiband_template_fit_from_sums(
+            template_dict, per_band_sums, stats, mode, relative_offsets)
+        powers[i] = power
+        params_list.append(mb_params)
+
+    return powers, params_list
+
+
 def multiband_template_periodogram(t, y, bands, template_dict, freqs, dy=None,
                                    mode=DEFAULT_MODE, relative_offsets=None,
                                    fast=True):
@@ -498,28 +541,12 @@ def multiband_template_periodogram(t, y, bands, template_dict, freqs, dy=None,
     :class:`MultibandModelFitParams` at each frequency.
     """
     H = len(next(iter(template_dict.values())).c_n)
-    band_data, stats = _prepare_bands(t, y, bands, dy, mode,
-                                      relative_offsets, H)
     freqs = np.asarray(freqs, dtype=float)
-
-    per_band_sumlists = {}
-    for band, (t_k, y_k, w_k) in band_data.items():
-        if fast:
-            per_band_sumlists[band] = fast_summations(t_k, y_k, w_k, freqs, H)
-        else:
-            per_band_sumlists[band] = direct_summations(t_k, y_k, w_k, freqs, H)
-
-    powers = np.empty(len(freqs), dtype=float)
-    params_list = []
-    for i in range(len(freqs)):
-        per_band_sums = {band: per_band_sumlists[band][i]
-                         for band in band_data}
-        mb_params, power = multiband_template_fit_from_sums(
-            template_dict, per_band_sums, stats, mode, relative_offsets)
-        powers[i] = power
-        params_list.append(mb_params)
-
-    return powers, params_list
+    per_band_sumlists, stats = compute_band_summations(
+        t, y, bands, freqs, H, dy=dy, mode=mode,
+        relative_offsets=relative_offsets, fast=fast)
+    return solve_over_frequencies(template_dict, per_band_sumlists, stats,
+                                  len(freqs), mode, relative_offsets)
 
 
 # ----------------------------------------------------------------------
@@ -659,18 +686,27 @@ class FastMultibandTemplatePeriodogram(object):
         self._validate_templates()
         self._validate_data()
 
-        kw = dict(dy=self.dy, mode=self.mode,
-                  relative_offsets=self.relative_offsets, fast=fast)
-
         if not self._is_catalog:
             powers, params = multiband_template_periodogram(
-                self.t, self.y, self.bands, self._template_dict, freqs, **kw)
+                self.t, self.y, self.bands, self._template_dict, freqs,
+                dy=self.dy, mode=self.mode,
+                relative_offsets=self.relative_offsets, fast=fast)
             return np.asarray(powers), params, None
+
+        # Catalog: the per-band NFFT summations are template-independent, so
+        # compute them ONCE and reuse them for every template-set (avoids an
+        # N-fold redundant NFFT for an N-template catalog).
+        nfreq = len(np.asarray(freqs))
+        H = len(next(iter(self._template_sets[0].values())).c_n)
+        per_band_sumlists, stats = compute_band_summations(
+            self.t, self.y, self.bands, freqs, H, dy=self.dy, mode=self.mode,
+            relative_offsets=self.relative_offsets, fast=fast)
 
         stack, param_sets = [], []
         for template_dict in self._template_sets:
-            pw, pl = multiband_template_periodogram(
-                self.t, self.y, self.bands, template_dict, freqs, **kw)
+            pw, pl = solve_over_frequencies(
+                template_dict, per_band_sumlists, stats, nfreq,
+                self.mode, self.relative_offsets)
             stack.append(np.asarray(pw))
             param_sets.append(pl)
         stack = np.array(stack)                       # (nsets, nfreq)
