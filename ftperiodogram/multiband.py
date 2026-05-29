@@ -113,10 +113,14 @@ class MultibandTemplateModel(object):
         return self.single_band_model(band)(np.asarray(t, dtype=float))
 
     def __call__(self, t, bands):
-        """Evaluate y_hat for flat arrays ``(t, bands)``, dispatching per band."""
+        """Evaluate y_hat for flat arrays ``(t, bands)``, dispatching per band.
+
+        Observations whose band was not present at fit time are returned as
+        ``nan`` (the model has no parameters for them).
+        """
         t = np.asarray(t, dtype=float)
         bands = np.asarray(bands)
-        out = np.empty(t.shape, dtype=float)
+        out = np.full(t.shape, np.nan, dtype=float)
         for band in self.parameters.params_by_band:
             mask = (bands == band)
             if np.any(mask):
@@ -315,26 +319,47 @@ def combine_band_summations(per_band_YM_MM, W, ybar, ybar_global, mode):
 # ----------------------------------------------------------------------
 # Per-frequency multiband solve (analog of core.template_fit_from_sums).
 # ----------------------------------------------------------------------
+def _mbar_at(AC, phi):
+    """Mean-template value ``2 Re(sum_n AC_n phi^n)`` at ``phi`` (offset recon)."""
+    return 2 * np.real(pol.Polynomial(np.concatenate(([0], AC)))(phi))
+
+
+def _per_band_YM_MM(template_dict, per_band_sums, bands):
+    """Build ``{band: (YM, MM, AC)}`` via :func:`core.YM_MM_from_sums` per band."""
+    return {band: pdg.YM_MM_from_sums(template_dict[band].c_n,
+                                      template_dict[band].s_n,
+                                      per_band_sums[band])
+            for band in bands}
+
+
+def _flat_model(stats, mode):
+    """Degenerate zero-amplitude, zero-power result for a flat (no-variance)
+    light curve, used when the relevant reference variance is zero."""
+    pbb = {band: ModelFitParams(a=0.0, b=1.0, c=stats.ybar[band], sgn=1.0)
+           for band in stats.bands}
+    return MultibandModelFitParams(pbb, mode), 0.0
+
+
 def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
                                      relative_offsets=None):
     """Solve the multiband template fit at one frequency from precomputed sums.
 
-    Returns ``(MultibandModelFitParams, power)``. Always returns the
-    ``theta_1 >= 0`` solution (paper item K.18).
+    Returns ``(MultibandModelFitParams, power)``. For every mode except
+    ``shared_phase`` the better-fitting ``theta_1 >= 0`` solution is returned
+    when one exists (paper item K.18); ``shared_phase`` shares the phase across
+    bands and so reports per-band amplitudes as fitted.
     """
     H = stats.H
     bands = stats.bands
 
     if mode in ('floating_offsets', 'sesar'):
-        per_band_YM_MM = {band: pdg.YM_MM_from_sums(template_dict[band].c_n,
-                                                    template_dict[band].s_n,
-                                                    per_band_sums[band])
-                          for band in bands}
+        YY = stats.YY_global if mode == 'sesar' else stats.YY_combined
+        if YY <= 0:                       # flat light curve: nothing to detect
+            return _flat_model(stats, mode)
 
+        per_band_YM_MM = _per_band_YM_MM(template_dict, per_band_sums, bands)
         YM, MM, AC = combine_band_summations(per_band_YM_MM, stats.W, stats.ybar,
                                              stats.ybar_global, mode)
-
-        YY = stats.YY_global if mode == 'sesar' else stats.YY_combined
         shared, power, best_phi = pdg.roots_from_YM_MM(
             YM, MM, AC, H, stats.ybar_global, YY, positive_amplitude=True)
 
@@ -346,26 +371,30 @@ def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
                 c_k = shared.c + relative_offsets[band]
             else:
                 # floating offset: theta_3^(k) = ybar_k - theta_1 * Mbar^(k)(phi)
-                mbar_k = 2 * np.real(pol.Polynomial(
-                    np.concatenate(([0], AC_k)))(best_phi))
-                c_k = stats.ybar[band] - shared.a * mbar_k
+                c_k = stats.ybar[band] - shared.a * _mbar_at(AC_k, best_phi)
             params_by_band[band] = ModelFitParams(a=shared.a, b=shared.b,
                                                   c=c_k, sgn=shared.sgn)
 
         return MultibandModelFitParams(params_by_band, mode), float(power)
 
     if mode == 'independent':
+        if stats.YY_combined <= 0:
+            return _flat_model(stats, mode)
+        per_band_YM_MM = _per_band_YM_MM(template_dict, per_band_sums, bands)
         params_by_band = {}
-        power = 0.0
+        explained = 0.0
         for band in bands:
-            YM_k, MM_k, AC_k = pdg.YM_MM_from_sums(template_dict[band].c_n,
-                                                  template_dict[band].s_n,
-                                                  per_band_sums[band])
+            YM_k, MM_k, AC_k = per_band_YM_MM[band]
             params_k, power_k, _ = pdg.roots_from_YM_MM(
                 YM_k, MM_k, AC_k, H, stats.ybar[band], stats.YY_per_band[band],
                 positive_amplitude=True)
             params_by_band[band] = params_k
-            power += stats.W[band] * power_k
+            # Accumulate explained variance and normalize once by the combined
+            # variance, so the reported power is the global fraction of variance
+            # explained -- comparable to the other modes. A plain W_k-weighted
+            # average of per-band powers would over-weight low-variance bands.
+            explained += stats.W[band] * power_k * stats.YY_per_band[band]
+        power = explained / stats.YY_combined
         return MultibandModelFitParams(params_by_band, mode), float(power)
 
     if mode == 'shared_phase':
@@ -401,10 +430,10 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
     H = stats.H
     bands = stats.bands
 
-    per_band = {band: pdg.YM_MM_from_sums(template_dict[band].c_n,
-                                          template_dict[band].s_n,
-                                          per_band_sums[band])
-                for band in bands}
+    if stats.YY_combined <= 0:            # flat light curve: nothing to detect
+        return _flat_model(stats, 'shared_phase')
+
+    per_band = _per_band_YM_MM(template_dict, per_band_sums, bands)
     PMM = {band: per_band[band][1] for band in bands}
 
     G = None
@@ -420,13 +449,21 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
 
     roots = G.roots()
     roots = roots[np.absolute(roots) > 0]
+    if len(roots) == 0:                   # no stationary phase: degenerate
+        return _flat_model(stats, 'shared_phase')
     roots /= np.absolute(roots)
 
-    # total power at each candidate shared phase
-    F = np.zeros(len(roots))
-    for k in bands:
-        P_YM, P_MM, _ = per_band[k]
-        F += stats.W[k] * np.real(P_YM(roots) ** 2 / P_MM(roots))
+    # total power at each candidate shared phase; guard against a root that is
+    # also (near) a root of some band's P_MM, which would make a term blow up.
+    with np.errstate(divide='ignore', invalid='ignore'):
+        F = np.zeros(len(roots))
+        for k in bands:
+            P_YM, P_MM, _ = per_band[k]
+            F += stats.W[k] * np.real(P_YM(roots) ** 2 / P_MM(roots))
+    finite = np.isfinite(F)
+    if not np.any(finite):
+        return _flat_model(stats, 'shared_phase')
+    F = np.where(finite, F, -np.inf)
 
     i = int(np.argmax(F))
     best_phi = roots[i]
@@ -440,8 +477,7 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
     for k in bands:
         P_YM, P_MM, AC_k = per_band[k]
         theta_1_k = np.real(np.power(best_phi, H) * P_YM(best_phi) / P_MM(best_phi))
-        mbar_k = 2 * np.real(pol.Polynomial(np.concatenate(([0], AC_k)))(best_phi))
-        c_k = stats.ybar[k] - theta_1_k * mbar_k
+        c_k = stats.ybar[k] - theta_1_k * _mbar_at(AC_k, best_phi)
         params_by_band[k] = ModelFitParams(a=theta_1_k, b=b, c=c_k, sgn=sgn)
 
     return MultibandModelFitParams(params_by_band, 'shared_phase'), float(power)
@@ -600,7 +636,8 @@ class FastMultibandTemplatePeriodogram(object):
         df = 1. / (baseline * samples_per_peak)
 
         if minimum_frequency is not None:
-            nf0 = min([1, np.floor(minimum_frequency / df)])
+            # start the grid at (or just above) the requested minimum frequency
+            nf0 = max(1, int(np.floor(minimum_frequency / df)))
         else:
             nf0 = 1
 

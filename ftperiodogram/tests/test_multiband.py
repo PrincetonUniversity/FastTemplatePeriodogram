@@ -126,8 +126,10 @@ def _brute_power(t, y, bands, dy, template, freq, mode, relative_offsets=None,
         return np.dot(w, resid ** 2), beta[0]      # beta[0] is the amplitude
 
     if mode == 'independent':
-        # each band independently; combine W_k-weighted powers
-        power = 0.0
+        # each band independently; combine as the global fraction of variance
+        # explained (sum_k W_k (YY_k - chi2_k) / sum_k W_k YY_k).
+        explained = 0.0
+        YY_C = 0.0
         for k in band_labels:
             m = bands == k
             wk = w[m] / w[m].sum()
@@ -135,6 +137,7 @@ def _brute_power(t, y, bands, dy, template, freq, mode, relative_offsets=None,
             tk = t[m]
             ybark = np.dot(wk, yk)
             chi2_0_k = np.dot(wk, (yk - ybark) ** 2)
+            Wk = w[m].sum()
 
             def chi2_amp_k(ph, tk=tk, yk=yk, wk=wk):
                 Mv = template((freq * tk - ph) % 1.0)
@@ -144,8 +147,9 @@ def _brute_power(t, y, bands, dy, template, freq, mode, relative_offsets=None,
                 return np.dot(wk, (yk - X @ beta) ** 2), beta[0]
 
             best = _scan_and_refine(chi2_amp_k, nphase=nphase)
-            power += w[m].sum() * (1 - best / chi2_0_k)
-        return power
+            explained += Wk * (chi2_0_k - best)
+            YY_C += Wk * chi2_0_k
+        return explained / YY_C
 
     best = _scan_and_refine(chi2_amp_shared, nphase=nphase)
     return 1 - best / chi2_0
@@ -452,8 +456,6 @@ def test_catalog_picks_better_template():
     other = _make_template(nharmonics=3, seed=99)  # a different shape
     sets = [other, TEMPLATE]
 
-    fmt = dict(mode='floating_offsets', minimum_frequency=0.05,
-               maximum_frequency=0.30)
     p_each = []
     for tmpl in sets:
         mb = FastMultibandTemplatePeriodogram(tmpl, mode='floating_offsets')
@@ -488,6 +490,45 @@ def test_missing_band_template_raises():
     mb.fit(t, y, bands, dy)
     with pytest.raises(ValueError):
         mb.autopower()
+
+
+@pytest.mark.parametrize('mode', ['floating_offsets', 'sesar', 'independent',
+                                  'shared_phase'])
+def test_flat_lightcurve_is_zero_power_not_nan(mode):
+    # a perfectly flat (zero-variance) source has nothing to detect; the
+    # periodogram must return finite, zero power rather than nan/inf or crash.
+    rng = np.random.RandomState(3)
+    n = 60
+    t = np.sort(rng.rand(n) * 50)
+    bands = np.array([0, 1, 2] * (n // 3))[:n]
+    y = np.full(n, 7.0)                # constant in every band
+    dy = np.full(n, 0.1)
+    kw = dict(relative_offsets={0: 0.0, 1: 0.0, 2: 0.0}) if mode == 'sesar' else {}
+    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode=mode, **kw)
+    mb.fit(t, y, bands, dy)
+    f, p = mb.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+    assert np.all(np.isfinite(p))
+    assert np.allclose(p, 0.0, atol=1e-9)
+
+
+def test_autofrequency_honors_minimum_frequency():
+    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=(0.0, 0.3))
+    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='floating_offsets')
+    mb.fit(t, y, bands, dy)
+    f, p = mb.autopower(minimum_frequency=2.0, maximum_frequency=4.0)
+    df = f[1] - f[0]
+    # grid starts at the nearest point at/just below min_freq (was ~0 before fix)
+    assert 2.0 - df <= f.min() <= 2.0 + df
+
+
+def test_predict_unseen_band_is_nan():
+    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=(0.0, 0.3))
+    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='floating_offsets')
+    mb.fit(t, y, bands, dy)
+    mb.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+    # band label 99 was never fit -> nan, not uninitialized garbage
+    out = mb.best_model(np.array([1.0, 2.0]), np.array([0, 99]))
+    assert np.isfinite(out[0]) and np.isnan(out[1])
 
 
 def test_mismatched_harmonics_raises():

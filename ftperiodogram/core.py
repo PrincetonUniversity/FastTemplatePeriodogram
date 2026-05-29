@@ -115,9 +115,12 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
         If True, restrict the root selection to roots that yield a non-negative
         amplitude ``theta_1`` and return the best-fitting such root. This is the
         constant-time positivity filter over the same root set (paper item
-        K.18); the multiband solver uses it. The default (False) leaves the
-        single-band behavior unchanged: the global power-maximizing root is
-        returned regardless of the sign of ``theta_1``.
+        K.18); the multiband solver uses it. If *no* root yields a non-negative
+        amplitude (the data anti-correlate with the template at every candidate
+        phase), the global power-maximizing root is returned as a fallback, so a
+        negative ``theta_1`` is still possible in that degenerate case. The
+        default (False) leaves the single-band behavior unchanged: the global
+        power-maximizing root is returned regardless of the sign of ``theta_1``.
 
     Returns
     -------
