@@ -476,16 +476,19 @@ def test_inject_and_recover(nharmonics, ndata, rseed, period=1.2, tol=1E-2):
 # producing a ~5e-3 precision floor against direct summation. The
 # 2018-era commit 0dab22a rewrote the polynomial step using a complex
 # polynomial of order 6H-1 and removed `pseudo_poly.py`. Empirical
-# verification across H in {1..7} and 200 frequencies shows the new
+# verification across H in {1..7} and 200 frequencies showed the new
 # precision floor is ~1e-7 — five orders of magnitude tighter. This
-# test pins that floor at H in {1,2,3,5} so the bug cannot silently
-# reappear.
+# test pins that floor at H in {1,2,3,5,7} (including H=7, the
+# highest-degree / most regression-prone case) so the bug cannot
+# silently reappear.
 
 _PRECISION_FLOOR_CASES = [
     ("H=1", [1.0], [0.0], 1.234),
     ("H=2", [0.7, 0.3], [0.2, -0.1], 0.823),
     ("H=3", [-0.181, -0.075, -0.020], [-0.110, 0.000, 0.030], 0.514),
     ("H=5", [0.5, -0.3, 0.2, -0.1, 0.05], [0.1, 0.2, -0.1, 0.05, 0.0], 0.911),
+    ("H=7", [0.6, -0.35, 0.22, -0.14, 0.09, -0.05, 0.03],
+            [0.15, 0.25, -0.12, 0.07, -0.04, 0.02, -0.015], 0.677),
 ]
 
 
