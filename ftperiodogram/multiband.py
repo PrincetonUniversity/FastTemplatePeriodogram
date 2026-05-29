@@ -497,10 +497,15 @@ class FastMultibandTemplatePeriodogram(object):
 
     Parameters
     ----------
-    templates : Template or dict {band: Template} or list of Template
-        A shared template shape, explicit per-band shapes, or a list aligned to
-        ``sorted(unique(bands))``. All band templates must share the harmonic
-        count ``H``.
+    templates : Template, dict {band: Template}, or list of those
+        A shared template shape (one ``Template`` for every band) or explicit
+        per-band shapes (a ``{band: Template}`` dict). A **list/tuple** is a
+        *catalog* of template-sets (each element a ``Template`` or a
+        ``{band: Template}`` dict); the periodogram then reports, at each
+        frequency, the maximum power over the sets, and records the winning set
+        index on ``best_model.template_set_index``. All templates share the
+        harmonic count ``H``. (Per-band assignment uses a dict; a top-level list
+        is always interpreted as a catalog.)
     mode : str, optional (default ``'floating_offsets'``)
         The sharing-hierarchy member; one of :data:`MODES`.
     relative_offsets : dict {band: float}, optional
@@ -519,7 +524,9 @@ class FastMultibandTemplatePeriodogram(object):
         self.t, self.y, self.bands, self.dy = None, None, None, None
         self.bands_ = None
         self.best_model = None
+        self._is_catalog = False
         self._template_dict = None
+        self._template_sets = None
 
     # -- validation -----------------------------------------------------
     def _validate_mode(self):
@@ -533,7 +540,14 @@ class FastMultibandTemplatePeriodogram(object):
     def _validate_templates(self):
         if self.templates is None:
             raise ValueError("No templates set.")
-        self._template_dict = build_template_set(self.templates, self.bands_)
+        if isinstance(self.templates, (list, tuple)):
+            self._is_catalog = True
+            self._template_sets = [build_template_set(s, self.bands_)
+                                   for s in self.templates]
+        else:
+            self._is_catalog = False
+            self._template_dict = build_template_set(self.templates,
+                                                     self.bands_)
 
     def _validate_data(self):
         if any(x is None for x in (self.t, self.y, self.bands)):
@@ -597,38 +611,63 @@ class FastMultibandTemplatePeriodogram(object):
 
         return df * (nf0 + np.arange(Nf))
 
-    def fit_model(self, freq):
-        """Best-fit :class:`MultibandTemplateModel` at a single frequency."""
+    def _run(self, freqs, fast):
+        """Compute powers + best params over a frequency array, handling both a
+        single template-set and a catalog (per-frequency max over sets).
+
+        Returns ``(powers, params_list, winning_set)`` where ``winning_set`` is
+        an int array of winning set indices for a catalog, else ``None``.
+        """
         self._validate_mode()
         self._validate_templates()
         self._validate_data()
-        _, params_list = multiband_template_periodogram(
-            self.t, self.y, self.bands, self._template_dict, [float(freq)],
-            dy=self.dy, mode=self.mode, relative_offsets=self.relative_offsets,
-            fast=False)
-        return MultibandTemplateModel(self._template_dict, frequency=float(freq),
-                                      parameters=params_list[0])
+
+        kw = dict(dy=self.dy, mode=self.mode,
+                  relative_offsets=self.relative_offsets, fast=fast)
+
+        if not self._is_catalog:
+            powers, params = multiband_template_periodogram(
+                self.t, self.y, self.bands, self._template_dict, freqs, **kw)
+            return np.asarray(powers), params, None
+
+        stack, param_sets = [], []
+        for template_dict in self._template_sets:
+            pw, pl = multiband_template_periodogram(
+                self.t, self.y, self.bands, template_dict, freqs, **kw)
+            stack.append(np.asarray(pw))
+            param_sets.append(pl)
+        stack = np.array(stack)                       # (nsets, nfreq)
+        winning_set = np.argmax(stack, axis=0)
+        powers = stack[winning_set, np.arange(stack.shape[1])]
+        params = [param_sets[winning_set[i]][i] for i in range(len(winning_set))]
+        return powers, params, winning_set
+
+    def _make_model(self, freq, params, set_index):
+        templates = (self._template_sets[set_index] if self._is_catalog
+                     else self._template_dict)
+        model = MultibandTemplateModel(templates, frequency=float(freq),
+                                       parameters=params)
+        if self._is_catalog:
+            model.template_set_index = int(set_index)
+        return model
+
+    def fit_model(self, freq):
+        """Best-fit :class:`MultibandTemplateModel` at a single frequency."""
+        powers, params, win = self._run([float(freq)], fast=False)
+        return self._make_model(freq, params[0], None if win is None else win[0])
 
     def autopower(self, save_best_model=True, fast=True, **kwargs):
         """Compute the multiband periodogram on the auto-determined grid.
 
         Returns ``(frequency, power)``.
         """
-        self._validate_mode()
-        self._validate_templates()
-        self._validate_data()
-
         frequency = self.autofrequency(**kwargs)
-        powers, params_list = multiband_template_periodogram(
-            self.t, self.y, self.bands, self._template_dict, frequency,
-            dy=self.dy, mode=self.mode, relative_offsets=self.relative_offsets,
-            fast=fast)
+        powers, params, win = self._run(frequency, fast)
 
         if save_best_model:
             i = int(np.argmax(powers))
-            self._save_best_model(MultibandTemplateModel(
-                self._template_dict, frequency=frequency[i],
-                parameters=params_list[i]))
+            self._save_best_model(self._make_model(
+                frequency[i], params[i], None if win is None else win[i]))
 
         return frequency, powers
 
@@ -636,24 +675,16 @@ class FastMultibandTemplatePeriodogram(object):
         """Compute multiband power at arbitrary (not necessarily gridded)
         frequencies. Output is reshaped to match the input.
         """
-        self._validate_mode()
-        self._validate_templates()
-        self._validate_data()
-
         frequency = np.asarray(frequency, dtype=float)
         shape = frequency.shape
         frequency = np.atleast_1d(frequency.ravel())
 
-        powers, params_list = multiband_template_periodogram(
-            self.t, self.y, self.bands, self._template_dict, frequency,
-            dy=self.dy, mode=self.mode, relative_offsets=self.relative_offsets,
-            fast=fast)
+        powers, params, win = self._run(frequency, fast)
 
         if save_best_model:
             i = int(np.argmax(powers))
-            self._save_best_model(MultibandTemplateModel(
-                self._template_dict, frequency=frequency[i],
-                parameters=params_list[i]))
+            self._save_best_model(self._make_model(
+                frequency[i], params[i], None if win is None else win[i]))
 
         return powers.reshape(shape)
 

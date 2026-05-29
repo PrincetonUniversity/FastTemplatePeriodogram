@@ -431,6 +431,49 @@ def test_sesar_without_offsets_raises():
         mb.autopower()
 
 
+def test_catalog_single_element_equals_single_set():
+    offs = (0.0, -0.6, 0.4)
+    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=offs)
+    single = FastMultibandTemplatePeriodogram(TEMPLATE, mode='floating_offsets')
+    single.fit(t, y, bands, dy)
+    f1, p1 = single.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+
+    catalog = FastMultibandTemplatePeriodogram([TEMPLATE], mode='floating_offsets')
+    catalog.fit(t, y, bands, dy)
+    f2, p2 = catalog.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+
+    assert np.allclose(p1, p2)
+    assert catalog.best_model.template_set_index == 0
+
+
+def test_catalog_picks_better_template():
+    offs = (0.0, -0.6, 0.4)
+    t, y, bands, dy = _simulate(TEMPLATE, band_offsets=offs)
+    other = _make_template(nharmonics=3, seed=99)  # a different shape
+    sets = [other, TEMPLATE]
+
+    fmt = dict(mode='floating_offsets', minimum_frequency=0.05,
+               maximum_frequency=0.30)
+    p_each = []
+    for tmpl in sets:
+        mb = FastMultibandTemplatePeriodogram(tmpl, mode='floating_offsets')
+        mb.fit(t, y, bands, dy)
+        p_each.append(mb.autopower(minimum_frequency=0.05,
+                                   maximum_frequency=0.30)[1])
+    p_each = np.array(p_each)
+
+    catalog = FastMultibandTemplatePeriodogram(sets, mode='floating_offsets')
+    catalog.fit(t, y, bands, dy)
+    f, p = catalog.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+
+    # the catalog reports the per-frequency max over sets
+    assert np.allclose(p, p_each.max(axis=0))
+    # and records the argmax set at the recovered peak
+    pk = int(np.argmax(p))
+    assert catalog.best_model.template_set_index == int(np.argmax(p_each[:, pk]))
+    assert abs(f[pk] - 0.123) < 1e-3
+
+
 def test_unknown_mode_raises():
     t, y, bands, dy = _simulate(TEMPLATE, band_offsets=(0.0, 0.3))
     mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='nonsense')
