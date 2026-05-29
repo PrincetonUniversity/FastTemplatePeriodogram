@@ -17,9 +17,16 @@ from time import time
 
 get_diags = lambda mat : np.array([ sum(mat.diagonal(i)) for i in range(-mat.shape[0]+1,mat.shape[1]) ])
 
-def template_fit_from_sums(cn, sn, sums, ybar, YY):
+
+def YM_MM_from_sums(cn, sn, sums):
     r"""
-    Finds optimal parameters given precomputed sums
+    Assemble the ``YM`` and ``MM`` polynomials (in :math:`\phi = e^{i\theta_2}`)
+    from precomputed summations for a single band/template.
+
+    This is the polynomial-assembly half of :func:`template_fit_from_sums`,
+    factored out so the multiband solver can build per-band ``YM``/``MM``
+    polynomials and combine their coefficients before the (shared) root-finding
+    step (see :mod:`ftperiodogram.multiband`).
 
     Parameters
     ----------
@@ -29,23 +36,21 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
         Fourier (sine) coefficients of the template
     sums : Summations
         Precomputed summations (C, S, CC, CS, SS, YC, YS).
-    ybar : float
-        Weighted mean of data
-    YY : float
-        Weighted variance of data
 
     Returns
     -------
-    params : ModelFitParams
-        Best fit template parameters
-    power : float
-        $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$, where $\chi^2_0$ is for a
-        flat model with $\hat{y}_0 = \bar{y}$, the weighted mean.
+    YM : numpy.polynomial.Polynomial
+        The data-template correlation polynomial.
+    MM : numpy.polynomial.Polynomial
+        The template-variance polynomial.
+    AC : ndarray
+        ``alpha * (C - i S)``, the mean-template coefficients used to
+        reconstruct the offset (``mbar``) at a root.
     """
     H = len(cn)
 
     alpha = 0.5 * (np.asarray(cn) + 1j * np.asarray(sn))
-    
+
     # compute YM
     aYC = alpha * (sums.YC - 1j * sums.YS)
     YM = pol.Polynomial(np.concatenate((np.conj(aYC)[::-1], [0], aYC)).astype(np.complex128))
@@ -75,9 +80,50 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
     MM[inds + H + 1] += 2 * CS_diags[inds]
     MM[inds + 2 * H + 2] += CC_diags[inds]
 
-    # Polynomial math + root finding!
     MM = pol.Polynomial(MM)
 
+    # mean-template coefficients (for offset reconstruction)
+    AC = alpha * (sums.C - 1j * sums.S)
+
+    return YM, MM, AC
+
+
+def roots_from_YM_MM(YM, MM, AC, H, ybar, YY):
+    r"""
+    Find the optimal phase root of the ``YM``/``MM`` polynomials and reconstruct
+    the best-fit template parameters and periodogram power.
+
+    This is the root-finding / parameter-reconstruction half of
+    :func:`template_fit_from_sums`, factored out so the single-band and
+    multiband solvers share one source of truth for root selection.
+
+    Parameters
+    ----------
+    YM, MM : numpy.polynomial.Polynomial
+        The data-template correlation and template-variance polynomials. For
+        multiband these are the band-combined ``YM'``/``MM'``.
+    AC : ndarray
+        Mean-template coefficients (``alpha * (C - i S)``) used to reconstruct
+        the offset.
+    H : int
+        Number of harmonics (the centering power for ``phi**H``).
+    ybar : float
+        Weighted mean used to reconstruct the offset ``theta_3``.
+    YY : float
+        Weighted variance used to normalize the power.
+
+    Returns
+    -------
+    params : ModelFitParams
+        Best fit template parameters
+    power : float
+        $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$, where $\chi^2_0$ is for a
+        flat model with $\hat{y}_0 = \bar{y}$, the weighted mean.
+    best_phi : complex
+        The optimal root :math:`\phi = e^{i\theta_2}` (exposed so the multiband
+        solver can reconstruct per-band offsets).
+    """
+    # Polynomial math + root finding!
     p = 2 * MM * YM.deriv() - MM.deriv() * YM
 
     roots = p.roots()
@@ -87,7 +133,7 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
 
     # ensure they are on the unit circle.
     roots /= np.absolute(roots)
-    
+
     # Get periodogram values at each root
     pdg_phi = np.real(YM(roots) ** 2 /  MM(roots)) / YY
 
@@ -96,7 +142,6 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
     best_phi = roots[i]
 
     # get optimal model parameters
-    AC = alpha * (sums.C - 1j * sums.S)
     alpha_phi = pol.Polynomial(np.concatenate(([0], AC)))
     mbar = 2 * np.real(alpha_phi(best_phi))
 
@@ -104,12 +149,45 @@ def template_fit_from_sums(cn, sn, sums, ybar, YY):
     theta_2 = np.imag(np.log(best_phi)) % (2 * np.pi)
     theta_3 = ybar - mbar * theta_1
 
-    best_params = ModelFitParams(a=theta_1, 
-                                 b=np.cos(theta_2), 
-                                 c=theta_3, 
+    best_params = ModelFitParams(a=theta_1,
+                                 b=np.cos(theta_2),
+                                 c=theta_3,
                                  sgn=np.sign(np.sin(theta_2)))
 
-    return best_params, pdg_phi[i]
+    return best_params, pdg_phi[i], best_phi
+
+
+def template_fit_from_sums(cn, sn, sums, ybar, YY):
+    r"""
+    Finds optimal parameters given precomputed sums
+
+    Parameters
+    ----------
+    cn : array_like
+        Fourier (cosine) coefficients of the template
+    sn : array_like
+        Fourier (sine) coefficients of the template
+    sums : Summations
+        Precomputed summations (C, S, CC, CS, SS, YC, YS).
+    ybar : float
+        Weighted mean of data
+    YY : float
+        Weighted variance of data
+
+    Returns
+    -------
+    params : ModelFitParams
+        Best fit template parameters
+    power : float
+        $(\chi^2_0 - \chi^2(fit)) / \chi^2_0$, where $\chi^2_0$ is for a
+        flat model with $\hat{y}_0 = \bar{y}$, the weighted mean.
+    """
+    H = len(cn)
+
+    YM, MM, AC = YM_MM_from_sums(cn, sn, sums)
+    best_params, power, _ = roots_from_YM_MM(YM, MM, AC, H, ybar, YY)
+
+    return best_params, power
 
 def fit_template(t, y, dy, cn, sn, freq, sums=None,
                        zeros=None, small=1E-7):
