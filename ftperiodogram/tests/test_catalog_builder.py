@@ -200,3 +200,112 @@ def test_pam_rejects_bad_arguments():
         cb._pam(D, 5)
     with pytest.raises(ValueError):
         cb._pam(np.zeros((4, 3)), 2)
+
+
+# ----------------------------------------------------------------------
+# build_template_catalog (public API)
+# ----------------------------------------------------------------------
+# Three distinct shape archetypes in (amplitude, phase) space.
+_ARCHETYPES = [
+    (np.array([1.0, 0.5, 0.33, 0.25]), np.array([0.0, 0.10, 0.05, 0.02])),  # harmonic-rich
+    (np.array([1.0, 0.05, 0.0, 0.0]), np.array([0.0, 0.00, 0.00, 0.00])),   # near-sinusoid
+    (np.array([0.2, 1.0, 0.10, 0.05]), np.array([0.0, 0.00, 0.00, 0.00])),  # 2f-dominated
+]
+
+
+def _archetype_population(n_per=20, noise=0.02, seed=0):
+    """Noisy, randomly phase-shifted variants of the 3 archetypes."""
+    rng = np.random.RandomState(seed)
+    templates, true = [], []
+    for label, (c, s) in enumerate(_ARCHETYPES):
+        for _ in range(n_per):
+            t = Template(c + noise * rng.randn(len(c)),
+                         s + noise * rng.randn(len(s)))
+            templates.append(_shift(t, rng.rand()))   # random phase origin
+            true.append(label)
+    order = rng.permutation(len(templates))
+    return [templates[i] for i in order], np.array(true)[order]
+
+
+def test_build_template_catalog_recovers_archetypes():
+    templates, true = _archetype_population(seed=1)
+    vocab, diag = cb.build_template_catalog(
+        templates, 3, metric='orbit', random_state=0, return_diagnostics=True)
+    assert len(vocab) == 3
+    assert all(isinstance(t, Template) for t in vocab)
+    assert _label_accuracy(true, diag.labels, 3) >= 0.95
+    # clusters are balanced (~20 each)
+    assert min(diag.cluster_sizes) >= 15
+    assert diag.total_cost > 0.0
+    # each medoid's own archetype is the closest archetype to it
+    arch_templates = [Template(c, s) for c, s in _ARCHETYPES]
+    for med in vocab:
+        dists = [cb._orbit_distance(med, a) for a in arch_templates]
+        true_arch = true[[i for i, t in enumerate(templates)
+                          if t is med or np.allclose(t.c_n, med.c_n)][0]]
+        assert np.argmin(dists) == true_arch
+
+
+def test_build_template_catalog_returns_unit_energy_templates():
+    templates, _ = _archetype_population(seed=2)
+    vocab = cb.build_template_catalog(templates, 4, random_state=0)
+    for t in vocab:
+        npt.assert_allclose(np.sum(t.c_n ** 2 + t.s_n ** 2), 1.0, atol=1e-9)
+
+
+def test_build_template_catalog_is_deterministic():
+    templates, _ = _archetype_population(seed=3)
+    v1, d1 = cb.build_template_catalog(templates, 3, random_state=5,
+                                       return_diagnostics=True)
+    v2, d2 = cb.build_template_catalog(templates, 3, random_state=5,
+                                       return_diagnostics=True)
+    npt.assert_array_equal(d1.medoid_indices, d2.medoid_indices)
+    npt.assert_array_equal(d1.labels, d2.labels)
+
+
+def test_build_template_catalog_chart_metric_agreement():
+    templates, _ = _archetype_population(seed=4)
+    vocab, diag = cb.build_template_catalog(
+        templates, 3, metric='orbit', random_state=0, return_diagnostics=True)
+    # on this clean (non-singular) population the cheap chart largely agrees
+    assert diag.orbit_chart_agreement is not None
+    assert diag.orbit_chart_agreement >= 0.8
+
+
+def test_build_template_catalog_n_harmonics_truncation():
+    # mismatched H is rejected unless n_harmonics is given
+    mixed = [_random_template(H=3, seed=1), _random_template(H=5, seed=2)]
+    with pytest.raises(ValueError):
+        cb.build_template_catalog(mixed, 1)
+    vocab = cb.build_template_catalog(mixed, 1, n_harmonics=3)
+    assert len(vocab[0].c_n) == 3
+    npt.assert_allclose(np.sum(vocab[0].c_n ** 2 + vocab[0].s_n ** 2), 1.0,
+                        atol=1e-9)
+
+
+def test_build_template_catalog_rejects_bad_arguments():
+    templates = [_random_template(H=4, seed=s) for s in range(4)]
+    with pytest.raises(ValueError):
+        cb.build_template_catalog(templates, 0)
+    with pytest.raises(ValueError):
+        cb.build_template_catalog(templates, 5)
+    with pytest.raises(ValueError):
+        cb.build_template_catalog(templates, 2, metric='bogus')
+    with pytest.raises(ValueError):
+        cb.build_template_catalog(templates, 2, method='bogus')
+    with pytest.raises(NotImplementedError):
+        cb.build_template_catalog(templates, 2, method='greedy')
+
+
+def test_templates_from_sampled_uniform_harmonics():
+    rng = np.random.RandomState(0)
+    phase = np.linspace(0, 1, 128, endpoint=False)
+    Y = np.array([np.cos(2 * np.pi * phase + rng.rand()) +
+                  0.3 * np.cos(2 * np.pi * 2 * phase + rng.rand())
+                  for _ in range(5)])
+    templates = cb.templates_from_sampled(Y, nharmonics=4)
+    assert len(templates) == 5
+    assert all(len(t.c_n) == 4 for t in templates)
+    # uniform H feeds straight into build_template_catalog
+    vocab = cb.build_template_catalog(templates, 2, random_state=0)
+    assert len(vocab) == 2

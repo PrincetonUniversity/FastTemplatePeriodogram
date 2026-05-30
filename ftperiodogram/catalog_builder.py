@@ -36,9 +36,19 @@ A cheap, *fixed-chart* surrogate distance on the Simon & Lee (1981) invariants
 validation; it carries an ``A_1 -> 0`` singularity (eclipsing binaries,
 near-sinusoidal RRc, pure noise) and returns ``NaN`` there rather than dividing.
 """
+from collections import namedtuple
+
 import numpy as np
 
 from .template import Template
+
+
+#: Optional diagnostics returned by :func:`build_template_catalog` when
+#: ``return_diagnostics=True``.
+CatalogDiagnostics = namedtuple(
+    'CatalogDiagnostics',
+    ['medoid_indices', 'labels', 'cluster_sizes', 'total_cost', 'metric',
+     'orbit_chart_agreement'])
 
 
 # ----------------------------------------------------------------------
@@ -280,3 +290,150 @@ def _pam(D, n_clusters, n_init=10, max_iter=300, random_state=None):
     medoids = sorted(best_medoids)
     labels, _, _ = _nearest_stats(D, medoids)
     return np.asarray(medoids, dtype=int), labels.astype(int), best_cost
+
+
+# ----------------------------------------------------------------------
+# Public API: build_template_catalog
+# ----------------------------------------------------------------------
+def templates_from_sampled(Y, nharmonics=8, template_ids=None):
+    """Convert a 2D ``(n_templates, n_phase)`` magnitude matrix to ``Template``s.
+
+    A thin adapter for the common phase-aligned-grid format (e.g. the Sesar
+    2010 templates).  Pass an *integer* ``nharmonics`` so every template shares
+    a common harmonic order (a float fraction would let H vary per row).
+    """
+    Y = np.atleast_2d(np.asarray(Y, dtype=float))
+    if template_ids is None:
+        template_ids = range(len(Y))
+    return [Template.from_sampled(row, nharmonics=nharmonics, template_id=tid)
+            for row, tid in zip(Y, template_ids)]
+
+
+def _normalize_harmonics(templates, n_harmonics):
+    """Validate a common harmonic order, or truncate/zero-pad to ``n_harmonics``."""
+    counts = [len(t.c_n) for t in templates]
+    if n_harmonics is None:
+        if len(set(counts)) != 1:
+            raise ValueError(
+                "templates have differing harmonic counts %r; pass "
+                "n_harmonics to truncate/pad to a common order"
+                % sorted(set(counts)))
+        return list(templates)
+    H = int(n_harmonics)
+    if H < 1:
+        raise ValueError("n_harmonics must be >= 1")
+    out = []
+    for t in templates:
+        c = _pad(np.asarray(t.c_n, float).astype(complex), H).real[:H]
+        s = _pad(np.asarray(t.s_n, float).astype(complex), H).real[:H]
+        out.append(Template(c.copy(), s.copy(), template_id=t.template_id))
+    return out
+
+
+def _medoid_assignment(templates, medoid_idx, distance):
+    """Argmin-medoid assignment of every template under ``distance(a, b)``."""
+    n, K = len(templates), len(medoid_idx)
+    D = np.full((n, K), np.nan)
+    for p, m in enumerate(medoid_idx):
+        for i in range(n):
+            D[i, p] = distance(templates[i], templates[m])
+    valid = np.all(np.isfinite(D), axis=1)
+    assign = np.argmin(np.where(np.isfinite(D), D, np.inf), axis=1)
+    return assign, valid
+
+
+def _orbit_chart_agreement(templates, medoid_idx, a1_floor, harmonic_weights):
+    """Fraction of templates whose nearest medoid agrees between orbit and chart."""
+    orbit_assign, _ = _medoid_assignment(
+        templates, medoid_idx, lambda a, b: _orbit_distance(a, b))
+    chart_assign, valid = _medoid_assignment(
+        templates, medoid_idx,
+        lambda a, b: _chart_distance(a, b, a1_floor, harmonic_weights))
+    if not np.any(valid):
+        return None
+    return float(np.mean(orbit_assign[valid] == chart_assign[valid]))
+
+
+def build_template_catalog(templates, n_clusters, metric='orbit',
+                           n_harmonics=None, harmonic_weights=None,
+                           a1_floor=1e-8, n_init=10, max_iter=300,
+                           random_state=None, method='pam',
+                           return_diagnostics=False):
+    """Compress ``templates`` into ``n_clusters`` representative templates.
+
+    Clusters the input templates with k-medoids/PAM under the orbit-minimized
+    (phase-shift-invariant) distance and returns the medoids -- real input
+    templates, hence guaranteed-physical -- as a ``list`` of :class:`Template`
+    suitable for :class:`FastMultibandTemplatePeriodogram` catalog mode.
+
+    Parameters
+    ----------
+    templates : sequence of Template
+        Training templates (already unit-Fourier-energy normalized).
+    n_clusters : int
+        Vocabulary size ``K`` (required; ``1 <= K <= len(templates)``).
+    metric : {'orbit', 'chart'}
+        Distance used for clustering.  ``'orbit'`` is the reference U(1)
+        circular-shift Procrustes distance; ``'chart'`` is the fast surrogate on
+        the ``(R_k1, phi_k1)`` invariants (raises if any pair is singular).
+    n_harmonics : int or None
+        If ``None`` (default), require a common harmonic order across inputs.
+        If an int, truncate/zero-pad every template to that order.
+    harmonic_weights : array_like or None
+        Optional per-harmonic weights for the chart metric (length ``H-1``).
+    n_init, max_iter, random_state :
+        PAM multi-start, swap-iteration cap, and seeding.
+    method : {'pam'}
+        Selection method.  ``'greedy'`` (recovery-driven) is reserved and
+        raises ``NotImplementedError`` until the Phase-3 simulation harness lands.
+    return_diagnostics : bool
+        If ``True``, also return a :class:`CatalogDiagnostics`.
+
+    Returns
+    -------
+    list of Template, or (list of Template, CatalogDiagnostics)
+    """
+    templates = list(templates)
+    n = len(templates)
+
+    if method != 'pam':
+        if method == 'greedy':
+            raise NotImplementedError(
+                "recovery-driven greedy selection (method='greedy') requires the "
+                "Phase-3 simulation harness and is not implemented yet; "
+                "use method='pam'")
+        raise ValueError("unknown method %r; expected 'pam'" % (method,))
+    if metric not in ('orbit', 'chart'):
+        raise ValueError("metric must be 'orbit' or 'chart'; got %r" % (metric,))
+    if not 1 <= n_clusters <= n:
+        raise ValueError("n_clusters must be in [1, len(templates)]; "
+                         "got %r for %d templates" % (n_clusters, n))
+
+    work = _normalize_harmonics(templates, n_harmonics)
+
+    if metric == 'orbit':
+        D = _orbit_distance_matrix(work)
+    else:
+        D = _chart_distance_matrix(work, a1_floor=a1_floor,
+                                   harmonic_weights=harmonic_weights)
+        if not np.all(np.isfinite(D)):
+            raise ValueError(
+                "chart metric is singular (A_1 -> 0) for at least one template; "
+                "use metric='orbit', which has no such singularity")
+
+    medoid_idx, labels, cost = _pam(D, n_clusters, n_init=n_init,
+                                    max_iter=max_iter, random_state=random_state)
+    vocabulary = [work[idx] for idx in medoid_idx]
+
+    if not return_diagnostics:
+        return vocabulary
+
+    diagnostics = CatalogDiagnostics(
+        medoid_indices=medoid_idx,
+        labels=labels,
+        cluster_sizes=np.bincount(labels, minlength=n_clusters),
+        total_cost=cost,
+        metric=metric,
+        orbit_chart_agreement=_orbit_chart_agreement(
+            work, medoid_idx, a1_floor, harmonic_weights))
+    return vocabulary, diagnostics
