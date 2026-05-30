@@ -134,3 +134,14 @@ def test_k_sweep_real_scorer_runs_and_is_reproducible():
     npt.assert_allclose(r1.freq_grid[:2], (1.0, 3.0), atol=0.02)  # NFFT-snapped band
     assert r1.criterion == 'fractional'
     npt.assert_array_equal(r1.recovery, r2.recovery)   # fully reproducible
+
+
+def test_harness_public_api_exports():
+    import ftperiodogram as ftp
+    for name in ('Cadence', 'SyntheticCadence', 'exp_mag_error',
+                 'simulate_lightcurve', 'simulate_multiband_lightcurve',
+                 'recovered_fractional', 'recovered_phase_coherence',
+                 'harmonic_alias_set', 'classify_recovery', 'recovery_rate',
+                 'RecoveryScorer', 'make_recovery_scorer', 'k_sweep_recovery',
+                 'KSweepResult', 'frequency_grid'):
+        assert hasattr(ftp, name)
