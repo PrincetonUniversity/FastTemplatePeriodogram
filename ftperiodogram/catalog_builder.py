@@ -103,42 +103,56 @@ def _pad(z, H):
 # ----------------------------------------------------------------------
 # Orbit-minimized (circular-shift Procrustes) distance
 # ----------------------------------------------------------------------
-def _max_cross_correlation(zf, zg, oversample=8, polish=True):
+def _max_cross_correlation(zf, zg, oversample=16, polish=True):
     """``(max_cc, delta)`` where ``max_cc = max_Delta sum_k Re(w_k e^{-2 pi i k Delta})``.
 
     ``w_k = z^f_k conj(z^g_k)``; ``delta`` is the maximizing shift in turns.
-    A coarse FFT (>= ``oversample`` x Nyquist) localizes the global peak; an
-    optional Newton polish on the closed-form derivatives refines it.
+    ``CC(Delta)`` is a degree-``H`` trigonometric polynomial with up to ``H``
+    local maxima, so a single coarse-grid argmax can land in a sub-optimal
+    basin.  We therefore Newton-polish *every* coarse-grid local maximum (each
+    true peak spans ``>= oversample/2`` grid points, so all are captured) and
+    keep the global best.
     """
     H = max(len(zf), len(zg))
     w = _pad(zf, H) * np.conj(_pad(zg, H))            # length H, harmonic j at index j-1
     k = np.arange(1, H + 1)
+    two_pi_k = 2.0 * np.pi * k
 
-    # Coarse FFT peak. CC is a degree-H trig polynomial, so M > 2H is alias-free;
-    # oversample beyond Nyquist so the argmax lands in the global peak's basin.
-    M = 1 << max(3, int(np.ceil(np.log2(oversample * H + 1))))
+    # Coarse FFT grid. CC is band-limited to H, so M > 2H is alias-free;
+    # oversample beyond Nyquist so every peak shows up as a grid local maximum.
+    M = 1 << max(4, int(np.ceil(np.log2(oversample * H + 1))))
     spectrum = np.zeros(M, dtype=complex)
     spectrum[1:H + 1] = w
     cc_grid = np.fft.fft(spectrum).real               # cc_grid[m] = CC(m / M)
-    m = int(np.argmax(cc_grid))
-    delta = m / M
 
     if not polish:
-        return float(cc_grid[m]), delta % 1.0
+        m = int(np.argmax(cc_grid))
+        return float(cc_grid[m]), (m / M) % 1.0
 
-    two_pi_k = 2.0 * np.pi * k
-    for _ in range(16):
-        uk = w * np.exp(-1j * two_pi_k * delta)
-        d1 = np.sum(two_pi_k * uk.imag)               # CC'(delta)
-        d2 = -np.sum(two_pi_k ** 2 * uk.real)         # CC''(delta)
-        if d2 >= 0:                                    # not near a maximum; keep grid point
-            break
-        step = d1 / d2
-        delta -= step
-        if abs(step) < 1e-15:
-            break
-    max_cc = float(np.sum((w * np.exp(-1j * two_pi_k * delta)).real))
-    return max_cc, delta % 1.0
+    # Candidate shifts: all cyclic local maxima of the coarse grid.
+    is_peak = ((cc_grid >= np.roll(cc_grid, 1)) &
+               (cc_grid >= np.roll(cc_grid, -1)))
+    candidates = np.flatnonzero(is_peak)
+    if candidates.size == 0:                           # flat grid (e.g. H == 0)
+        candidates = np.array([int(np.argmax(cc_grid))])
+
+    best_cc, best_delta = -np.inf, 0.0
+    for m in candidates:
+        delta = m / M
+        for _ in range(16):                            # Newton on closed-form CC', CC''
+            uk = w * np.exp(-1j * two_pi_k * delta)
+            d1 = np.sum(two_pi_k * uk.imag)            # CC'(delta)
+            d2 = -np.sum(two_pi_k ** 2 * uk.real)      # CC''(delta)
+            if d2 >= 0:                                 # not a maximum here; keep grid point
+                break
+            step = d1 / d2
+            delta -= step
+            if abs(step) < 1e-15:
+                break
+        value = float(np.sum((w * np.exp(-1j * two_pi_k * delta)).real))
+        if value > best_cc:
+            best_cc, best_delta = value, delta % 1.0
+    return best_cc, best_delta
 
 
 def _orbit_distance(template_f, template_g, oversample=8, polish=True,

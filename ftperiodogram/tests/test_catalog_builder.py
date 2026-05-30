@@ -95,6 +95,24 @@ def test_fft_maximizer_matches_brute_oracle():
         npt.assert_allclose(max_cc, oracle, atol=1e-6, rtol=0)
 
 
+def test_orbit_maximizer_is_global_for_high_harmonics():
+    """High-H pairs have many local maxima; the maximizer must find the global
+    one, not a local basin (regression guard for the multi-peak Newton polish)."""
+    rng = np.random.RandomState(0)
+    worst = 0.0
+    for _ in range(40):
+        H = rng.randint(8, 14)
+        a = Template(rng.randn(H), rng.randn(H))
+        b = Template(rng.randn(H), rng.randn(H))
+        ours, _ = cb._max_cross_correlation(cb._complex_coeffs(a),
+                                            cb._complex_coeffs(b))
+        oracle = _brute_max_cc(a, b, M=400000)
+        # the polished maximizer is exact, hence never below the dense grid
+        assert ours >= oracle - 1e-7
+        worst = max(worst, oracle - ours)
+    assert worst < 1e-6
+
+
 def test_orbit_distance_handles_mismatched_harmonics():
     a = _random_template(H=3, seed=4)
     b = _random_template(H=6, seed=5)
