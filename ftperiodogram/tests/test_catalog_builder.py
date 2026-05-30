@@ -416,3 +416,100 @@ def test_public_api_exports():
     for name in ('build_template_catalog', 'templates_from_sampled',
                  'fetch_sesar_templates', 'CatalogDiagnostics'):
         assert hasattr(ftperiodogram, name)
+
+
+# ----------------------------------------------------------------------
+# Recovery-driven greedy selection (method='greedy')
+# ----------------------------------------------------------------------
+class _FakeRecoveryScorer:
+    """Deterministic stand-in for ftperiodogram.validation.RecoveryScorer.
+
+    Each source 'wants' one of the three archetypes; a template recovers that
+    source iff it is orbit-closest to the wanted archetype, and catalog recovery
+    is the union over the set.  This exercises greedy's not-yet-recovered
+    targeting and the (medoid, labels, cost) contract without running any FTP."""
+
+    def __init__(self, n_sources=12):
+        self.n_sources = n_sources
+        self.criterion = 'fractional'
+        self._arch = [Template(c, s) for c, s in _ARCHETYPES]
+        self._want = np.arange(n_sources) % len(self._arch)
+
+    def _which_arch(self, tmpl):
+        return int(np.argmin([cb._orbit_distance(tmpl, a) for a in self._arch]))
+
+    def source_masks(self, templates):
+        cols = [self._which_arch(t) for t in templates]
+        return np.array([[self._want[i] == c for i in range(self.n_sources)]
+                         for c in cols], dtype=bool)
+
+    def __call__(self, templates, *, return_mask=False):
+        templates = list(templates)
+        if not templates:
+            mask = np.zeros(self.n_sources, dtype=bool)
+        else:
+            mask = self.source_masks(templates).any(axis=0)   # catalog == union
+        rate = float(mask.mean())
+        return (rate, mask) if return_mask else rate
+
+
+def test_greedy_requires_scorer():
+    templates, _ = _archetype_population(seed=1)
+    with pytest.raises(NotImplementedError):
+        cb.build_template_catalog(templates, 3, method='greedy')
+
+
+def test_greedy_targets_not_yet_recovered():
+    templates, _ = _archetype_population(seed=1)
+    scorer = _FakeRecoveryScorer(n_sources=12)
+    vocab, diag = cb.build_template_catalog(
+        templates, 3, method='greedy', scorer=scorer, return_diagnostics=True)
+    assert len(vocab) == 3
+    # greedy must spread across the three archetypes -> full recovery (cost 0);
+    # a naive 'highest total recovery' rule would pile onto one archetype
+    assert {scorer._which_arch(t) for t in vocab} == {0, 1, 2}
+    assert diag.total_cost == pytest.approx(0.0)
+
+
+def test_greedy_returns_pam_compatible_diagnostics():
+    templates, _ = _archetype_population(seed=2)
+    scorer = _FakeRecoveryScorer(n_sources=12)
+    vocab, diag = cb.build_template_catalog(
+        templates, 3, method='greedy', scorer=scorer, return_diagnostics=True)
+    for t in vocab:
+        npt.assert_allclose(np.sum(t.c_n ** 2 + t.s_n ** 2), 1.0, atol=1e-9)
+    assert diag.medoid_indices.shape == (3,)
+    assert diag.labels.shape == (len(templates),)
+    assert set(diag.labels.tolist()) <= set(range(3))
+    assert int(diag.cluster_sizes.sum()) == len(templates)
+    assert diag.orbit_chart_agreement is not None
+    assert 0.0 <= diag.total_cost <= 1.0
+
+
+def test_greedy_is_deterministic():
+    templates, _ = _archetype_population(seed=3)
+    scorer = _FakeRecoveryScorer(n_sources=12)
+    v1, d1 = cb.build_template_catalog(templates, 3, method='greedy',
+                                       scorer=scorer, return_diagnostics=True)
+    v2, d2 = cb.build_template_catalog(templates, 3, method='greedy',
+                                       scorer=scorer, return_diagnostics=True)
+    npt.assert_array_equal(d1.medoid_indices, d2.medoid_indices)
+    npt.assert_array_equal(d1.labels, d2.labels)
+
+
+def test_greedy_fills_to_k_when_recovery_saturates():
+    templates, _ = _archetype_population(seed=1)
+    scorer = _FakeRecoveryScorer(n_sources=12)
+    # 3 templates already saturate recovery; asking for 5 must still return 5
+    vocab, diag = cb.build_template_catalog(
+        templates, 5, method='greedy', scorer=scorer, return_diagnostics=True)
+    assert len(vocab) == 5
+    assert diag.total_cost == pytest.approx(0.0)   # extra templates add no recovery
+
+
+def test_greedy_rejects_unknown_candidate_pool():
+    templates, _ = _archetype_population(seed=1)
+    scorer = _FakeRecoveryScorer()
+    with pytest.raises(ValueError):
+        cb.build_template_catalog(templates, 2, method='greedy', scorer=scorer,
+                                  candidate_pool='pam:4')
