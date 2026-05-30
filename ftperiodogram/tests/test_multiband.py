@@ -511,6 +511,42 @@ def test_flat_lightcurve_is_zero_power_not_nan(mode):
     assert np.allclose(p, 0.0, atol=1e-9)
 
 
+def test_independent_mode_flat_band_does_not_crash():
+    # A single perfectly flat band (zero variance) alongside a real variable
+    # band used to crash independent mode: a constant band gives YM == 0, an
+    # empty root set, and np.argmax on an empty sequence. It must now skip the
+    # flat band (zero-amplitude fit, no explained variance) and still recover
+    # the real band's signal.
+    t0, y0, b0, dy0 = _simulate(TEMPLATE, f0=0.123, band_offsets=(0.0,))
+    b0 = np.zeros(len(t0), dtype=int)                 # real signal in band 0
+    rng = np.random.RandomState(5)
+    tf = np.sort(rng.rand(50) * 80)
+    yf = np.full(50, 7.0)                             # band 1: perfectly flat
+    t = np.concatenate([t0, tf])
+    y = np.concatenate([y0, yf])
+    bands = np.concatenate([b0, np.ones(50, dtype=int)])
+    dy = np.concatenate([dy0, np.full(50, 0.1)])
+    mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='independent')
+    mb.fit(t, y, bands, dy)
+    f, p = mb.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+    assert np.all(np.isfinite(p))
+    assert p.max() > 0.0                             # real band still detected
+
+
+def test_polynomial_coeffs_are_complex128():
+    # The polynomial coefficients must stay complex128. complex64 degrades the
+    # root-finding precision by ~500x, yet stays under every brute-force test
+    # tolerance, so no numerical test catches a revert. Assert the dtype
+    # directly so dropping to complex64 fails deterministically.
+    t, y, b, dy = _simulate(TEMPLATE, band_offsets=(0.0,))
+    w = weights(dy)
+    sums = summations.direct_summations(t, y, w, np.array([0.1]),
+                                        len(TEMPLATE.c_n))
+    YM, MM, AC = core.YM_MM_from_sums(TEMPLATE.c_n, TEMPLATE.s_n, sums[0])
+    assert YM.coef.dtype == np.complex128
+    assert MM.coef.dtype == np.complex128
+
+
 def test_autofrequency_honors_minimum_frequency():
     t, y, bands, dy = _simulate(TEMPLATE, band_offsets=(0.0, 0.3))
     mb = FastMultibandTemplatePeriodogram(TEMPLATE, mode='floating_offsets')

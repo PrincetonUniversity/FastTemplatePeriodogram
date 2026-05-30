@@ -340,6 +340,18 @@ def _flat_model(stats, mode):
     return MultibandModelFitParams(pbb, mode), 0.0
 
 
+# A light curve (or a single band) is treated as flat when its weighted variance
+# is negligible relative to its mean-magnitude scale. The exact ``YY <= 0`` test
+# only fires when the centering is bit-exact (true for constant input in our
+# numpy, but not guaranteed across platforms/BLAS); this relative test is robust.
+_FLAT_VARIANCE_RTOL = 1e-12
+
+
+def _is_flat(YY, ref):
+    """True if weighted variance ``YY`` is negligible vs the ``ref`` magnitude."""
+    return YY <= _FLAT_VARIANCE_RTOL * max(ref * ref, 1.0)
+
+
 def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
                                      relative_offsets=None):
     """Solve the multiband template fit at one frequency from precomputed sums.
@@ -354,7 +366,7 @@ def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
 
     if mode in ('floating_offsets', 'sesar'):
         YY = stats.YY_global if mode == 'sesar' else stats.YY_combined
-        if YY <= 0:                       # flat light curve: nothing to detect
+        if _is_flat(YY, stats.ybar_global):   # flat light curve: nothing to detect
             return _flat_model(stats, mode)
 
         per_band_YM_MM = _per_band_YM_MM(template_dict, per_band_sums, bands)
@@ -378,12 +390,19 @@ def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
         return MultibandModelFitParams(params_by_band, mode), float(power)
 
     if mode == 'independent':
-        if stats.YY_combined <= 0:
+        if _is_flat(stats.YY_combined, stats.ybar_global):
             return _flat_model(stats, mode)
         per_band_YM_MM = _per_band_YM_MM(template_dict, per_band_sums, bands)
         params_by_band = {}
         explained = 0.0
         for band in bands:
+            if _is_flat(stats.YY_per_band[band], stats.ybar[band]):
+                # A flat band explains no variance and yields no roots to find;
+                # skip the solver (which would argmax an empty root set) and
+                # report a zero-amplitude fit. Its explained contribution is 0.
+                params_by_band[band] = ModelFitParams(a=0.0, b=1.0,
+                                                       c=stats.ybar[band], sgn=1.0)
+                continue
             YM_k, MM_k, AC_k = per_band_YM_MM[band]
             params_k, power_k, _ = pdg.roots_from_YM_MM(
                 YM_k, MM_k, AC_k, H, stats.ybar[band], stats.YY_per_band[band],
@@ -430,7 +449,7 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
     H = stats.H
     bands = stats.bands
 
-    if stats.YY_combined <= 0:            # flat light curve: nothing to detect
+    if _is_flat(stats.YY_combined, stats.ybar_global):   # flat: nothing to detect
         return _flat_model(stats, 'shared_phase')
 
     per_band = _per_band_YM_MM(template_dict, per_band_sums, bands)
