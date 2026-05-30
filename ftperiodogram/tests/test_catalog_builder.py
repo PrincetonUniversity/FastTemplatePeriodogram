@@ -132,6 +132,26 @@ def test_chart_distance_invariant_to_shift():
     assert cb._chart_distance(t, _shift(t, 0.3)) == pytest.approx(0.0, abs=1e-9)
 
 
+def test_chart_distance_absent_harmonic_has_no_phantom_phase():
+    """A harmonic absent in one template (R=0) must contribute only its radial
+    term -- no spurious phase penalty from a zero coefficient's meaningless phase."""
+    # f has harmonics {1,2}; g has {1,2,3}. The k=3 term should add exactly R_3^g^2.
+    f = Template([1.0, 0.5], [0.0, 0.2])
+    g = Template([1.0, 0.5, 0.3], [0.0, 0.2, 0.1])
+    Rf, pf = cb._invariants(f)
+    Rg, pg = cb._invariants(g)
+    H = max(len(Rf), len(Rg))
+    Rf, Rg = cb._pad(Rf, H), cb._pad(Rg, H)
+    pf, pg = cb._pad(pf, H), cb._pad(pg, H)
+    expected = np.sqrt(np.sum(Rf ** 2 + Rg ** 2 - 2 * Rf * Rg * np.cos(pf - pg)))
+    npt.assert_allclose(cb._chart_distance(f, g), expected, atol=1e-12)
+    # the absent k=3 harmonic of f contributes purely radially
+    only3_f = Template([1.0, 0.0, 0.0], [0.0, 0.0, 0.0])
+    only3_g = Template([1.0, 0.0, 0.7], [0.0, 0.0, 0.0])
+    R3 = cb._invariants(only3_g)[0][-1]
+    npt.assert_allclose(cb._chart_distance(only3_f, only3_g), abs(R3), atol=1e-9)
+
+
 def test_chart_distance_singular_when_fundamental_vanishes():
     # a pure 2nd-harmonic template has A_1 = 0 (eclipsing-binary-like)
     eb = Template([0.0, 1.0, 0.0], [0.0, 0.0, 0.0])

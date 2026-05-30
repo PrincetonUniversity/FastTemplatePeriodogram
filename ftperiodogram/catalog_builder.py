@@ -192,10 +192,17 @@ def _orbit_distance_matrix(templates, oversample=8, polish=True):
 # Fast fixed-chart surrogate distance (validation cross-check only)
 # ----------------------------------------------------------------------
 def _chart_distance(template_f, template_g, a1_floor=1e-8, harmonic_weights=None):
-    """Euclidean distance on the ``(R_k1, phi_k1)`` chart; ``NaN`` if singular.
+    """Euclidean distance on the polar-embedded ``(R_k1, phi_k1)`` chart.
 
-    ``d^2 = sum_{k>=2} w_k [ (R_k1^f - R_k1^g)^2 + 2 (1 - cos(phi_k1^f - phi_k1^g)) ]``.
-    Returns ``NaN`` when either fundamental amplitude is below ``a1_floor``.
+    Each invariant is embedded as ``R_k1 * exp(i phi_k1)`` and compared with the
+    squared chordal distance::
+
+        d^2 = sum_{k>=2} w_k [ R^f^2 + R^g^2 - 2 R^f R^g cos(phi^f - phi^g) ]
+
+    This is the amplitude-weighted form: a harmonic absent in one template
+    (``R = 0``) contributes only its radial term, with no spurious phase penalty
+    from the (meaningless) phase of a zero coefficient.  Returns ``NaN`` when
+    either fundamental amplitude is below ``a1_floor``.
     """
     inv_f = _invariants(template_f, a1_floor)
     inv_g = _invariants(template_g, a1_floor)
@@ -204,12 +211,12 @@ def _chart_distance(template_f, template_g, a1_floor=1e-8, harmonic_weights=None
     Rf, pf = inv_f
     Rg, pg = inv_g
     H = max(len(Rf), len(Rg))
-    Rf, Rg = _pad(Rf.astype(complex), H).real, _pad(Rg.astype(complex), H).real
-    pf, pg = _pad(pf.astype(complex), H).real, _pad(pg.astype(complex), H).real
-    terms = (Rf - Rg) ** 2 + 2.0 * (1.0 - np.cos(pf - pg))
+    Rf, Rg = _pad(Rf, H), _pad(Rg, H)
+    pf, pg = _pad(pf, H), _pad(pg, H)
+    terms = Rf ** 2 + Rg ** 2 - 2.0 * Rf * Rg * np.cos(pf - pg)
     if harmonic_weights is not None:
         terms = terms * np.asarray(harmonic_weights, dtype=float)[:H]
-    return float(np.sqrt(np.sum(terms)))
+    return float(np.sqrt(np.maximum(0.0, np.sum(terms))))
 
 
 def _chart_distance_matrix(templates, a1_floor=1e-8, harmonic_weights=None):
@@ -420,6 +427,9 @@ def build_template_catalog(templates, n_clusters, metric='orbit',
     Returns
     -------
     list of Template, or (list of Template, CatalogDiagnostics)
+        When ``n_harmonics is None`` the returned medoids are the *same*
+        ``Template`` objects passed in (templates are effectively immutable);
+        with an integer ``n_harmonics`` they are fresh re-truncated templates.
     """
     templates = list(templates)
     n = len(templates)
@@ -529,7 +539,8 @@ def fetch_sesar_templates(nharmonics=8, bands=None, template_ids=None,
 
     templates = []
     with tarfile.open(path) as archive:
-        # member names are flat '<star><band>.dat' (e.g. '107r.dat')
+        # member names are flat '<star><band>.dat' (e.g. '107r.dat'); sorted()
+        # gives a stable (lexical-by-id) template order across machines.
         names = sorted(n for n in archive.getnames() if n.endswith('.dat'))
         for name in names:
             tid = name[:-len('.dat')]
@@ -537,7 +548,8 @@ def fetch_sesar_templates(nharmonics=8, bands=None, template_ids=None,
                 continue
             if band_set is not None and tid[-1] not in band_set:
                 continue
-            data = np.loadtxt(archive.extractfile(name))  # columns: phase, mag
+            with archive.extractfile(name) as member:
+                data = np.atleast_2d(np.loadtxt(member))  # columns: phase, mag
             templates.append(Template.from_sampled(data[:, 1],
                                                    nharmonics=nharmonics,
                                                    template_id=tid))
