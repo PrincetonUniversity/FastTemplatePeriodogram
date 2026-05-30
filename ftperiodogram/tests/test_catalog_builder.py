@@ -330,14 +330,12 @@ def test_templates_from_sampled_uniform_harmonics():
 
 
 # ----------------------------------------------------------------------
-# Sesar 2010 loader (optional dependency + network; skips cleanly offline)
+# Sesar 2010 loader (stdlib only; network download skips cleanly offline)
 # ----------------------------------------------------------------------
 def test_fetch_sesar_templates_smoke():
-    pytest.importorskip("gatspy")
-    pytest.importorskip("astroML")
     try:
         templates = cb.fetch_sesar_templates(nharmonics=6, bands=['r'])
-    except Exception as exc:  # missing data cache / no network -> skip, not fail
+    except Exception as exc:  # no network and not cached -> skip, not fail
         pytest.skip("Sesar template fetch unavailable: %s" % exc)
     assert len(templates) > 0
     assert all(len(t.c_n) == 6 for t in templates)

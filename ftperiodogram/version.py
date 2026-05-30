@@ -74,6 +74,3 @@ MICRO = _version_micro
 VERSION = __version__
 PACKAGE_DATA = {}
 REQUIRES = ["nfft", "pytest", "scipy", "numpy"]
-# Optional extras. 'sesar' enables catalog_builder.fetch_sesar_templates, which
-# pulls the Sesar et al. (2010) RR Lyrae templates via gatspy (astroML/astropy).
-EXTRAS_REQUIRE = {"sesar": ["gatspy", "astroML", "astropy"]}
