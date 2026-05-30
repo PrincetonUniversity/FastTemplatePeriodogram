@@ -329,3 +329,54 @@ def test_fetch_sesar_templates_smoke():
                                             return_diagnostics=True)
     assert len(vocab) == 3
     assert sum(diag.cluster_sizes) == len(templates)
+
+
+# ----------------------------------------------------------------------
+# End-to-end: a built catalog drives the multiband periodogram (keystone)
+# ----------------------------------------------------------------------
+def _simulate_multiband(template, f0=0.123, amp=2.0,
+                        band_offsets=(0.0, -0.6, 0.4), n_per_band=60,
+                        noise=0.03, seed=1):
+    rng = np.random.RandomState(seed)
+    t, y, bands, dy = [], [], [], []
+    for k, off in enumerate(band_offsets):
+        tk = np.sort(rng.rand(n_per_band) * 80)
+        sig = noise * (1 + 0.5 * k)
+        yk = amp * template((f0 * tk) % 1.0) + off + sig * rng.randn(n_per_band)
+        t.append(tk)
+        y.append(yk)
+        bands.append(np.full(n_per_band, k, dtype=int))
+        dy.append(np.full(n_per_band, sig))
+    t, y = np.concatenate(t), np.concatenate(y)
+    bands, dy = np.concatenate(bands), np.concatenate(dy)
+    order = np.random.RandomState(seed + 7).permutation(len(t))
+    return t[order], y[order], bands[order], dy[order]
+
+
+def test_catalog_drives_multiband_periodogram():
+    from ftperiodogram import (FastMultibandTemplatePeriodogram,
+                               build_template_catalog)
+    templates, _ = _archetype_population(seed=1)
+    vocab = build_template_catalog(templates, 3, random_state=0)
+
+    # a held-out multiband light curve drawn from one archetype's shape
+    arch = Template(*_ARCHETYPES[0])
+    t, y, bands, dy = _simulate_multiband(arch, seed=5)
+
+    model = FastMultibandTemplatePeriodogram(vocab, mode='floating_offsets')
+    model.fit(t, y, bands, dy)
+    f, p = model.autopower(minimum_frequency=0.05, maximum_frequency=0.30)
+
+    # the injected frequency is recovered ...
+    pk = int(np.argmax(p))
+    assert abs(f[pk] - 0.123) < 1e-2
+    # ... and the winning vocabulary template is the one orbit-closest to arch
+    expected = int(np.argmin([cb._orbit_distance(v, arch) for v in vocab]))
+    assert model.best_model.template_set_index == expected
+
+
+def test_public_api_exports():
+    import ftperiodogram
+    for name in ('build_template_catalog', 'templates_from_sampled',
+                 'fetch_sesar_templates', 'CatalogDiagnostics'):
+        assert hasattr(ftperiodogram, name)
