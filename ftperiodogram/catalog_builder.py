@@ -184,3 +184,99 @@ def _chart_distance_matrix(templates, a1_floor=1e-8, harmonic_weights=None):
                                                 a1_floor=a1_floor,
                                                 harmonic_weights=harmonic_weights)
     return D
+
+
+# ----------------------------------------------------------------------
+# PAM (Partitioning Around Medoids) on a precomputed dissimilarity matrix
+# ----------------------------------------------------------------------
+def _nearest_stats(D, medoids):
+    """Per-point nearest-medoid position and the two smallest medoid distances."""
+    medoids = np.asarray(medoids)
+    sub = D[:, medoids]                                   # (N, K)
+    rows = np.arange(sub.shape[0])
+    if sub.shape[1] == 1:
+        return (np.zeros(sub.shape[0], dtype=int), sub[:, 0].copy(),
+                np.full(sub.shape[0], np.inf))
+    order = np.argsort(sub, axis=1)
+    nearest = order[:, 0]
+    E1 = sub[rows, order[:, 0]]                           # nearest-medoid distance
+    E2 = sub[rows, order[:, 1]]                           # second-nearest distance
+    return nearest, E1, E2
+
+
+def _build(D, n_clusters):
+    """Greedy PAM BUILD: seed ``n_clusters`` medoids minimizing total cost."""
+    n = len(D)
+    medoids = [int(np.argmin(D.sum(axis=1)))]
+    nearest_d = D[medoids[0]].copy()
+    while len(medoids) < n_clusters:
+        # gain of adding h = sum_j max(0, current_nearest[j] - D[h, j])
+        gains = np.maximum(0.0, nearest_d[None, :] - D).sum(axis=1)
+        gains[medoids] = -np.inf
+        h = int(np.argmax(gains))
+        medoids.append(h)
+        nearest_d = np.minimum(nearest_d, D[h])
+    return medoids
+
+
+def _swap(D, medoids, max_iter):
+    """PAM SWAP: greedily apply the best cost-reducing medoid<->point swap."""
+    medoids = list(medoids)
+    n = len(D)
+    for _ in range(max_iter):
+        nearest, E1, E2 = _nearest_stats(D, medoids)
+        non_medoids = np.setdiff1d(np.arange(n), medoids)
+        best_delta = -1e-12                              # require strict improvement
+        best_swap = None
+        for i in range(len(medoids)):
+            assigned_to_i = (nearest == i)
+            for h in non_medoids:
+                dh = D[:, h]
+                contrib = np.where(assigned_to_i,
+                                   np.minimum(dh, E2) - E1,
+                                   np.minimum(dh, E1) - E1)
+                delta = float(contrib.sum())
+                if delta < best_delta:
+                    best_delta = delta
+                    best_swap = (i, int(h))
+        if best_swap is None:
+            break
+        i, h = best_swap
+        medoids[i] = h
+    cost = float(_nearest_stats(D, medoids)[1].sum())
+    return medoids, cost
+
+
+def _pam(D, n_clusters, n_init=10, max_iter=300, random_state=None):
+    """Partitioning Around Medoids on a precomputed symmetric dissimilarity.
+
+    Classical BUILD + SWAP with ``n_init`` restarts (one deterministic BUILD,
+    the rest random medoid subsets); keeps the lowest-cost solution.
+
+    Returns ``(medoid_indices, labels, inertia)`` where ``labels[j]`` is the
+    position in ``medoid_indices`` of point ``j``'s nearest medoid and
+    ``inertia`` is the total within-cluster distance to the medoids.
+    """
+    D = np.asarray(D, dtype=float)
+    if D.ndim != 2 or D.shape[0] != D.shape[1]:
+        raise ValueError("D must be a square distance matrix")
+    n = D.shape[0]
+    if not 1 <= n_clusters <= n:
+        raise ValueError("n_clusters must be in [1, n_samples]; "
+                         "got %r for n_samples=%d" % (n_clusters, n))
+    rng = (random_state if isinstance(random_state, np.random.RandomState)
+           else np.random.RandomState(random_state))
+
+    best_medoids, best_cost = None, np.inf
+    for init in range(max(1, n_init)):
+        if init == 0:
+            medoids = _build(D, n_clusters)
+        else:
+            medoids = list(rng.choice(n, size=n_clusters, replace=False))
+        medoids, cost = _swap(D, medoids, max_iter)
+        if cost < best_cost:
+            best_medoids, best_cost = medoids, cost
+
+    medoids = sorted(best_medoids)
+    labels, _, _ = _nearest_stats(D, medoids)
+    return np.asarray(medoids, dtype=int), labels.astype(int), best_cost

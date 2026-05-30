@@ -121,3 +121,82 @@ def test_chart_distance_singular_when_fundamental_vanishes():
     assert np.isnan(cb._chart_distance(eb, other))
     # the orbit distance has no such singularity
     assert np.isfinite(cb._orbit_distance(eb, other))
+
+
+# ----------------------------------------------------------------------
+# PAM k-medoids
+# ----------------------------------------------------------------------
+def _euclidean_matrix(X):
+    diff = X[:, None, :] - X[None, :, :]
+    return np.sqrt((diff ** 2).sum(axis=2))
+
+
+def _label_accuracy(true_labels, pred_labels, n_clusters):
+    """Best-permutation fraction of points whose cluster matches the truth."""
+    from itertools import permutations
+    true_labels = np.asarray(true_labels)
+    pred_labels = np.asarray(pred_labels)
+    best = 0.0
+    for perm in permutations(range(n_clusters)):
+        mapped = np.array([perm[p] for p in pred_labels])
+        best = max(best, np.mean(mapped == true_labels))
+    return best
+
+
+def test_pam_recovers_well_separated_blobs():
+    rng = np.random.RandomState(0)
+    centers = np.array([[0.0, 0.0], [10.0, 0.0], [0.0, 10.0]])
+    true = np.repeat(np.arange(3), 20)
+    X = np.vstack([c + 0.3 * rng.randn(20, 2) for c in centers])
+    D = _euclidean_matrix(X)
+    medoids, labels, inertia = cb._pam(D, 3, random_state=0)
+    assert len(medoids) == 3
+    assert _label_accuracy(true, labels, 3) == 1.0
+    assert inertia > 0.0
+
+
+def test_pam_is_deterministic_given_seed():
+    rng = np.random.RandomState(1)
+    X = rng.randn(30, 3)
+    D = _euclidean_matrix(X)
+    m1, l1, c1 = cb._pam(D, 4, random_state=7)
+    m2, l2, c2 = cb._pam(D, 4, random_state=7)
+    npt.assert_array_equal(m1, m2)
+    npt.assert_array_equal(l1, l2)
+    assert c1 == c2
+
+
+def test_pam_matches_brute_force_optimum_small_n():
+    from itertools import combinations
+    rng = np.random.RandomState(2)
+    X = rng.randn(8, 2)
+    D = _euclidean_matrix(X)
+    K = 3
+    best = min(D[:, list(sub)].min(axis=1).sum() for sub in combinations(range(8), K))
+    _, _, inertia = cb._pam(D, K, n_init=20, random_state=0)
+    npt.assert_allclose(inertia, best, atol=1e-9, rtol=0)
+
+
+def test_pam_edge_cases():
+    rng = np.random.RandomState(3)
+    X = rng.randn(6, 2)
+    D = _euclidean_matrix(X)
+    # K = 1 -> the global medoid, inertia = min total distance
+    medoids, labels, inertia = cb._pam(D, 1, random_state=0)
+    assert len(medoids) == 1
+    npt.assert_allclose(inertia, D.sum(axis=1).min(), atol=1e-9, rtol=0)
+    assert set(labels) == {0}
+    # K = N -> every point its own medoid, zero inertia
+    medoids, labels, inertia = cb._pam(D, 6, random_state=0)
+    assert len(medoids) == 6
+    npt.assert_allclose(inertia, 0.0, atol=1e-12)
+
+
+def test_pam_rejects_bad_arguments():
+    D = np.zeros((4, 4))
+    with pytest.raises(ValueError):
+        cb._pam(D, 0)
+    with pytest.raises(ValueError):
+        cb._pam(D, 5)
+    with pytest.raises(ValueError):
+        cb._pam(np.zeros((4, 3)), 2)
