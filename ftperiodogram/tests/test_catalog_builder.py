@@ -309,3 +309,23 @@ def test_templates_from_sampled_uniform_harmonics():
     # uniform H feeds straight into build_template_catalog
     vocab = cb.build_template_catalog(templates, 2, random_state=0)
     assert len(vocab) == 2
+
+
+# ----------------------------------------------------------------------
+# Sesar 2010 loader (optional dependency + network; skips cleanly offline)
+# ----------------------------------------------------------------------
+def test_fetch_sesar_templates_smoke():
+    pytest.importorskip("gatspy")
+    pytest.importorskip("astroML")
+    try:
+        templates = cb.fetch_sesar_templates(nharmonics=6, bands=['r'])
+    except Exception as exc:  # missing data cache / no network -> skip, not fail
+        pytest.skip("Sesar template fetch unavailable: %s" % exc)
+    assert len(templates) > 0
+    assert all(len(t.c_n) == 6 for t in templates)
+    for t in templates:
+        npt.assert_allclose(np.sum(t.c_n ** 2 + t.s_n ** 2), 1.0, atol=1e-9)
+    vocab, diag = cb.build_template_catalog(templates, 3, random_state=0,
+                                            return_diagnostics=True)
+    assert len(vocab) == 3
+    assert sum(diag.cluster_sizes) == len(templates)

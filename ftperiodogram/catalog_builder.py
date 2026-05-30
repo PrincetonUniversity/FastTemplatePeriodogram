@@ -36,11 +36,21 @@ A cheap, *fixed-chart* surrogate distance on the Simon & Lee (1981) invariants
 validation; it carries an ``A_1 -> 0`` singularity (eclipsing binaries,
 near-sinusoidal RRc, pure noise) and returns ``NaN`` there rather than dividing.
 """
+import os
 from collections import namedtuple
+from urllib.request import urlopen
 
 import numpy as np
 
 from .template import Template
+
+
+_SESAR_TEMPLATE_FILE = "RRLyr_ugriz_templates.tar.gz"
+#: gatspy's built-in Sesar URL (www.mpia.de/~bsesar) is permanently dead (404);
+#: this is the live astroML-data mirror of the original 98-template ugriz archive.
+_SESAR_TEMPLATE_MIRROR = (
+    "https://raw.githubusercontent.com/astroML/astroML-data/main/datasets/"
+    + _SESAR_TEMPLATE_FILE)
 
 
 #: Optional diagnostics returned by :func:`build_template_catalog` when
@@ -437,3 +447,87 @@ def build_template_catalog(templates, n_clusters, metric='orbit',
         orbit_chart_agreement=_orbit_chart_agreement(
             work, medoid_idx, a1_floor, harmonic_weights))
     return vocabulary, diagnostics
+
+
+# ----------------------------------------------------------------------
+# Optional data loader: Sesar et al. (2010) RR Lyrae templates (via gatspy)
+# ----------------------------------------------------------------------
+def _ensure_sesar_cache(data_home=None, mirror_url=_SESAR_TEMPLATE_MIRROR,
+                        force_download=False):
+    """Place the Sesar template archive in the astroML cache; return its path.
+
+    gatspy's built-in download URL is dead, so we populate the cache ourselves
+    from a live mirror; gatspy then reads the cached file without downloading.
+    """
+    from astroML.datasets.tools import get_data_home
+    cache_dir = os.path.join(get_data_home(data_home), 'Sesar2010')
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    path = os.path.join(cache_dir, _SESAR_TEMPLATE_FILE)
+    if force_download or not os.path.exists(path):
+        with urlopen(mirror_url) as response:
+            payload = response.read()
+        with open(path, 'wb') as cache:
+            cache.write(payload)
+    return path
+
+
+def fetch_sesar_templates(nharmonics=8, bands=None, template_ids=None,
+                          data_home=None, mirror_url=_SESAR_TEMPLATE_MIRROR,
+                          force_download=False):
+    """Load the Sesar et al. (2010) RR Lyrae templates as Fourier ``Template``s.
+
+    Requires the optional ``gatspy`` dependency (which parses the archive via
+    ``astroML``); install ``ftperiodogram[sesar]`` (``gatspy astroML astropy``).
+    The first call downloads the ~170 kB archive from a live astroML-data mirror
+    (gatspy's own ``www.mpia.de/~bsesar`` URL 404s); later calls read the cache.
+
+    Parameters
+    ----------
+    nharmonics : int
+        Harmonics per template.  Use an integer so every template shares a
+        common order (required to cluster them together).
+    bands : sequence of str or None
+        Keep only these ugriz band letters (e.g. ``['r']``); ``None`` keeps all.
+    template_ids : sequence of str or None
+        Keep only these explicit Sesar ids (e.g. ``['0r', '1r']``).
+    data_home : str or None
+        astroML cache directory (defaults to the astroML data home).
+    mirror_url : str
+        Override the template-archive download URL.
+    force_download : bool
+        Re-download even if the archive is already cached.
+
+    Returns
+    -------
+    list of Template
+        Each tagged with its Sesar id (e.g. ``'0r'``).
+    """
+    try:
+        from gatspy.datasets import fetch_rrlyrae_templates
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "fetch_sesar_templates requires the optional 'gatspy' dependency; "
+            "install with `pip install ftperiodogram[sesar]` "
+            "(gatspy astroML astropy)") from exc
+
+    _ensure_sesar_cache(data_home=data_home, mirror_url=mirror_url,
+                        force_download=force_download)
+    fetch_kwargs = {} if data_home is None else {'data_home': data_home}
+    source = fetch_rrlyrae_templates(**fetch_kwargs)
+    ids = list(source.ids)
+    if template_ids is not None:
+        wanted = set(template_ids)
+        ids = [tid for tid in ids if tid in wanted]
+    if bands is not None:
+        band_set = set(bands)
+        ids = [tid for tid in ids if tid[-1] in band_set]
+    if not ids:
+        raise ValueError("no Sesar templates matched the requested filters")
+
+    templates = []
+    for tid in ids:
+        _, mag = source.get_template(tid)
+        templates.append(Template.from_sampled(mag, nharmonics=nharmonics,
+                                               template_id=tid))
+    return templates
