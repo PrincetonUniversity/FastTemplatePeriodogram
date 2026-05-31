@@ -213,6 +213,40 @@ def test_n_epochs_sweep_rejects_bad_k():
         val.n_epochs_sweep_recovery(master, templates, [6], k=999)
 
 
+# ----------------------------------------------------------------------
+# Batched source_masks precompute (Feature 2)
+# ----------------------------------------------------------------------
+def test_source_masks_batched_matches_per_template():
+    templates, scorer = _master_scorer()
+    masks = scorer.source_masks(templates[:5])           # batched fast path
+    assert masks.shape == (5, scorer.n_sources)
+    for i, tmpl in enumerate(templates[:5]):
+        _, ref = scorer([tmpl], return_mask=True)        # per-template reference
+        npt.assert_array_equal(masks[i], ref)            # mask-identity (argmax-stable)
+
+
+def test_source_masks_batched_is_deterministic():
+    templates, scorer = _master_scorer()
+    npt.assert_array_equal(scorer.source_masks(templates[:4]),
+                           scorer.source_masks(templates[:4]))
+
+
+def test_source_masks_mixed_H_falls_back():
+    templates, scorer = _master_scorer()
+    truncated = Template(templates[1].c_n[:2], templates[1].s_n[:2])
+    mixed = [templates[0], truncated]                    # differing H -> fallback
+    masks = scorer.source_masks(mixed)
+    assert masks.shape == (2, scorer.n_sources)
+    for i, tmpl in enumerate(mixed):
+        _, ref = scorer([tmpl], return_mask=True)
+        npt.assert_array_equal(masks[i], ref)
+
+
+def test_source_masks_empty():
+    _, scorer = _master_scorer()
+    assert scorer.source_masks([]).shape == (0, scorer.n_sources)
+
+
 def test_harness_public_api_exports():
     import ftperiodogram as ftp
     for name in ('Cadence', 'SyntheticCadence', 'exp_mag_error',

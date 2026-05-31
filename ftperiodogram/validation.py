@@ -24,7 +24,8 @@ import zlib
 import numpy as np
 
 from .template import Template
-from .multiband import FastMultibandTemplatePeriodogram
+from .multiband import (FastMultibandTemplatePeriodogram, build_template_set,
+                        compute_band_summations, solve_over_frequencies)
 from .catalog_builder import build_template_catalog
 from . import simulate as _sim
 from . import recovery as _rec
@@ -171,11 +172,43 @@ class RecoveryScorer(object):
 
         Each row is the recovered mask of that single template alone; the greedy
         selector unions these (catalog power is the per-frequency max over the set,
-        so a union of standalone masks exactly models the catalog's recovery)."""
-        if not list(templates):
+        so a union of standalone masks exactly models the catalog's recovery).
+
+        Fast path: the per-band NFFT summations are template-independent, so for each
+        source they are computed ONCE and reused across the whole template list (one
+        NFFT per source instead of one per ``(template, source)`` -- the speedup that
+        lets greedy scale past the Sesar universe).  The recovered mask is identical
+        to the per-template path: both reduce to ``argmax`` of the *same* fast
+        summations, and only sub-``1e-16`` power jitter sits below the argmax.  The
+        fast path requires a common harmonic order (the summations are order-specific)
+        and a non-``'sesar'`` mode (sesar needs ``relative_offsets`` the scorer never
+        supplies); otherwise it falls back to the exact per-template path."""
+        templates = list(templates)
+        if not templates:
             return np.zeros((0, self.n_sources), dtype=bool)
-        return np.array([self.__call__([tmpl], return_mask=True)[1]
-                         for tmpl in templates], dtype=bool)
+
+        harmonics = {len(t.c_n) for t in templates}
+        if len(harmonics) != 1 or self.mode == 'sesar':
+            return np.array([self.__call__([tmpl], return_mask=True)[1]
+                             for tmpl in templates], dtype=bool)
+
+        H = harmonics.pop()
+        nfreq = self.freqs.size
+        masks = np.empty((len(templates), self.n_sources), dtype=bool)
+        for j, (t, y, bands, dy, P_true, baseline) in enumerate(self._sources):
+            sumlists, stats = compute_band_summations(
+                t, y, bands, self.freqs, H, dy=dy, mode=self.mode, fast=True)
+            for i, tmpl in enumerate(templates):
+                template_dict = build_template_set(tmpl, bands)
+                powers, _ = solve_over_frequencies(
+                    template_dict, sumlists, stats, nfreq, mode=self.mode)
+                P_rec = 1.0 / self.freqs[int(np.argmax(powers))]
+                result = _rec.classify_recovery(
+                    P_rec, P_true, baseline=baseline, criterion=self.criterion,
+                    rtol=self.rtol, delta_phi_max=self.delta_phi_max,
+                    count_harmonics=self.harmonic_aware)
+                masks[i, j] = bool(result.recovered)
+        return masks
 
     def _set_scoring_params(self, *, mode, criterion, harmonic_aware,
                             delta_phi_max, rtol):
