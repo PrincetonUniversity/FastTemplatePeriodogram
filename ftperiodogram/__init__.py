@@ -13,4 +13,5 @@ from .recovery import (recovered_fractional, recovered_phase_coherence,
                        harmonic_alias_set, classify_recovery, recovery_rate,
                        RecoveryResult, AliasMatch)
 from .validation import (RecoveryScorer, make_recovery_scorer, k_sweep_recovery,
-                         KSweepResult, frequency_grid)
+                         KSweepResult, frequency_grid, n_epochs_sweep_recovery,
+                         NEpochsSweepResult)

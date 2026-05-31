@@ -19,6 +19,7 @@ The recovery scorer is the seam the K-sweep and the greedy selector share.
 Search grids are explicit ``[f_min, f_max]`` -- never a Nyquist heuristic.
 """
 from collections import namedtuple
+import zlib
 
 import numpy as np
 
@@ -64,6 +65,27 @@ def _align_grid(freqs):
     return df * (nf0 + np.arange(freqs.size))
 
 
+def _seed_int(random_state):
+    """Coerce a seed-like value to a non-negative int for deterministic mixing."""
+    if random_state is None:
+        return 0
+    if isinstance(random_state, (int, np.integer)):
+        return int(random_state) & 0xffffffff
+    if isinstance(random_state, np.random.RandomState):
+        return int(random_state.randint(0, 2 ** 31 - 1))
+    return int(random_state) & 0xffffffff
+
+
+def _combine_seeds(base, source_index, band):
+    """Deterministic per-(source, band) seed (stable across runs/processes).
+
+    Uses ``zlib.crc32`` rather than ``hash`` so the value does not depend on
+    ``PYTHONHASHSEED``; reused verbatim across N_epochs levels so a larger
+    down-sample is a strict superset of a smaller one (nested thinning)."""
+    key = "%d|%d|%r" % (int(base), int(source_index), band)
+    return zlib.crc32(key.encode('utf-8')) & 0xffffffff
+
+
 # ----------------------------------------------------------------------
 # Recovery scorer (frozen population)
 # ----------------------------------------------------------------------
@@ -86,11 +108,9 @@ class RecoveryScorer(object):
                  band_offsets=None, random_state=0):
         self.freqs = _align_grid(freqs)        # NFFT-aligned (snaps if needed)
         self.n_sources = int(n_sources)
-        self.mode = mode
-        self.criterion = criterion
-        self.harmonic_aware = bool(harmonic_aware)
-        self.delta_phi_max = float(delta_phi_max)
-        self.rtol = float(rtol)
+        self._set_scoring_params(mode=mode, criterion=criterion,
+                                 harmonic_aware=harmonic_aware,
+                                 delta_phi_max=delta_phi_max, rtol=rtol)
 
         rng = _sim._as_rng(random_state)
         truth_templates = list(truth_templates)
@@ -156,6 +176,89 @@ class RecoveryScorer(object):
             return np.zeros((0, self.n_sources), dtype=bool)
         return np.array([self.__call__([tmpl], return_mask=True)[1]
                          for tmpl in templates], dtype=bool)
+
+    def _set_scoring_params(self, *, mode, criterion, harmonic_aware,
+                            delta_phi_max, rtol):
+        """Set the scoring knobs shared by ``__init__`` and ``_from_sources``."""
+        self.mode = mode
+        self.criterion = criterion
+        self.harmonic_aware = bool(harmonic_aware)
+        self.delta_phi_max = float(delta_phi_max)
+        self.rtol = float(rtol)
+
+    @classmethod
+    def _from_sources(cls, sources, *, freqs, p_true=None,
+                      mode='floating_offsets', criterion='fractional',
+                      harmonic_aware=False, delta_phi_max=0.5, rtol=0.01):
+        """Build a scorer from an already-frozen population (no simulation).
+
+        ``freqs`` is copied verbatim (assumed already NFFT-aligned -- the master
+        scorer's grid); each source is ``(t, y, bands, dy, P_true, baseline)``.
+        This backs :meth:`downsample` and any other re-freezing of the same
+        injected truths under a different cadence realization."""
+        self = cls.__new__(cls)
+        self.freqs = np.asarray(freqs, dtype=float)       # already aligned; no re-snap
+        self._sources = list(sources)
+        self.n_sources = len(self._sources)
+        self._set_scoring_params(mode=mode, criterion=criterion,
+                                 harmonic_aware=harmonic_aware,
+                                 delta_phi_max=delta_phi_max, rtol=rtol)
+        if p_true is None:
+            self.p_true = np.array([s[4] for s in self._sources], dtype=float)
+        else:
+            self.p_true = np.asarray(p_true, dtype=float)
+        return self
+
+    def downsample(self, n_epochs, *, random_state=0, freeze_baseline=True):
+        """Return a sibling scorer with each source thinned to ``n_epochs`` per band.
+
+        The thinning is a *nested*, seeded subset of the already-simulated rows --
+        truth shapes and injected periods are unchanged -- so a recovery-vs-N_epochs
+        sweep varies only the per-band epoch count (design A.4: "hold the LC fixed,
+        down-sample it").  For a fixed ``random_state`` a larger ``n_epochs`` is a
+        strict superset of a smaller one, because one frozen permutation per
+        ``(source, band)`` is reused across N and the first ``n_epochs`` are kept.
+
+        ``freeze_baseline`` (default ``True``) keeps each source's original baseline
+        ``T`` so the phase-coherence criterion isolates epoch count from baseline
+        (the headline 1% fractional criterion is baseline-independent regardless);
+        set it ``False`` to recompute ``T`` from the thinned epochs.
+
+        Requires ``3 <= n_epochs <=`` each source's master per-band count.
+        """
+        n_epochs = int(n_epochs)
+        if n_epochs < 3:
+            raise ValueError("n_epochs must be >= 3 per band (the fast NFFT path "
+                             "is degenerate below that); got %r" % (n_epochs,))
+        base = _seed_int(random_state)
+        new_sources = []
+        for si, (t, y, bands, dy, P_true, baseline) in enumerate(self._sources):
+            band_labels = [None] if bands is None else list(np.unique(bands))
+            keep_parts = []
+            for b in band_labels:
+                idx = (np.arange(len(t)) if bands is None
+                       else np.flatnonzero(bands == b))
+                if n_epochs > idx.size:
+                    raise ValueError(
+                        "n_epochs=%d exceeds source %d band %r master count %d"
+                        % (n_epochs, si, b, idx.size))
+                perm = np.random.RandomState(_combine_seeds(base, si, b))
+                order = perm.permutation(idx.size)
+                keep_parts.append(idx[order[:n_epochs]])
+            keep = np.sort(np.concatenate(keep_parts))
+            t_k, y_k = t[keep], y[keep]
+            bands_k = None if bands is None else bands[keep]
+            if dy is None or np.ndim(dy) == 0:
+                dy_k = dy
+            else:
+                dy_k = np.asarray(dy)[keep]
+            new_baseline = (baseline if freeze_baseline
+                            else float(t_k.max() - t_k.min()))
+            new_sources.append((t_k, y_k, bands_k, dy_k, P_true, new_baseline))
+        return RecoveryScorer._from_sources(
+            new_sources, freqs=self.freqs, p_true=self.p_true, mode=self.mode,
+            criterion=self.criterion, harmonic_aware=self.harmonic_aware,
+            delta_phi_max=self.delta_phi_max, rtol=self.rtol)
 
 
 def make_recovery_scorer(cadence, truth_templates, *, freqs, n_sources=64,
@@ -239,3 +342,75 @@ def k_sweep_recovery(templates, cadence, k_values=(1, 2, 4, 8), *, scorer=None,
         freq_grid=(float(scorer.freqs.min()), float(scorer.freqs.max()),
                    int(scorer.freqs.size)),
         criterion=scorer.criterion, seed=int(random_state))
+
+
+# ----------------------------------------------------------------------
+# N_epochs stratification driver (the sparse-regime story, fixed K)
+# ----------------------------------------------------------------------
+NEpochsSweepResult = namedtuple(
+    'NEpochsSweepResult',
+    ['n_epochs_values', 'recovery', 'recovery_by_n', 'baseline_recovery',
+     'baseline_mask', 'k', 'n_sources', 'freq_grid', 'criterion', 'seed'])
+
+
+def n_epochs_sweep_recovery(master_scorer, templates, n_epochs_values, *, k,
+                            catalog_kwargs=None, include_baseline=True,
+                            return_masks=False, random_state=0,
+                            freeze_baseline=True):
+    """Recovery vs per-band epoch count at a fixed vocabulary size ``k``.
+
+    The size-``k`` vocabulary is built once from ``templates`` with
+    :func:`build_template_catalog` (``method='pam'``); ``master_scorer`` is then
+    down-sampled (nested, seeded) to each value in ``n_epochs_values`` and the
+    *same* vocabulary scored.  ``include_baseline`` also scores the FTP@H=1
+    (single-cosine, GLS-equivalent) vocabulary at each N_epochs -- unlike the
+    K-sweep this baseline varies with N, so ``baseline_recovery`` is a curve, not a
+    scalar.  The headline criterion is the 1% fractional rule (baseline-independent);
+    ``freeze_baseline`` keeps the master baseline so the phase-coherence secondary
+    isolates epoch count from baseline T.  Returns a :class:`NEpochsSweepResult`.
+    """
+    templates = list(templates)
+    n_epochs_values = sorted({int(n) for n in n_epochs_values})
+    if not n_epochs_values:
+        raise ValueError("n_epochs_values is empty")
+    if not 1 <= k <= len(templates):
+        raise ValueError("k must be in [1, len(templates)]; got %r for %d "
+                         "templates" % (k, len(templates)))
+
+    catalog_kwargs = dict(catalog_kwargs or {})
+    catalog_kwargs.setdefault('random_state', random_state)
+    vocab = build_template_catalog(templates, k, method='pam', **catalog_kwargs)
+    gls = [Template([1.0], [0.0])]                     # H=1 single cosine == GLS
+
+    recovery = np.empty(len(n_epochs_values), dtype=float)
+    recovery_by_n = [] if return_masks else None
+    base_rates = [] if include_baseline else None
+    base_masks = ([] if (include_baseline and return_masks) else None)
+
+    for i, N in enumerate(n_epochs_values):
+        ds = master_scorer.downsample(N, random_state=random_state,
+                                      freeze_baseline=freeze_baseline)
+        if return_masks:
+            rate, mask = ds(vocab, return_mask=True)
+            recovery_by_n.append(mask)
+        else:
+            rate = ds(vocab)
+        recovery[i] = rate
+        if include_baseline:
+            if return_masks:
+                br, bm = ds(gls, return_mask=True)
+                base_masks.append(bm)
+            else:
+                br = ds(gls)
+            base_rates.append(br)
+
+    return NEpochsSweepResult(
+        n_epochs_values=np.asarray(n_epochs_values, dtype=int),
+        recovery=recovery, recovery_by_n=recovery_by_n,
+        baseline_recovery=(np.asarray(base_rates, dtype=float)
+                           if include_baseline else None),
+        baseline_mask=base_masks, k=int(k), n_sources=master_scorer.n_sources,
+        freq_grid=(float(master_scorer.freqs.min()),
+                   float(master_scorer.freqs.max()),
+                   int(master_scorer.freqs.size)),
+        criterion=master_scorer.criterion, seed=int(random_state))

@@ -136,6 +136,83 @@ def test_k_sweep_real_scorer_runs_and_is_reproducible():
     npt.assert_array_equal(r1.recovery, r2.recovery)   # fully reproducible
 
 
+# ----------------------------------------------------------------------
+# N_epochs down-sampling + sweep (Feature 1)
+# ----------------------------------------------------------------------
+def _master_scorer(n_sources=6, n_master=24, seed=0):
+    templates = _population(seed=1)
+    cad = SyntheticCadence(n_epochs={'g': n_master, 'r': n_master},
+                           bands=['g', 'r'], baseline_days=365.25,
+                           random_state=2)
+    scorer = val.make_recovery_scorer(
+        cad, templates, freqs=val.frequency_grid(1.0, 3.0, 150),
+        n_sources=n_sources, random_state=seed)
+    return templates, scorer
+
+
+def test_downsample_is_nested_and_per_band():
+    _, master = _master_scorer()
+    small = master.downsample(8, random_state=0)
+    big = master.downsample(16, random_state=0)
+    assert small.n_sources == master.n_sources == len(small._sources)
+    for (ts, _, bs, _, _, _), (tb, _, bb, _, _, _) in zip(small._sources,
+                                                          big._sources):
+        for band in np.unique(bb):
+            ts_b = set(np.round(ts[bs == band], 9))
+            tb_b = set(np.round(tb[bb == band], 9))
+            assert len(ts_b) == 8 and len(tb_b) == 16   # exactly n_epochs/band
+            assert ts_b <= tb_b                          # nested (small ⊂ big)
+
+
+def test_downsample_floor_and_ceiling():
+    _, master = _master_scorer(n_master=20)
+    with pytest.raises(ValueError):
+        master.downsample(2)                # below the >=3 per-band floor
+    with pytest.raises(ValueError):
+        master.downsample(21)               # exceeds master per-band count (20)
+
+
+def test_downsample_carries_params_and_is_deterministic():
+    templates, master = _master_scorer()
+    a = master.downsample(10, random_state=0)
+    b = master.downsample(10, random_state=0)
+    assert a.criterion == master.criterion and a.mode == master.mode
+    assert a.delta_phi_max == master.delta_phi_max and a.rtol == master.rtol
+    npt.assert_array_equal(a.p_true, master.p_true)
+    _, m_a = a(templates[:3], return_mask=True)
+    _, m_b = b(templates[:3], return_mask=True)
+    npt.assert_array_equal(m_a, m_b)        # same seed -> identical thinned masks
+
+
+def test_freeze_baseline_keeps_master_T():
+    _, master = _master_scorer()
+    frozen = master.downsample(8, random_state=0, freeze_baseline=True)
+    recomputed = master.downsample(8, random_state=0, freeze_baseline=False)
+    for m, fz, rc in zip(master._sources, frozen._sources, recomputed._sources):
+        assert fz[5] == m[5]                # baseline preserved
+        assert rc[5] <= m[5]                # recomputed T can only shrink
+
+
+def test_n_epochs_sweep_runs_and_has_baseline_curve():
+    templates, master = _master_scorer()
+    res = val.n_epochs_sweep_recovery(master, templates, [18, 6, 12], k=2,
+                                      random_state=0)
+    npt.assert_array_equal(res.n_epochs_values, [6, 12, 18])   # sorted
+    assert res.recovery.shape == (3,)
+    assert res.baseline_recovery.shape == (3,)   # GLS varies with N -> a curve
+    assert np.all(np.isfinite(res.recovery))
+    assert res.k == 2 and res.n_sources == master.n_sources
+    assert res.criterion == 'fractional'
+
+
+def test_n_epochs_sweep_rejects_bad_k():
+    templates, master = _master_scorer()
+    with pytest.raises(ValueError):
+        val.n_epochs_sweep_recovery(master, templates, [6], k=0)
+    with pytest.raises(ValueError):
+        val.n_epochs_sweep_recovery(master, templates, [6], k=999)
+
+
 def test_harness_public_api_exports():
     import ftperiodogram as ftp
     for name in ('Cadence', 'SyntheticCadence', 'exp_mag_error',
@@ -143,5 +220,6 @@ def test_harness_public_api_exports():
                  'recovered_fractional', 'recovered_phase_coherence',
                  'harmonic_alias_set', 'classify_recovery', 'recovery_rate',
                  'RecoveryScorer', 'make_recovery_scorer', 'k_sweep_recovery',
-                 'KSweepResult', 'frequency_grid'):
+                 'KSweepResult', 'frequency_grid', 'n_epochs_sweep_recovery',
+                 'NEpochsSweepResult'):
         assert hasattr(ftp, name)
