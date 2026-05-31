@@ -413,6 +413,37 @@ def _fill_by_diversity(chosen_work, remaining_work, D, k_needed):
     return out
 
 
+def _greedy_universe(candidate_pool, n, n_clusters, D, random_state):
+    """Resolve the greedy candidate universe (indices into ``work``).
+
+    ``None``/``'all'`` use every template.  ``'pam:M'`` pre-filters to the ``M`` PAM
+    medoids of the full distance matrix, capping the ``source_masks`` precompute (and
+    so the FTP cost) at ``M`` rather than ``n`` -- the knob that lets recovery-driven
+    greedy scale past the Sesar universe.  Requires ``n_clusters <= M <= n``; because
+    the menu is restricted, the resulting recovery-vs-K curve is a speed-for-coverage
+    lower bound on the ``'all'`` curve.
+    """
+    if candidate_pool in (None, 'all'):
+        return np.arange(n)
+    if isinstance(candidate_pool, str) and candidate_pool.startswith('pam:'):
+        suffix = candidate_pool[len('pam:'):]
+        try:
+            M = int(suffix)
+        except ValueError:
+            raise ValueError("candidate_pool 'pam:M' needs an integer M; got %r"
+                             % (candidate_pool,))
+        if not n_clusters <= M <= n:
+            raise ValueError(
+                "candidate_pool 'pam:%d' requires n_clusters <= M <= "
+                "len(templates) (%d <= M <= %d)" % (M, n_clusters, n))
+        if D is None:
+            raise ValueError("candidate_pool 'pam:M' requires a distance matrix")
+        medoid_idx, _, _ = _pam(D, M, random_state=random_state)
+        return np.asarray(medoid_idx, dtype=int)
+    raise ValueError("unknown candidate_pool %r; expected None, 'all', or 'pam:M'"
+                     % (candidate_pool,))
+
+
 def _greedy_select(work, n_clusters, scorer, *, D=None, candidate_pool=None,
                    random_state=None):
     """Recovery-driven greedy forward selection (the ``method='greedy'`` path).
@@ -431,12 +462,7 @@ def _greedy_select(work, n_clusters, scorer, *, D=None, candidate_pool=None,
     the knee of the recovery-vs-K curve).
     """
     n = len(work)
-    if candidate_pool in (None, 'all'):
-        universe = np.arange(n)
-    else:
-        raise ValueError("unknown candidate_pool %r; expected None or 'all' "
-                         "(PAM pre-filtering is a deferred extension)"
-                         % (candidate_pool,))
+    universe = _greedy_universe(candidate_pool, n, n_clusters, D, random_state)
 
     cand_masks = np.asarray(
         scorer.source_masks([work[int(i)] for i in universe]), dtype=bool)
@@ -456,10 +482,14 @@ def _greedy_select(work, n_clusters, scorer, *, D=None, candidate_pool=None,
         covered |= cand_masks[pick_local]
         remaining.remove(pick_local)
 
-    if len(chosen) < n_clusters and remaining:
-        chosen += _fill_by_diversity(
-            chosen, [int(universe[j]) for j in remaining], D,
-            n_clusters - len(chosen))
+    if len(chosen) < n_clusters:
+        # Top up to K by orbit-diversity from the *full* work set (not just the
+        # pre-filtered universe), so candidate_pool='pam:M' fills like 'all'.
+        chosen_set = set(chosen)
+        remaining_work = [i for i in range(n) if i not in chosen_set]
+        if remaining_work:
+            chosen += _fill_by_diversity(
+                chosen, remaining_work, D, n_clusters - len(chosen))
 
     medoid_idx = np.array(sorted(dict.fromkeys(chosen)), dtype=int)
     labels = (np.argmin(D[:, medoid_idx], axis=1).astype(int)
@@ -506,9 +536,12 @@ def build_template_catalog(templates, n_clusters, metric='orbit',
         ``n_sources`` and ``source_masks(templates) -> (len(templates), n_sources)``
         bool array, and be callable ``scorer(templates) -> recovery_rate``.
         Ignored for ``method='pam'``.
-    candidate_pool : {None, 'all'}
-        Candidate universe for greedy selection; ``None``/``'all'`` use every input
-        template (PAM pre-filtering is a deferred extension).
+    candidate_pool : {None, 'all', 'pam:M'}
+        Candidate universe for greedy selection.  ``None``/``'all'`` use every input
+        template; ``'pam:M'`` first pre-filters to the ``M`` PAM medoids of the
+        distance matrix (``n_clusters <= M <= len(templates)``), capping the FTP
+        ``source_masks`` precompute at ``M`` so greedy scales past large universes at
+        the cost of a lower-bound recovery curve.
     return_diagnostics : bool
         If ``True``, also return a :class:`CatalogDiagnostics`.
 

@@ -507,9 +507,47 @@ def test_greedy_fills_to_k_when_recovery_saturates():
     assert diag.total_cost == pytest.approx(0.0)   # extra templates add no recovery
 
 
+def test_greedy_pam_prefilter_runs_and_covers():
+    templates, _ = _archetype_population(seed=1)
+    scorer = _FakeRecoveryScorer(n_sources=12)
+    # pam:10 pre-filters 60 templates -> 10 PAM medoids; greedy then still covers
+    # all three archetypes (full recovery) from that restricted menu.
+    vocab, diag = cb.build_template_catalog(
+        templates, 3, method='greedy', scorer=scorer, candidate_pool='pam:10',
+        return_diagnostics=True)
+    assert len(vocab) == 3
+    assert {scorer._which_arch(t) for t in vocab} == {0, 1, 2}
+    assert diag.total_cost == pytest.approx(0.0)
+
+
+def test_greedy_pam_prefilter_is_deterministic():
+    templates, _ = _archetype_population(seed=2)
+    scorer = _FakeRecoveryScorer(n_sources=12)
+    kw = dict(method='greedy', scorer=scorer, candidate_pool='pam:8',
+              return_diagnostics=True, random_state=0)
+    _, d1 = cb.build_template_catalog(templates, 3, **kw)
+    _, d2 = cb.build_template_catalog(templates, 3, **kw)
+    npt.assert_array_equal(d1.medoid_indices, d2.medoid_indices)
+    npt.assert_array_equal(d1.labels, d2.labels)
+
+
+def test_greedy_pam_prefilter_validates_bounds():
+    templates, _ = _archetype_population(seed=1)        # 60 templates
+    scorer = _FakeRecoveryScorer()
+    with pytest.raises(ValueError):                     # M < n_clusters
+        cb.build_template_catalog(templates, 4, method='greedy', scorer=scorer,
+                                  candidate_pool='pam:2')
+    with pytest.raises(ValueError):                     # M > len(templates)
+        cb.build_template_catalog(templates, 2, method='greedy', scorer=scorer,
+                                  candidate_pool='pam:9999')
+    with pytest.raises(ValueError):                     # non-integer M
+        cb.build_template_catalog(templates, 2, method='greedy', scorer=scorer,
+                                  candidate_pool='pam:x')
+
+
 def test_greedy_rejects_unknown_candidate_pool():
     templates, _ = _archetype_population(seed=1)
     scorer = _FakeRecoveryScorer()
     with pytest.raises(ValueError):
         cb.build_template_catalog(templates, 2, method='greedy', scorer=scorer,
-                                  candidate_pool='pam:4')
+                                  candidate_pool='nonsense')
