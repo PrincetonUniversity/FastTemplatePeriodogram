@@ -1,0 +1,3 @@
+# throwaway smoke output; draft outputs are committed explicitly
+output_smoke/
+*_run.log
