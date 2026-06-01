@@ -389,11 +389,90 @@ def _orbit_chart_agreement(templates, medoid_idx, a1_floor, harmonic_weights):
     return float(np.mean(orbit_assign[valid] == chart_assign[valid]))
 
 
+def _fill_by_diversity(chosen_work, remaining_work, D, k_needed):
+    """Pad a greedy selection by ``k_needed`` templates chosen for orbit-diversity.
+
+    Used when simulated recovery saturates before ``n_clusters`` templates are
+    picked: add the remaining templates farthest (in the distance matrix ``D``)
+    from the already-chosen set, so the returned vocabulary still has size K.
+    """
+    chosen_work = list(chosen_work)
+    remaining_work = list(remaining_work)
+    out = []
+    for _ in range(int(k_needed)):
+        if not remaining_work:
+            break
+        if chosen_work and D is not None:
+            dmin = [min(D[r, c] for c in chosen_work) for r in remaining_work]
+            pick = remaining_work[int(np.argmax(dmin))]
+        else:
+            pick = remaining_work[0]
+        out.append(int(pick))
+        chosen_work.append(int(pick))
+        remaining_work.remove(pick)
+    return out
+
+
+def _greedy_select(work, n_clusters, scorer, *, D=None, candidate_pool=None,
+                   random_state=None):
+    """Recovery-driven greedy forward selection (the ``method='greedy'`` path).
+
+    At each step add, from the candidate universe, the template that recovers the
+    most *not-yet-recovered* sources -- the greedy set-cover step on the
+    per-template standalone recovered masks (``scorer.source_masks``).  This union
+    is the selection *signal*; the returned ``cost = 1 - scorer(vocabulary)`` is the
+    *actual* catalog recovery (honest even where catalog-mode's per-frequency max
+    moves the global peak so the union over-counts).  The return contract matches
+    :func:`_pam`: ``(medoid_indices, labels, cost)`` with ``labels`` the
+    orbit-nearest assignment of every template to a chosen medoid.
+
+    When recovery saturates before ``n_clusters`` are chosen, the selection is
+    padded to size K by orbit-diversity (the saturation point is itself a result --
+    the knee of the recovery-vs-K curve).
+    """
+    n = len(work)
+    if candidate_pool in (None, 'all'):
+        universe = np.arange(n)
+    else:
+        raise ValueError("unknown candidate_pool %r; expected None or 'all' "
+                         "(PAM pre-filtering is a deferred extension)"
+                         % (candidate_pool,))
+
+    cand_masks = np.asarray(
+        scorer.source_masks([work[int(i)] for i in universe]), dtype=bool)
+    covered = np.zeros(int(scorer.n_sources), dtype=bool)
+    chosen = []                              # work-indices, in selection order
+    remaining = list(range(len(universe)))   # local indices into ``universe``
+
+    while len(chosen) < n_clusters and remaining and not covered.all():
+        rem = np.array(remaining)
+        gains = cand_masks[rem][:, ~covered].sum(axis=1)
+        if gains.max() == 0:
+            break                            # nothing left improves recovery
+        # most new recoveries; ties broken by lowest universe index (deterministic)
+        best = int(np.lexsort((universe[rem], -gains))[0])
+        pick_local = int(rem[best])
+        chosen.append(int(universe[pick_local]))
+        covered |= cand_masks[pick_local]
+        remaining.remove(pick_local)
+
+    if len(chosen) < n_clusters and remaining:
+        chosen += _fill_by_diversity(
+            chosen, [int(universe[j]) for j in remaining], D,
+            n_clusters - len(chosen))
+
+    medoid_idx = np.array(sorted(dict.fromkeys(chosen)), dtype=int)
+    labels = (np.argmin(D[:, medoid_idx], axis=1).astype(int)
+              if D is not None else np.zeros(n, dtype=int))
+    cost = 1.0 - float(scorer([work[int(i)] for i in medoid_idx]))
+    return medoid_idx, labels, cost
+
+
 def build_template_catalog(templates, n_clusters, metric='orbit',
                            n_harmonics=None, harmonic_weights=None,
                            a1_floor=1e-8, n_init=10, max_iter=300,
-                           random_state=None, method='pam',
-                           return_diagnostics=False):
+                           random_state=None, method='pam', scorer=None,
+                           candidate_pool=None, return_diagnostics=False):
     """Compress ``templates`` into ``n_clusters`` representative templates.
 
     Clusters the input templates with k-medoids/PAM under the orbit-minimized
@@ -418,9 +497,18 @@ def build_template_catalog(templates, n_clusters, metric='orbit',
         Optional per-harmonic weights for the chart metric (length ``H-1``).
     n_init, max_iter, random_state :
         PAM multi-start, swap-iteration cap, and seeding.
-    method : {'pam'}
-        Selection method.  ``'greedy'`` (recovery-driven) is reserved and
-        raises ``NotImplementedError`` until the Phase-3 simulation harness lands.
+    method : {'pam', 'greedy'}
+        Selection method.  ``'pam'`` (default) clusters under the distance matrix.
+        ``'greedy'`` is recovery-driven forward selection and requires ``scorer``.
+    scorer : callable or None
+        Period-recovery scorer for ``method='greedy'`` (e.g. from
+        :func:`ftperiodogram.validation.make_recovery_scorer`); must expose
+        ``n_sources`` and ``source_masks(templates) -> (len(templates), n_sources)``
+        bool array, and be callable ``scorer(templates) -> recovery_rate``.
+        Ignored for ``method='pam'``.
+    candidate_pool : {None, 'all'}
+        Candidate universe for greedy selection; ``None``/``'all'`` use every input
+        template (PAM pre-filtering is a deferred extension).
     return_diagnostics : bool
         If ``True``, also return a :class:`CatalogDiagnostics`.
 
@@ -434,13 +522,9 @@ def build_template_catalog(templates, n_clusters, metric='orbit',
     templates = list(templates)
     n = len(templates)
 
-    if method != 'pam':
-        if method == 'greedy':
-            raise NotImplementedError(
-                "recovery-driven greedy selection (method='greedy') requires the "
-                "Phase-3 simulation harness and is not implemented yet; "
-                "use method='pam'")
-        raise ValueError("unknown method %r; expected 'pam'" % (method,))
+    if method not in ('pam', 'greedy'):
+        raise ValueError("unknown method %r; expected 'pam' or 'greedy'"
+                         % (method,))
     if metric not in ('orbit', 'chart'):
         raise ValueError("metric must be 'orbit' or 'chart'; got %r" % (metric,))
     if not 1 <= n_clusters <= n:
@@ -459,8 +543,20 @@ def build_template_catalog(templates, n_clusters, metric='orbit',
                 "chart metric is singular (A_1 -> 0) for at least one template; "
                 "use metric='orbit', which has no such singularity")
 
-    medoid_idx, labels, cost = _pam(D, n_clusters, n_init=n_init,
-                                    max_iter=max_iter, random_state=random_state)
+    if method == 'greedy':
+        if scorer is None:
+            raise NotImplementedError(
+                "recovery-driven greedy selection (method='greedy') requires a "
+                "period-recovery scorer; pass "
+                "scorer=ftperiodogram.validation.make_recovery_scorer(...). "
+                "PAM remains the default.")
+        medoid_idx, labels, cost = _greedy_select(
+            work, n_clusters, scorer, D=D, candidate_pool=candidate_pool,
+            random_state=random_state)
+    else:
+        medoid_idx, labels, cost = _pam(D, n_clusters, n_init=n_init,
+                                        max_iter=max_iter,
+                                        random_state=random_state)
     vocabulary = [work[idx] for idx in medoid_idx]
 
     if not return_diagnostics:
