@@ -51,14 +51,18 @@ def _grid():
 # Independent brute-force reference: weighted normal equations
 # ----------------------------------------------------------------------
 def _ref_chi2(X, y, w):
-    """Weighted residual SS via a whitened SVD pseudo-inverse -- an independent
-    linear-algebra path (different from the module's ``lstsq``), robust to a
-    rank-deficient design at a degenerate frequency."""
+    """Weighted residual SS via an explicit whitened-SVD orthogonal projection -- an
+    independent linear-algebra path (different from the module's ``lstsq``).  The
+    residual is ``||yw - U_r U_r^T yw||^2`` over the singular directions above
+    tolerance, so it is exact for a rank-deficient design and never divides/overflows."""
     sw = np.sqrt(w)
     Xw = X * sw[:, None]
     yw = y * sw
-    beta = np.linalg.pinv(Xw, rcond=1e-10) @ yw    # truncate tiny singular values
-    r = yw - Xw @ beta
+    with np.errstate(all='ignore'):                 # degenerate-freq SIMD noise
+        U, s, _ = np.linalg.svd(Xw, full_matrices=False)
+        keep = s > (s.max() * 1e-9 if s.size else 0.0)
+        Ur = U[:, keep]
+        r = yw - Ur @ (Ur.T @ yw)                   # projection onto col(Xw)
     return float(r @ r)
 
 

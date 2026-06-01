@@ -5,7 +5,8 @@ from .multiband import (FastMultibandTemplatePeriodogram,
                         MultibandTemplateModel, MultibandModelFitParams)
 from .template import Template
 from .catalog_builder import (build_template_catalog, templates_from_sampled,
-                              fetch_sesar_templates, CatalogDiagnostics)
+                              fetch_sesar_templates, fetch_baeza_villagra_templates,
+                              CatalogDiagnostics)
 from .simulate import (Cadence, SyntheticCadence, CadenceSample, exp_mag_error,
                        simulate_lightcurve, simulate_multiband_lightcurve,
                        SimulatedLightCurve, SimulatedMultibandLightCurve)

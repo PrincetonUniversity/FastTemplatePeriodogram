@@ -685,3 +685,112 @@ def fetch_sesar_templates(nharmonics=8, bands=None, template_ids=None,
     if not templates:
         raise ValueError("no Sesar templates matched the requested filters")
     return templates
+
+
+# ----------------------------------------------------------------------
+# Data loader: Baeza-Villagra et al. (2025) DECam griz RR Lyrae templates
+# ----------------------------------------------------------------------
+#: Public GitHub mirror of the Baeza-Villagra et al. (2025, A&A 694, A72;
+#: arXiv:2501.03813) DECam *griz* RR Lyrae template library -- 136 RRab + 144 RRc
+#: phase-sampled light-curve shapes (the larger, newer universe used as the
+#: robustness arm alongside the Sesar 2010 ugriz set).  NB the band set is *griz*
+#: (no u), distinct from Sesar's *ugriz*; for shape-driven clustering that is fine,
+#: but the two libraries are not interchangeable in band coverage.
+_BV_REPO = ("https://raw.githubusercontent.com/KarinaBaezaV/"
+            "Multiband-templates/main/")
+#: (subtype, normalized) -> archive filename in the repo root.
+_BV_ARCHIVES = {('RRab', True): 'RRab_normalized.zip', ('RRab', False): 'RRab.zip',
+                ('RRc', True): 'RRc_normalized.zip', ('RRc', False): 'RRc.zip'}
+
+
+def _download_bv_archive(filename, data_home=None, force_download=False):
+    """Download (and atomically cache) one Baeza-Villagra archive; return its path."""
+    cache_dir = _SESAR_CACHE_DIR if data_home is None else data_home
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    path = os.path.join(cache_dir, filename)
+    if force_download or not os.path.exists(path):
+        with urlopen(_BV_REPO + filename) as response:
+            payload = response.read()
+        tmp = path + ".tmp"
+        with open(tmp, 'wb') as cache:
+            cache.write(payload)
+        os.replace(tmp, path)
+    return path
+
+
+def fetch_baeza_villagra_templates(subtypes=('RRab', 'RRc'), bands=None,
+                                   normalized=True, nharmonics=8, n_phase=256,
+                                   data_home=None, force_download=False):
+    """Load the Baeza-Villagra et al. (2025) DECam griz RR Lyrae templates.
+
+    Downloads the public GitHub archives (one per subtype, ~6-7 MB each) on first
+    use, then reads the local cache.  Each archive holds one CSV ``.txt`` per star
+    with columns ``Phase, Mag, Band`` and the four ``g, r, i, z`` bands stacked; for
+    every requested ``(star, band)`` the phased magnitudes are resampled onto a
+    uniform ``n_phase`` grid (periodic linear interpolation) and converted to a
+    Fourier :class:`Template`.  Standard library only (``urllib`` + ``zipfile`` +
+    ``csv``) plus numpy -- no gatspy/astroML/astropy.
+
+    Parameters
+    ----------
+    subtypes : sequence of {'RRab', 'RRc'}
+        Pulsation subtypes to include (default both).
+    bands : sequence of str or None
+        Keep only these DECam band letters (e.g. ``['g', 'r']`` to match a g/r
+        observing cadence); ``None`` keeps all of ``griz``.  One band per star
+        yields ~280 templates; all four yield ~4x that.
+    normalized : bool
+        Use the ``*_normalized`` archives (magnitudes scaled to ``[0, 1]``).  The
+        :class:`Template` constructor unit-Fourier-energy normalizes regardless, so
+        this only affects the pre-FFT sampling, not the final shapes.
+    nharmonics : int
+        Harmonics per template (use an int for a common order across the set).
+    n_phase : int
+        Uniform phase-grid size the raw ~1000-point grids are resampled onto.
+    data_home, force_download :
+        Cache directory (defaults to ``~/.ftperiodogram_data``) and re-download flag.
+
+    Returns
+    -------
+    list of Template
+        Each tagged ``'<star>-<band>'`` (e.g. ``'OGLE-BLG-RRLYR-12786-g'``).
+    """
+    import csv
+    import io
+    import zipfile
+
+    want_bands = None if bands is None else set(bands)
+    grid = np.arange(n_phase) / float(n_phase)
+    templates = []
+    for sub in subtypes:
+        if (sub, bool(normalized)) not in _BV_ARCHIVES:
+            raise ValueError("unknown subtype %r; expected 'RRab' or 'RRc'" % (sub,))
+        path = _download_bv_archive(_BV_ARCHIVES[(sub, bool(normalized))],
+                                    data_home=data_home,
+                                    force_download=force_download)
+        with zipfile.ZipFile(path) as archive:
+            members = sorted(n for n in archive.getnames() if n.endswith('.txt'))
+            for name in members:
+                star = os.path.basename(name)[:-len('.txt')]
+                text = archive.read(name).decode('utf-8', 'replace')
+                by_band = {}
+                for row in csv.DictReader(io.StringIO(text)):
+                    by_band.setdefault(row['Band'], []).append(
+                        (float(row['Phase']), float(row['Mag'])))
+                for band, pts in by_band.items():
+                    if want_bands is not None and band not in want_bands:
+                        continue
+                    ph = np.array([p for p, _ in pts], dtype=float) % 1.0
+                    mg = np.array([m for _, m in pts], dtype=float)
+                    order = np.argsort(ph, kind='mergesort')
+                    ph, mg = ph[order], mg[order]
+                    # periodic linear interpolation onto the uniform phase grid
+                    ph_ext = np.concatenate([ph - 1.0, ph, ph + 1.0])
+                    mg_ext = np.concatenate([mg, mg, mg])
+                    y = np.interp(grid, ph_ext, mg_ext)
+                    templates.append(Template.from_sampled(
+                        y, nharmonics=nharmonics, template_id="%s-%s" % (star, band)))
+    if not templates:
+        raise ValueError("no Baeza-Villagra templates matched the requested filters")
+    return templates

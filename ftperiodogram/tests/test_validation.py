@@ -247,6 +247,13 @@ def test_source_masks_empty():
     assert scorer.source_masks([]).shape == (0, scorer.n_sources)
 
 
+def test_source_masks_parallel_matches_serial():
+    templates, scorer = _master_scorer()
+    serial = scorer.source_masks(templates[:6], n_jobs=1)
+    parallel = scorer.source_masks(templates[:6], n_jobs=2)   # fanned over sources
+    npt.assert_array_equal(serial, parallel)                  # sources independent
+
+
 # ----------------------------------------------------------------------
 # Parallel source loop (Feature 6)
 # ----------------------------------------------------------------------

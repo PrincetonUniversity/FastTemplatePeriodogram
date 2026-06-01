@@ -1,3 +1,7 @@
 # throwaway smoke output; draft outputs are committed explicitly
 output_smoke/
+output_prod_smoke/
+output_prod/
+# adversarial-verification scratch (independent reference impls written by agents)
+_verify/
 *_run.log

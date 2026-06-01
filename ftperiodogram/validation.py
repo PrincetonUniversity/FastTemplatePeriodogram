@@ -132,6 +132,64 @@ def _par_recovered(i):
                                 _PAR['freqs'], _PAR['crit'])
 
 
+def _parallel_map(n_jobs, n_items, initializer, initargs, worker):
+    """Fan ``worker(i)`` for ``i in range(n_items)`` over a ``spawn`` pool, with
+    BLAS pinned to one thread per worker (no oversubscription)."""
+    if n_jobs < 0:
+        n_jobs = _mp.cpu_count()
+    n_jobs = max(1, min(int(n_jobs), n_items))
+    prev = {k: os.environ.get(k) for k in _BLAS_THREAD_VARS}
+    for k in _BLAS_THREAD_VARS:
+        os.environ[k] = '1'
+    try:
+        ctx = _mp.get_context('spawn')
+        with ctx.Pool(n_jobs, initializer=initializer, initargs=initargs) as pool:
+            return pool.map(worker, range(n_items))
+    finally:
+        for k, v in prev.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+def _source_mask_column(templates, source, freqs, mode, crit, H):
+    """Per-template standalone recovered mask for ONE source (a mask column).
+
+    The per-band NFFT summations are template-independent, so they are computed
+    once per source and reused across the whole template list -- the fast path that
+    lets greedy scale.  Identical computation serial or parallel."""
+    t, y, bands, dy, P_true, baseline = source
+    sumlists, stats = compute_band_summations(t, y, bands, freqs, H, dy=dy,
+                                              mode=mode, fast=True)
+    col = np.empty(len(templates), dtype=bool)
+    for i, tmpl in enumerate(templates):
+        template_dict = build_template_set(tmpl, bands)
+        powers, _ = solve_over_frequencies(template_dict, sumlists, stats,
+                                           freqs.size, mode=mode)
+        P_rec = 1.0 / freqs[int(np.argmax(powers))]
+        result = _rec.classify_recovery(
+            P_rec, P_true, baseline=baseline, criterion=crit['criterion'],
+            rtol=crit['rtol'], delta_phi_max=crit['delta_phi_max'],
+            count_harmonics=crit['harmonic_aware'])
+        col[i] = bool(result.recovered)
+    return col
+
+
+_PARSM = {}                              # per-worker fixed data for source_masks
+
+
+def _parsm_init(templates, freqs, mode, crit, H, sources):
+    _PARSM.update(templates=templates, freqs=freqs, mode=mode, crit=crit, H=H,
+                  sources=sources)
+
+
+def _parsm_col(j):
+    return _source_mask_column(_PARSM['templates'], _PARSM['sources'][j],
+                               _PARSM['freqs'], _PARSM['mode'], _PARSM['crit'],
+                               _PARSM['H'])
+
+
 # ----------------------------------------------------------------------
 # Recovery scorer (frozen population)
 # ----------------------------------------------------------------------
@@ -197,24 +255,9 @@ class RecoveryScorer(object):
     def _recovered_mask_parallel(self, estimator, n_jobs):
         """Per-source recovered mask, fanned over a spawn pool (mask-identical to
         the serial loop)."""
-        if n_jobs < 0:
-            n_jobs = _mp.cpu_count()
-        n_jobs = max(1, min(int(n_jobs), self.n_sources))
-        prev = {k: os.environ.get(k) for k in _BLAS_THREAD_VARS}
-        for k in _BLAS_THREAD_VARS:
-            os.environ[k] = '1'
-        try:
-            ctx = _mp.get_context('spawn')
-            with ctx.Pool(n_jobs, initializer=_par_init,
-                          initargs=(estimator, self.freqs, self._crit(),
-                                    self._sources)) as pool:
-                mask = pool.map(_par_recovered, range(self.n_sources))
-        finally:
-            for k, v in prev.items():
-                if v is None:
-                    os.environ.pop(k, None)
-                else:
-                    os.environ[k] = v
+        mask = _parallel_map(
+            n_jobs, self.n_sources, _par_init,
+            (estimator, self.freqs, self._crit(), self._sources), _par_recovered)
         return np.array(mask, dtype=bool)
 
     def score_estimator(self, estimator, *, return_mask=False, n_jobs=None):
@@ -251,7 +294,7 @@ class RecoveryScorer(object):
         return self.score_estimator(FTPEstimator(list(templates), mode=self.mode),
                                      return_mask=return_mask, n_jobs=n_jobs)
 
-    def source_masks(self, templates):
+    def source_masks(self, templates, *, n_jobs=None):
         """Per-template standalone recovered masks, shape ``(len(templates), n_sources)``.
 
         Each row is the recovered mask of that single template alone; the greedy
@@ -266,7 +309,12 @@ class RecoveryScorer(object):
         summations, and only sub-``1e-16`` power jitter sits below the argmax.  The
         fast path requires a common harmonic order (the summations are order-specific)
         and a non-``'sesar'`` mode (sesar needs ``relative_offsets`` the scorer never
-        supplies); otherwise it falls back to the exact per-template path."""
+        supplies); otherwise it falls back to the exact per-template path.
+
+        ``n_jobs`` (default the scorer's) fans the per-source loop over a ``spawn``
+        pool -- mask-identical to the serial loop, and the lever that makes the
+        all-universe greedy precompute tractable at production scale (98 templates x
+        1024 sources x 10^4 freq is hours serial, minutes on many cores)."""
         templates = list(templates)
         if not templates:
             return np.zeros((0, self.n_sources), dtype=bool)
@@ -277,22 +325,17 @@ class RecoveryScorer(object):
                              for tmpl in templates], dtype=bool)
 
         H = harmonics.pop()
-        nfreq = self.freqs.size
-        masks = np.empty((len(templates), self.n_sources), dtype=bool)
-        for j, (t, y, bands, dy, P_true, baseline) in enumerate(self._sources):
-            sumlists, stats = compute_band_summations(
-                t, y, bands, self.freqs, H, dy=dy, mode=self.mode, fast=True)
-            for i, tmpl in enumerate(templates):
-                template_dict = build_template_set(tmpl, bands)
-                powers, _ = solve_over_frequencies(
-                    template_dict, sumlists, stats, nfreq, mode=self.mode)
-                P_rec = 1.0 / self.freqs[int(np.argmax(powers))]
-                result = _rec.classify_recovery(
-                    P_rec, P_true, baseline=baseline, criterion=self.criterion,
-                    rtol=self.rtol, delta_phi_max=self.delta_phi_max,
-                    count_harmonics=self.harmonic_aware)
-                masks[i, j] = bool(result.recovered)
-        return masks
+        crit = self._crit()
+        n_jobs = self.n_jobs if n_jobs is None else int(n_jobs)
+        if n_jobs == 1 or self.n_sources <= 1:
+            cols = [_source_mask_column(templates, s, self.freqs, self.mode, crit, H)
+                    for s in self._sources]
+        else:
+            cols = _parallel_map(
+                n_jobs, self.n_sources, _parsm_init,
+                (templates, self.freqs, self.mode, crit, H, self._sources),
+                _parsm_col)
+        return np.stack(cols, axis=1)                # (len(templates), n_sources)
 
     def _set_scoring_params(self, *, mode, criterion, harmonic_aware,
                             delta_phi_max, rtol):
