@@ -229,17 +229,17 @@ def run_seed(templates, args, seed, log):
                                             random_state=seed)
         ftp_est = FTPEstimator(cost_vocab, mode=sub.mode)
         oracle = SesarOracleEstimator(cost_vocab, mode=sub.mode, n_tau=args.oracle_n_tau)
-        t0 = time.time(); ftp_rate = sub.score_estimator(ftp_est); ftp_t = time.time() - t0
+        t0 = time.time(); ftp_rec = sub.score_estimator(ftp_est); ftp_t = time.time() - t0
         t0 = time.time(); orc_rate = sub.score_estimator(oracle); orc_t = time.time() - t0
         result['cost'] = {
             'n_sources': sub.n_sources, 'n_freq': int(args.cost_n_freq),
             'k': int(args.cost_k), 'oracle_n_tau': int(args.oracle_n_tau),
             'ftp_seconds': ftp_t, 'oracle_seconds': orc_t,
             'speedup': (orc_t / ftp_t if ftp_t > 0 else float('inf')),
-            'ftp_recovery': ftp_rate, 'oracle_recovery': orc_rate}
+            'ftp_recovery': ftp_rec, 'oracle_recovery': orc_rate}
         log("  cost@K=%d (%d src, %d freq): FTP %.2fs (rec=%.3f) | oracle %.1fs "
             "(rec=%.3f) | speedup %.0fx"
-            % (args.cost_k, sub.n_sources, args.cost_n_freq, ftp_t, ftp_rate,
+            % (args.cost_k, sub.n_sources, args.cost_n_freq, ftp_t, ftp_rec,
                orc_t, orc_rate, result['cost']['speedup']))
     return result
 
