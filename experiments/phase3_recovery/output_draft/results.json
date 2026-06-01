@@ -5,13 +5,13 @@
       "r"
     ],
     "nharmonics": 8,
-    "n_sources": 28,
-    "n_master_epochs": 16,
-    "n_universe": 60,
+    "n_sources": 96,
+    "n_master_epochs": 20,
+    "n_universe": 98,
     "f_min": 1.0,
     "f_max": 5.0,
-    "n_freq": 600,
-    "baseline_days": 180.0,
+    "n_freq": 3000,
+    "baseline_days": 365.0,
     "seed": 0,
     "criterion": "fractional"
   },
@@ -19,35 +19,40 @@
     "k_values": [
       1,
       2,
-      4
+      4,
+      8
     ],
     "recovery": [
-      0.7857142857142857,
-      0.7857142857142857,
-      0.8214285714285714
+      1.0,
+      1.0,
+      1.0,
+      1.0
     ],
-    "baseline_recovery": 0.8214285714285714
+    "baseline_recovery": 1.0
   },
-  "fixed_k": 4,
+  "fixed_k": 1,
   "n_epochs_sweep": {
     "n_epochs_values": [
       4,
       8,
       12,
-      16
+      16,
+      20
     ],
     "recovery": [
-      0.14285714285714285,
-      0.75,
-      0.75,
-      0.8214285714285714
+      0.375,
+      0.9583333333333334,
+      1.0,
+      1.0,
+      1.0
     ],
     "baseline_recovery": [
-      0.03571428571428571,
-      0.5714285714285714,
-      0.7142857142857143,
-      0.8214285714285714
+      0.10416666666666667,
+      0.6041666666666666,
+      0.9375,
+      1.0,
+      1.0
     ]
   },
-  "wall_seconds": 366.5
+  "wall_seconds": 1141.0
 }
