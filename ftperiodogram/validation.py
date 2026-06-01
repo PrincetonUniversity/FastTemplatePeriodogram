@@ -26,8 +26,9 @@ import zlib
 import numpy as np
 
 from .template import Template
-from .multiband import (FastMultibandTemplatePeriodogram, build_template_set,
-                        compute_band_summations, solve_over_frequencies)
+from .multiband import (build_template_set, compute_band_summations,
+                        solve_over_frequencies)
+from .baselines import FTPEstimator
 from .catalog_builder import build_template_catalog
 from . import simulate as _sim
 from . import recovery as _rec
@@ -99,17 +100,19 @@ _BLAS_THREAD_VARS = ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS
                      'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS')
 
 
-def _recovered_core(templates, source, freqs, mode, crit):
-    """Period-recovery bool for one frozen source (the unit of work, process-safe).
+def _estimator_recovered(estimator, source, freqs, crit):
+    """Period-recovery bool for one frozen source under a pluggable estimator.
 
-    Identical computation serial or parallel -- recovery is a per-source ``argmax``
-    of the same fast summations, so fanning sources across processes is mask-identical
-    to the serial loop."""
+    ``estimator(t, y, bands, dy, freqs) -> P_rec`` is any period estimator -- the
+    FTP catalog periodogram (:class:`~ftperiodogram.baselines.FTPEstimator`), a
+    comparison baseline, or the Sesar oracle -- so the source is scored identically
+    regardless of which produced ``P_rec``.  Identical computation serial or
+    parallel (the per-source estimates are independent), so fanning sources across
+    processes is mask-identical to the serial loop; the estimator must be picklable
+    for the ``spawn`` pool, which every :mod:`ftperiodogram.baselines` estimator is.
+    """
     t, y, bands, dy, P_true, baseline = source
-    model = FastMultibandTemplatePeriodogram(list(templates), mode=mode)
-    model.fit(t, y, bands, dy)
-    powers = model.power(freqs, fast=True, save_best_model=False)
-    P_rec = 1.0 / freqs[int(np.argmax(powers))]
+    P_rec = float(estimator(t, y, bands, dy, np.asarray(freqs, dtype=float)))
     result = _rec.classify_recovery(
         P_rec, P_true, baseline=baseline, criterion=crit['criterion'],
         rtol=crit['rtol'], delta_phi_max=crit['delta_phi_max'],
@@ -120,14 +123,13 @@ def _recovered_core(templates, source, freqs, mode, crit):
 _PAR = {}                                # per-worker fixed data, set by _par_init
 
 
-def _par_init(templates, freqs, mode, crit, sources):
-    _PAR.update(templates=templates, freqs=freqs, mode=mode, crit=crit,
-                sources=sources)
+def _par_init(estimator, freqs, crit, sources):
+    _PAR.update(estimator=estimator, freqs=freqs, crit=crit, sources=sources)
 
 
 def _par_recovered(i):
-    return _recovered_core(_PAR['templates'], _PAR['sources'][i], _PAR['freqs'],
-                           _PAR['mode'], _PAR['crit'])
+    return _estimator_recovered(_PAR['estimator'], _PAR['sources'][i],
+                                _PAR['freqs'], _PAR['crit'])
 
 
 # ----------------------------------------------------------------------
@@ -192,11 +194,7 @@ class RecoveryScorer(object):
                     delta_phi_max=self.delta_phi_max,
                     harmonic_aware=self.harmonic_aware)
 
-    def _recovered_one(self, templates, source):
-        return _recovered_core(templates, source, self.freqs, self.mode,
-                               self._crit())
-
-    def _recovered_mask_parallel(self, templates, n_jobs):
+    def _recovered_mask_parallel(self, estimator, n_jobs):
         """Per-source recovered mask, fanned over a spawn pool (mask-identical to
         the serial loop)."""
         if n_jobs < 0:
@@ -208,8 +206,8 @@ class RecoveryScorer(object):
         try:
             ctx = _mp.get_context('spawn')
             with ctx.Pool(n_jobs, initializer=_par_init,
-                          initargs=(list(templates), self.freqs, self.mode,
-                                    self._crit(), self._sources)) as pool:
+                          initargs=(estimator, self.freqs, self._crit(),
+                                    self._sources)) as pool:
                 mask = pool.map(_par_recovered, range(self.n_sources))
         finally:
             for k, v in prev.items():
@@ -219,23 +217,39 @@ class RecoveryScorer(object):
                     os.environ[k] = v
         return np.array(mask, dtype=bool)
 
-    def __call__(self, templates, *, return_mask=False, n_jobs=None):
-        """Recovery rate of ``templates`` over the frozen population.
+    def score_estimator(self, estimator, *, return_mask=False, n_jobs=None):
+        """Recovery rate of a pluggable period ``estimator`` over the frozen
+        population -- the seam that scores every method on the identical sources.
 
-        Returns ``rate`` (a float) or ``(rate, mask)`` with the per-source boolean
-        recovered mask when ``return_mask`` -- the mask is what the greedy selector
-        needs to target the not-yet-recovered subset.  ``n_jobs`` (default the
-        scorer's ``n_jobs``) fans the per-source loop over that many processes; the
-        sources are independent, so the result is identical to the serial loop.
+        ``estimator(t, y, bands, dy, freqs) -> P_rec`` is any
+        :mod:`ftperiodogram.baselines` estimator (FTP, GLS, MHLS, multiband LS, the
+        Sesar oracle) or an equivalent picklable callable.  Returns ``rate`` or, with
+        ``return_mask``, ``(rate, mask)``.  ``n_jobs`` (default the scorer's) fans the
+        per-source loop over that many ``spawn`` processes; sources are independent,
+        so the parallel result is identical to the serial loop.
         """
         n_jobs = self.n_jobs if n_jobs is None else int(n_jobs)
         if n_jobs == 1 or self.n_sources <= 1:
-            mask = np.array([self._recovered_one(templates, s)
+            mask = np.array([_estimator_recovered(estimator, s, self.freqs,
+                                                  self._crit())
                              for s in self._sources], dtype=bool)
         else:
-            mask = self._recovered_mask_parallel(templates, n_jobs)
+            mask = self._recovered_mask_parallel(estimator, n_jobs)
         rate = float(mask.mean()) if mask.size else 0.0
         return (rate, mask) if return_mask else rate
+
+    def __call__(self, templates, *, return_mask=False, n_jobs=None):
+        """Recovery rate of the FTP catalog ``templates`` over the frozen population.
+
+        A thin wrapper over :meth:`score_estimator` with an
+        :class:`~ftperiodogram.baselines.FTPEstimator` (catalog mode, the scorer's
+        ``mode``): FTP is scored through the same seam as every comparison method.
+        Returns ``rate`` or ``(rate, mask)`` with the per-source boolean recovered
+        mask -- what the greedy selector needs to target the not-yet-recovered
+        subset.
+        """
+        return self.score_estimator(FTPEstimator(list(templates), mode=self.mode),
+                                     return_mask=return_mask, n_jobs=n_jobs)
 
     def source_masks(self, templates):
         """Per-template standalone recovered masks, shape ``(len(templates), n_sources)``.
