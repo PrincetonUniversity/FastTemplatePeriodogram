@@ -247,6 +247,28 @@ def test_source_masks_empty():
     assert scorer.source_masks([]).shape == (0, scorer.n_sources)
 
 
+# ----------------------------------------------------------------------
+# Parallel source loop (Feature 6)
+# ----------------------------------------------------------------------
+def test_call_parallel_matches_serial():
+    templates, scorer = _master_scorer()
+    rate_s, serial = scorer(templates[:3], return_mask=True, n_jobs=1)
+    rate_p, parallel = scorer(templates[:3], return_mask=True, n_jobs=2)
+    npt.assert_array_equal(serial, parallel)       # sources independent -> identical
+    assert rate_s == rate_p
+
+
+def test_n_jobs_propagates_through_downsample():
+    templates = _population(seed=1)
+    cad = SyntheticCadence(n_epochs={'g': 20, 'r': 20}, bands=['g', 'r'],
+                           baseline_days=365.25, random_state=2)
+    scorer = val.make_recovery_scorer(
+        cad, templates, freqs=val.frequency_grid(1.0, 3.0, 150), n_sources=6,
+        random_state=0, n_jobs=3)
+    assert scorer.n_jobs == 3
+    assert scorer.downsample(8).n_jobs == 3        # execution knob carries over
+
+
 def test_harness_public_api_exports():
     import ftperiodogram as ftp
     for name in ('Cadence', 'SyntheticCadence', 'exp_mag_error',

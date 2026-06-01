@@ -19,6 +19,8 @@ The recovery scorer is the seam the K-sweep and the greedy selector share.
 Search grids are explicit ``[f_min, f_max]`` -- never a Nyquist heuristic.
 """
 from collections import namedtuple
+import multiprocessing as _mp
+import os
 import zlib
 
 import numpy as np
@@ -88,6 +90,47 @@ def _combine_seeds(base, source_index, band):
 
 
 # ----------------------------------------------------------------------
+# Per-source recovery (shared by the serial and parallel paths)
+# ----------------------------------------------------------------------
+# Limiting BLAS to one thread per worker avoids oversubscription when the source
+# loop is fanned across processes; spawned children inherit these at interpreter
+# startup (before numpy imports), so the parent sets them just around the pool.
+_BLAS_THREAD_VARS = ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS',
+                     'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS')
+
+
+def _recovered_core(templates, source, freqs, mode, crit):
+    """Period-recovery bool for one frozen source (the unit of work, process-safe).
+
+    Identical computation serial or parallel -- recovery is a per-source ``argmax``
+    of the same fast summations, so fanning sources across processes is mask-identical
+    to the serial loop."""
+    t, y, bands, dy, P_true, baseline = source
+    model = FastMultibandTemplatePeriodogram(list(templates), mode=mode)
+    model.fit(t, y, bands, dy)
+    powers = model.power(freqs, fast=True, save_best_model=False)
+    P_rec = 1.0 / freqs[int(np.argmax(powers))]
+    result = _rec.classify_recovery(
+        P_rec, P_true, baseline=baseline, criterion=crit['criterion'],
+        rtol=crit['rtol'], delta_phi_max=crit['delta_phi_max'],
+        count_harmonics=crit['harmonic_aware'])
+    return bool(result.recovered)
+
+
+_PAR = {}                                # per-worker fixed data, set by _par_init
+
+
+def _par_init(templates, freqs, mode, crit, sources):
+    _PAR.update(templates=templates, freqs=freqs, mode=mode, crit=crit,
+                sources=sources)
+
+
+def _par_recovered(i):
+    return _recovered_core(_PAR['templates'], _PAR['sources'][i], _PAR['freqs'],
+                           _PAR['mode'], _PAR['crit'])
+
+
+# ----------------------------------------------------------------------
 # Recovery scorer (frozen population)
 # ----------------------------------------------------------------------
 class RecoveryScorer(object):
@@ -106,9 +149,10 @@ class RecoveryScorer(object):
                  p_true=None, mode='floating_offsets', criterion='fractional',
                  harmonic_aware=False, delta_phi_max=0.5, rtol=0.01,
                  amplitude=0.5, mean_mag=15.0, band_amplitudes=None,
-                 band_offsets=None, random_state=0):
+                 band_offsets=None, random_state=0, n_jobs=1):
         self.freqs = _align_grid(freqs)        # NFFT-aligned (snaps if needed)
         self.n_sources = int(n_sources)
+        self.n_jobs = int(n_jobs)              # source-loop processes (1 = serial)
         self._set_scoring_params(mode=mode, criterion=criterion,
                                  harmonic_aware=harmonic_aware,
                                  delta_phi_max=delta_phi_max, rtol=rtol)
@@ -143,27 +187,53 @@ class RecoveryScorer(object):
             self._sources.append((lc.t, lc.y, lc.bands, lc.dy, self.p_true[i],
                                   baseline))
 
-    def _recovered_one(self, templates, source):
-        t, y, bands, dy, P_true, baseline = source
-        model = FastMultibandTemplatePeriodogram(list(templates), mode=self.mode)
-        model.fit(t, y, bands, dy)
-        powers = model.power(self.freqs, fast=True, save_best_model=False)
-        P_rec = 1.0 / self.freqs[int(np.argmax(powers))]
-        result = _rec.classify_recovery(
-            P_rec, P_true, baseline=baseline, criterion=self.criterion,
-            rtol=self.rtol, delta_phi_max=self.delta_phi_max,
-            count_harmonics=self.harmonic_aware)
-        return bool(result.recovered)
+    def _crit(self):
+        return dict(criterion=self.criterion, rtol=self.rtol,
+                    delta_phi_max=self.delta_phi_max,
+                    harmonic_aware=self.harmonic_aware)
 
-    def __call__(self, templates, *, return_mask=False):
+    def _recovered_one(self, templates, source):
+        return _recovered_core(templates, source, self.freqs, self.mode,
+                               self._crit())
+
+    def _recovered_mask_parallel(self, templates, n_jobs):
+        """Per-source recovered mask, fanned over a spawn pool (mask-identical to
+        the serial loop)."""
+        if n_jobs < 0:
+            n_jobs = _mp.cpu_count()
+        n_jobs = max(1, min(int(n_jobs), self.n_sources))
+        prev = {k: os.environ.get(k) for k in _BLAS_THREAD_VARS}
+        for k in _BLAS_THREAD_VARS:
+            os.environ[k] = '1'
+        try:
+            ctx = _mp.get_context('spawn')
+            with ctx.Pool(n_jobs, initializer=_par_init,
+                          initargs=(list(templates), self.freqs, self.mode,
+                                    self._crit(), self._sources)) as pool:
+                mask = pool.map(_par_recovered, range(self.n_sources))
+        finally:
+            for k, v in prev.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        return np.array(mask, dtype=bool)
+
+    def __call__(self, templates, *, return_mask=False, n_jobs=None):
         """Recovery rate of ``templates`` over the frozen population.
 
         Returns ``rate`` (a float) or ``(rate, mask)`` with the per-source boolean
         recovered mask when ``return_mask`` -- the mask is what the greedy selector
-        needs to target the not-yet-recovered subset.
+        needs to target the not-yet-recovered subset.  ``n_jobs`` (default the
+        scorer's ``n_jobs``) fans the per-source loop over that many processes; the
+        sources are independent, so the result is identical to the serial loop.
         """
-        mask = np.array([self._recovered_one(templates, s)
-                         for s in self._sources], dtype=bool)
+        n_jobs = self.n_jobs if n_jobs is None else int(n_jobs)
+        if n_jobs == 1 or self.n_sources <= 1:
+            mask = np.array([self._recovered_one(templates, s)
+                             for s in self._sources], dtype=bool)
+        else:
+            mask = self._recovered_mask_parallel(templates, n_jobs)
         rate = float(mask.mean()) if mask.size else 0.0
         return (rate, mask) if return_mask else rate
 
@@ -222,7 +292,8 @@ class RecoveryScorer(object):
     @classmethod
     def _from_sources(cls, sources, *, freqs, p_true=None,
                       mode='floating_offsets', criterion='fractional',
-                      harmonic_aware=False, delta_phi_max=0.5, rtol=0.01):
+                      harmonic_aware=False, delta_phi_max=0.5, rtol=0.01,
+                      n_jobs=1):
         """Build a scorer from an already-frozen population (no simulation).
 
         ``freqs`` is copied verbatim (assumed already NFFT-aligned -- the master
@@ -233,6 +304,7 @@ class RecoveryScorer(object):
         self.freqs = np.asarray(freqs, dtype=float)       # already aligned; no re-snap
         self._sources = list(sources)
         self.n_sources = len(self._sources)
+        self.n_jobs = int(n_jobs)
         self._set_scoring_params(mode=mode, criterion=criterion,
                                  harmonic_aware=harmonic_aware,
                                  delta_phi_max=delta_phi_max, rtol=rtol)
@@ -291,7 +363,7 @@ class RecoveryScorer(object):
         return RecoveryScorer._from_sources(
             new_sources, freqs=self.freqs, p_true=self.p_true, mode=self.mode,
             criterion=self.criterion, harmonic_aware=self.harmonic_aware,
-            delta_phi_max=self.delta_phi_max, rtol=self.rtol)
+            delta_phi_max=self.delta_phi_max, rtol=self.rtol, n_jobs=self.n_jobs)
 
 
 def make_recovery_scorer(cadence, truth_templates, *, freqs, n_sources=64,
@@ -299,14 +371,14 @@ def make_recovery_scorer(cadence, truth_templates, *, freqs, n_sources=64,
                          criterion='fractional', harmonic_aware=False,
                          delta_phi_max=0.5, rtol=0.01, amplitude=0.5,
                          mean_mag=15.0, band_amplitudes=None, band_offsets=None,
-                         random_state=0):
+                         random_state=0, n_jobs=1):
     """Build a :class:`RecoveryScorer` over a frozen simulated population."""
     return RecoveryScorer(
         cadence, truth_templates, freqs=freqs, n_sources=n_sources, p_true=p_true,
         mode=mode, criterion=criterion, harmonic_aware=harmonic_aware,
         delta_phi_max=delta_phi_max, rtol=rtol, amplitude=amplitude,
         mean_mag=mean_mag, band_amplitudes=band_amplitudes,
-        band_offsets=band_offsets, random_state=random_state)
+        band_offsets=band_offsets, random_state=random_state, n_jobs=n_jobs)
 
 
 # ----------------------------------------------------------------------
@@ -322,7 +394,7 @@ def k_sweep_recovery(templates, cadence, k_values=(1, 2, 4, 8), *, scorer=None,
                      recovery_config=None, f_min=None, f_max=None, n_freq=None,
                      n_sources=64, p_true=None, mode='floating_offsets',
                      include_baseline=True, catalog_kwargs=None,
-                     return_masks=False, random_state=0):
+                     return_masks=False, random_state=0, n_jobs=1):
     """Recovery-vs-K curve for vocabularies built from ``templates``.
 
     For each K in ``k_values`` a size-K vocabulary is built with
@@ -347,7 +419,8 @@ def k_sweep_recovery(templates, cadence, k_values=(1, 2, 4, 8), *, scorer=None,
         freqs = frequency_grid(f_min, f_max, n_freq)
         scorer = make_recovery_scorer(
             cadence, templates, freqs=freqs, n_sources=n_sources, p_true=p_true,
-            mode=mode, random_state=random_state, **dict(recovery_config or {}))
+            mode=mode, random_state=random_state, n_jobs=n_jobs,
+            **dict(recovery_config or {}))
 
     baseline_recovery, baseline_mask = None, None
     if include_baseline:

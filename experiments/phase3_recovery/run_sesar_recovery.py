@@ -67,6 +67,8 @@ def parse_args(argv=None):
     p.add_argument('--max-templates', type=int, default=None,
                    help="cap the universe (for smoke runs)")
     p.add_argument('--seed', type=int, default=0)
+    p.add_argument('--n-jobs', type=int, default=1,
+                   help="processes for the per-source loop (-1 = all cores)")
     p.add_argument('--outdir', default=os.path.join(os.path.dirname(__file__), 'output'))
     p.add_argument('--no-figures', action='store_true')
     p.add_argument('--smoke', action='store_true',
@@ -109,11 +111,12 @@ def main(argv=None):
         n_epochs={b: args.n_master_epochs for b in obs_bands}, bands=obs_bands,
         baseline_days=args.baseline_days, random_state=args.seed + 1)
     master = make_recovery_scorer(cadence, templates, freqs=freqs,
-                                  n_sources=args.n_sources, random_state=args.seed)
+                                  n_sources=args.n_sources, random_state=args.seed,
+                                  n_jobs=args.n_jobs)
     print("frozen population: %d sources, bands=%s, %d master epochs/band, "
-          "grid=[%.3f, %.3f] x %d" % (args.n_sources, obs_bands,
-                                      args.n_master_epochs, args.f_min, args.f_max,
-                                      args.n_freq))
+          "grid=[%.3f, %.3f] x %d, n_jobs=%d"
+          % (args.n_sources, obs_bands, args.n_master_epochs, args.f_min,
+             args.f_max, args.n_freq, args.n_jobs))
 
     # 3. recovery-vs-K (deliverable i) -------------------------------------------
     t0 = time.time()
