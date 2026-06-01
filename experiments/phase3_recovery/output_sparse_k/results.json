@@ -1,0 +1,49 @@
+{
+  "config": {
+    "obs_bands": [
+      "g",
+      "r"
+    ],
+    "nharmonics": 8,
+    "n_sources": 96,
+    "n_master_epochs": 6,
+    "n_universe": 98,
+    "f_min": 1.0,
+    "f_max": 5.0,
+    "n_freq": 3000,
+    "baseline_days": 365.0,
+    "seed": 0,
+    "criterion": "fractional"
+  },
+  "k_sweep": {
+    "k_values": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "recovery": [
+      0.90625,
+      0.9166666666666666,
+      0.8854166666666666,
+      0.8854166666666666
+    ],
+    "baseline_recovery": 0.25
+  },
+  "fixed_k": 1,
+  "n_epochs_sweep": {
+    "n_epochs_values": [
+      3,
+      6
+    ],
+    "recovery": [
+      0.041666666666666664,
+      0.90625
+    ],
+    "baseline_recovery": [
+      0.020833333333333332,
+      0.25
+    ]
+  },
+  "wall_seconds": 924.6
+}

@@ -36,6 +36,12 @@ vocabulary *size* adds little; the win is template *shape* vs. sinusoid. A
 discriminating recovery-vs-K panel needs a **sparse** master cadence (e.g.
 `--n-master-epochs 6`), where it tests whether K>1 helps when data is scarce.
 
+`output_sparse_k/` is exactly that run (6 epochs/band, 96 sources): the recovery-vs-K
+panel is now discriminating — FTP holds **~0.88–0.92** across K=1–8, far above the GLS
+line at **0.25** — and shows K=1–2 already suffices (larger K marginally hurts via
+catalog-max alias peaks). Together the two dirs give deliverable (ii) (`output_draft/`,
+the N_epochs headline) and deliverable (i) (`output_sparse_k/`, the K panel).
+
 Outputs: `results.json` + `results.npz` (raw numbers) and, when matplotlib is
 installed, `figures/` (recovery-vs-K, recovery-vs-N_epochs, and the two-panel
 figure).
