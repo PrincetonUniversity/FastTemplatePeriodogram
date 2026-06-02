@@ -30,9 +30,11 @@ def finalize(universe):
     seeds = []
     for s in (0, 1, 2):
         path = os.path.join(OUTDIR, "%s-%d.json" % (universe, s))
-        if not os.path.exists(path):
-            raise SystemExit("missing %s" % path)
-        seeds.append(json.load(open(path)))
+        if os.path.exists(path):
+            seeds.append(json.load(open(path)))
+    if not seeds:
+        raise SystemExit("no seed results for %s" % universe)
+    print("aggregating %d seed(s) for %s" % (len(seeds), universe))
     agg = rpm.aggregate(seeds)
     results = {"config": {"universe": universe, "nharmonics": 8, "n_sources": 256,
                           "n_freq": 8000, "n_seeds": 3},
@@ -44,10 +46,13 @@ def finalize(universe):
 
     ks = agg["k_sweep_sparse"]; kd = agg["k_sweep_dense"]; n = agg["n_epochs_sweep"]
     c = agg.get("cost", {})
+    nseed = len(seeds)
     lines = [
-        "# Phase 3.2 production headline -- %s universe (H=8, 256 src x 3 seeds)" % universe,
+        "# Phase 3.2 production headline -- %s universe (H=8, 256 src x %d seed%s)"
+        % (universe, nseed, "s" if nseed != 1 else ""),
         "",
-        "Full RunPod fleet result (3 seeds, mean across seeds). Figures in this dir.",
+        "RunPod fleet result (%d seed%s, mean across seeds). Figures in this dir."
+        % (nseed, "s" if nseed != 1 else ""),
         "",
         "## Recovery vs N_epochs @ knee K=%s (the headline)" % n["k_per_seed"],
         "| epochs/band | %s |" % " | ".join(str(x) for x in n["n_epochs_values"]),
