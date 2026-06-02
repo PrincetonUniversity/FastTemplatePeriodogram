@@ -770,14 +770,18 @@ def fetch_baeza_villagra_templates(subtypes=('RRab', 'RRc'), bands=None,
                                     data_home=data_home,
                                     force_download=force_download)
         with zipfile.ZipFile(path) as archive:
-            members = sorted(n for n in archive.getnames() if n.endswith('.txt'))
+            members = sorted(n for n in archive.namelist() if n.endswith('.txt'))
             for name in members:
                 star = os.path.basename(name)[:-len('.txt')]
-                text = archive.read(name).decode('utf-8', 'replace')
+                # strip NUL bytes (a few archive members carry them) before csv
+                text = archive.read(name).decode('utf-8', 'replace').replace('\x00', '')
                 by_band = {}
                 for row in csv.DictReader(io.StringIO(text)):
-                    by_band.setdefault(row['Band'], []).append(
-                        (float(row['Phase']), float(row['Mag'])))
+                    try:
+                        by_band.setdefault(row['Band'], []).append(
+                            (float(row['Phase']), float(row['Mag'])))
+                    except (KeyError, TypeError, ValueError):
+                        continue                          # skip malformed rows
                 for band, pts in by_band.items():
                     if want_bands is not None and band not in want_bands:
                         continue
