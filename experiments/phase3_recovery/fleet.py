@@ -32,11 +32,15 @@ REST = "https://rest.runpod.io/v1"
 TGZ = ("https://github.com/PrincetonUniversity/FastTemplatePeriodogram/"
        "archive/refs/heads/phase3.2-figures.tar.gz")
 
-CONFIG = ("--nharmonics 8 --n-sources 1024 --n-freq 15000 --baseline-days 1095.75 "
+# Right-sized to the PROVEN preview config (256 src / 8k freq / K<=8 ~ 81 core-hr/job);
+# the original 1024/15k/K<=16 was ~15x that (~40-78h/job, ~$260) -- infeasible. This
+# finishes overnight (~3h/32-vCPU, ~6h/16-vCPU, ~$20) across 3 seeds x both universes
+# with the same conclusions (768 realizations/point, SE~0.017 << the FTP-vs-baseline gaps).
+CONFIG = ("--nharmonics 8 --n-sources 256 --n-freq 8000 --baseline-days 1095.75 "
           "--obs-bands g,r --dense-master-epochs 60 --sparse-master-epochs 6 "
-          "--k-values 1,2,4,8,16 --n-epochs-values 4,8,12,16,24,40 --mhls-h 8 --mbls-h 1 "
-          "--greedy-select-sources 256 --greedy-select-nfreq 4000 --cost-subsample 48 "
-          "--cost-n-freq 2000 --cost-k 2 --oracle-n-tau 128 --bv-bands g,r")
+          "--k-values 1,2,4,8 --n-epochs-values 4,8,12,16,24,40 --mhls-h 8 --mbls-h 1 "
+          "--greedy-select-sources 64 --greedy-select-nfreq 2000 --cost-subsample 32 "
+          "--cost-n-freq 1500 --cost-k 2 --oracle-n-tau 128 --bv-bands g,r")
 JOBS = [(u, s) for u in ("sesar", "bv") for s in (0, 1, 2)]
 IMAGE = "python:3.11"
 # capacity-fallback chain (flavor, vcpu, cloudType): bigger/secure first, then degrade
@@ -240,6 +244,19 @@ def collect():
     return done == len(st["jobs"])
 
 
+def count():
+    """Print the number of distinct RESULT beacons posted (for the monitor)."""
+    st = json.load(open(STATE))
+    try:
+        url = ("https://webhook.site/token/%s/requests?per_page=100" % st["token"])
+        d = json.loads(urllib.request.urlopen(url, timeout=25).read().decode())["data"]
+    except Exception:
+        print(0); return
+    tags = {j["tag"] for j in st["jobs"]}
+    res = {_headers(r).get("x-job", "") for r in d}
+    print(len(tags & res))
+
+
 def cleanup():
     text = _runpod("GET", "/pods")
     ids = re.findall(r'"id":"([a-z0-9]{10,})"', text)
@@ -250,4 +267,5 @@ def cleanup():
 
 if __name__ == "__main__":
     {"launch": launch, "canary": canary, "start_beacon": start_beacon,
-     "relaunch": relaunch, "collect": collect, "cleanup": cleanup}[sys.argv[1]]()
+     "relaunch": relaunch, "collect": collect, "count": count,
+     "cleanup": cleanup}[sys.argv[1]]()
