@@ -5,3 +5,8 @@ output_prod/
 # adversarial-verification scratch (independent reference impls written by agents)
 _verify/
 *_run.log
+_fleet/
+_runpod_probe/
+_baseline_build/
+orchestrate_runpod.py
+fleet_*.log
