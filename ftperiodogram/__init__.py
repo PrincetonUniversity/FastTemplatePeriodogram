@@ -7,9 +7,10 @@ from .template import Template
 from .catalog_builder import (build_template_catalog, templates_from_sampled,
                               fetch_sesar_templates, fetch_baeza_villagra_templates,
                               CatalogDiagnostics)
-from .simulate import (Cadence, SyntheticCadence, CadenceSample, exp_mag_error,
-                       simulate_lightcurve, simulate_multiband_lightcurve,
-                       SimulatedLightCurve, SimulatedMultibandLightCurve)
+from .simulate import (Cadence, SyntheticCadence, RealZTFCadence, CadenceSample,
+                       exp_mag_error, simulate_lightcurve,
+                       simulate_multiband_lightcurve, SimulatedLightCurve,
+                       SimulatedMultibandLightCurve)
 from .recovery import (recovered_fractional, recovered_phase_coherence,
                        harmonic_alias_set, classify_recovery, recovery_rate,
                        RecoveryResult, AliasMatch)
