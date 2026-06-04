@@ -35,8 +35,10 @@ Design (``phase3_vocab_design.md`` S.A.4)
   is aggregated by the **per-harmonic complex-coefficient median** -- robust to the
   residual wrong-period outliers that survive the gate.
 * **Anti-collapse.**  Atom count K is fixed; any update that pushes two templates
-  within ``diversity_eps`` orbit distance is reverted (the offending template keeps
-  its previous shape) and the event is logged, so atoms cannot merge.
+  *closer* to within ``diversity_eps`` orbit distance is reverted (the offending
+  template keeps its previous shape) and logged.  This is a *no-worsening* guard --
+  it prevents atoms merging during refinement; it does not repair a k-medoids init
+  that is already within ``diversity_eps`` (assumed diverse by construction).
 * **Non-monotone convergence.**  The EM objective is *not* assumed to decrease
   monotonically toward the truth; we early-stop on a held-out recovery metric with
   patience and return the **best held-out** vocabulary, not the last -- the explicit
@@ -294,7 +296,9 @@ def _mstep_median(sources, assign, freq_rec, gated, vocab, H):
                 continue
             z = _pad(z, H)
             _, delta = _max_cross_correlation(z_ref, z)     # align z to the medoid
-            aligned.append(z * np.exp(-1j * 2.0 * np.pi * kk * delta))
+            # _max_cross_correlation returns delta with z_k = z_ref_k e^{-2pi i k delta},
+            # so undo it with +delta to bring the member onto the medoid's phase frame.
+            aligned.append(z * np.exp(1j * 2.0 * np.pi * kk * delta))
         if not aligned:
             continue
         A = np.asarray(aligned)

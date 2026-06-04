@@ -100,6 +100,38 @@ def test_align_to_template_recovers_phase_and_amplitude(shapes):
     assert a > 0
 
 
+def _clean_cluster(truth):
+    """Six clean, noiseless members of one shape at varied periods/phases."""
+    cad = SyntheticCadence(n_epochs={'g': 100, 'r': 100}, bands=['g', 'r'],
+                           baseline_days=BASELINE, random_state=9)
+    sources, freq_rec = [], []
+    for i, (P, tau) in enumerate([(0.50, 0.10), (0.41, 0.60), (0.62, 0.30),
+                                  (0.33, 0.80), (0.55, 0.20), (0.47, 0.45)]):
+        lc = simulate_multiband_lightcurve(truth, P, cad, amplitude=0.6, tau=tau,
+                                           random_state=100 + i, add_noise=False)
+        sources.append((lc.t, lc.y, lc.bands, lc.dy))
+        freq_rec.append(1.0 / P)
+    assign = np.zeros(len(sources), dtype=int)
+    gated = np.ones(len(sources), dtype=bool)
+    return sources, np.array(freq_rec), assign, gated
+
+
+@pytest.mark.parametrize('mstep_name', ['_mstep_pooled', '_mstep_median'])
+def test_mstep_recovers_cluster_shape(shapes, mstep_name):
+    """Both aggregators reconstruct a cluster's shape from clean members.
+
+    Regression for the median orbit-alignment sign: a wrong sign double-shifts the
+    members, smearing the aggregate to orbit distance ~0.25 (this runs the M-step
+    directly, bypassing the best-held-out guard that otherwise masks the bug)."""
+    import ftperiodogram.joint_em as jem
+    truth = shapes[0]
+    sources, freq_rec, assign, gated = _clean_cluster(truth)
+    mstep = getattr(jem, mstep_name)
+    new, n_updated = mstep(sources, assign, freq_rec, gated, [truth], H)
+    assert n_updated == 1
+    assert _orbit_distance(new[0], truth) < 0.05
+
+
 # ----------------------------------------------------------------------
 # Public-API behavioural tests
 # ----------------------------------------------------------------------

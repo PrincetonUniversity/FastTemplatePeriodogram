@@ -62,8 +62,9 @@ def run(args):
 
     def master(seed):
         return make_recovery_scorer(cad, truth, freqs=freqs,
-                                    n_sources=args.n_sources, random_state=seed,
-                                    n_jobs=args.n_jobs)
+                                    n_sources=args.n_sources, mean_mag=args.mean_mag,
+                                    intrinsic_jitter=args.intrinsic_jitter,
+                                    random_state=seed, n_jobs=args.n_jobs)
 
     train_m = master(args.seed + 11)
     val_m = master(args.seed + 22)
@@ -103,6 +104,8 @@ def run(args):
     result = dict(universe=args.universe, bands=bands, k=args.k,
                   n_sources=args.n_sources, n_harmonics=args.n_harmonics,
                   freq_grid=[args.f_min, args.f_max, args.n_freq],
+                  baseline_days=args.baseline_days,
+                  intrinsic_jitter=args.intrinsic_jitter, mean_mag=args.mean_mag,
                   max_iter=args.max_iter, seed=args.seed, rows=rows)
     with open(os.path.join(args.out, 'results.json'), 'w') as fh:
         json.dump(result, fh, indent=2)
@@ -115,9 +118,11 @@ def run(args):
 def _write_summary(args, rows):
     lines = ["# Phase 3.4 joint-vs-pipeline gap -- %s universe" % args.universe,
              "",
-             "K=%d, %d sources, H=%d, max_iter=%d, seed=%d, bands=%s"
+             "K=%d, %d sources, H=%d, max_iter=%d, seed=%d, bands=%s, "
+             "jitter=%.3g, mean_mag=%.3g, T=%.0fd"
              % (args.k, args.n_sources, args.n_harmonics, args.max_iter,
-                args.seed, ''.join(args.bands)),
+                args.seed, ''.join(args.bands), args.intrinsic_jitter,
+                args.mean_mag, args.baseline_days),
              "",
              "| N_epochs | pipeline | joint | gap | GLS |",
              "|---|---|---|---|---|"]
@@ -169,6 +174,12 @@ def main():
     p.add_argument('--n-freq', type=int, default=4000)
     p.add_argument('--baseline-days', type=float, default=365.0,
                    help='observing span T; the grid must satisfy df << 1/T')
+    p.add_argument('--intrinsic-jitter', type=float, default=0.0,
+                   help='per-source relative Fourier shape jitter; gives joint '
+                        'MRA headroom (0 = degenerate same-library control)')
+    p.add_argument('--mean-mag', type=float, default=15.0,
+                   help='mean magnitude; raise toward 20 to lower per-epoch SNR '
+                        'into the 1/SNR^3 regime where joint should help most')
     p.add_argument('--max-iter', type=int, default=10)
     p.add_argument('--n-jobs', type=int, default=1)
     p.add_argument('--seed', type=int, default=0)
