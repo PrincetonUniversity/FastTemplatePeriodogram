@@ -260,7 +260,7 @@ class RealZTFCadence(Cadence):
 
     @classmethod
     def from_cache(cls, oid, *, err_model=None, bands=None, data_home=None,
-                   catflags_max=0):
+                   catflags_max=0, max_epochs_per_band=None):
         """Build a :class:`RealZTFCadence` from one cached ZTF object's epochs.
 
         Reads the per-object record written by
@@ -281,6 +281,13 @@ class RealZTFCadence(Cadence):
             Cache root (defaults to ``~/.ftperiodogram_data/ztf_cadence_sample``).
         catflags_max : int
             Keep only epochs with ``catflags <= catflags_max`` (0 = clean only).
+        max_epochs_per_band : int or None
+            If set, *evenly* thin each band to at most this many epochs across the
+            full baseline (``np.linspace`` index subset).  This preserves the real
+            seasonal-gap / clumping structure and full time span while capping the
+            per-band count -- the lever that makes scoring a dense full-survey ZTF
+            light curve tractable without distorting the cadence shape.  ``None``
+            keeps every recorded epoch.
         """
         home = (os.path.join(os.path.expanduser("~"), ".ftperiodogram_data",
                              "ztf_cadence_sample")
@@ -302,7 +309,14 @@ class RealZTFCadence(Cadence):
         if not wanted:
             raise ValueError("none of bands=%r present for oid=%s (have %r)"
                              % (bands, oid, present))
-        epochs_by_band = {b: t[bnd == b] for b in wanted}
+        epochs_by_band = {}
+        for b in wanted:
+            tb = np.sort(t[bnd == b])
+            if (max_epochs_per_band is not None
+                    and tb.size > int(max_epochs_per_band)):
+                idx = np.linspace(0, tb.size - 1, int(max_epochs_per_band))
+                tb = tb[np.unique(np.round(idx).astype(int))]
+            epochs_by_band[b] = tb
         return cls(epochs_by_band, err_model=err_model, object_id=oid,
                    metadata=meta)
 

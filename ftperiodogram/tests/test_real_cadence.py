@@ -163,6 +163,21 @@ def test_from_cache_roundtrip_and_catflags_filter():
         assert np.all(np.diff(s.t) >= 0)
 
 
+def test_from_cache_caps_epochs_but_keeps_baseline():
+    with tempfile.TemporaryDirectory() as d:
+        # 100 g epochs spread over a 2-year baseline
+        mjd = np.linspace(58000.0, 58730.0, 100)
+        band = np.array(['g'] * 100)
+        _write_cache_npz(os.path.join(d, 'g9.npz'), mjd, band)
+        full = RealZTFCadence.from_cache('g9', data_home=d, bands=['g'])
+        capped = RealZTFCadence.from_cache('g9', data_home=d, bands=['g'],
+                                           max_epochs_per_band=20)
+        assert full.epoch_counts()['g'] == 100
+        assert capped.epoch_counts()['g'] <= 20
+        # even thinning keeps the full time span (first & last epoch retained)
+        assert capped.baseline == pytest.approx(full.baseline)
+
+
 def test_from_cache_missing_file_raises():
     with tempfile.TemporaryDirectory() as d:
         with pytest.raises(FileNotFoundError):

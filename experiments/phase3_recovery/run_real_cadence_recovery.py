@@ -69,24 +69,33 @@ def knee_k(k_values, recovery, frac=0.98):
 # Cadence selection
 # ----------------------------------------------------------------------
 def pick_real_cadences(cache_dir, obs_bands, err_model, *, n_cadences=1,
-                       catflags_max=0, min_per_band=120):
+                       catflags_max=0, min_per_band=120, max_epochs_per_band=None):
     """Load up to ``n_cadences`` cached real ZTF objects that cover ``obs_bands``.
 
     Returns a list of (gid, RealZTFCadence).  Skips objects missing a requested
-    band or too sparse in any band (so the N_epochs downsample has headroom)."""
+    band or too sparse in any band (so the N_epochs downsample has headroom).
+    ``max_epochs_per_band`` evenly thins each loaded cadence (full baseline /
+    seasonal structure preserved) so a dense ~1000-epoch full-survey ZTF light
+    curve scores in seconds, not minutes -- the draft's tractability lever."""
     import glob
     cads = []
     for path in sorted(glob.glob(os.path.join(cache_dir, "g*.npz"))):
         gid = os.path.basename(path)[:-4]
+        # Eligibility on the RAW (uncapped) per-band counts, so the cap never
+        # disqualifies an otherwise well-sampled object.
         try:
-            cad = RealZTFCadence.from_cache(gid, err_model=err_model,
+            raw = RealZTFCadence.from_cache(gid, err_model=err_model,
                                             bands=obs_bands, data_home=cache_dir,
                                             catflags_max=catflags_max)
         except (ValueError, FileNotFoundError):
             continue
-        counts = cad.epoch_counts()
-        if set(obs_bands).issubset(counts) and min(counts.values()) >= min_per_band:
-            cads.append((gid, cad))
+        rc = raw.epoch_counts()
+        if not (set(obs_bands).issubset(rc) and min(rc.values()) >= min_per_band):
+            continue
+        cad = RealZTFCadence.from_cache(
+            gid, err_model=err_model, bands=obs_bands, data_home=cache_dir,
+            catflags_max=catflags_max, max_epochs_per_band=max_epochs_per_band)
+        cads.append((gid, cad))
         if len(cads) >= n_cadences:
             break
     return cads
@@ -169,7 +178,11 @@ def parse_args(argv=None):
                    help="distinct cached real objects to use as cadences (per seed)")
     p.add_argument('--cache-dir', default=DEFAULT_CACHE_DIR)
     p.add_argument('--catflags-max', type=int, default=0)
-    p.add_argument('--min-per-band', type=int, default=120)
+    p.add_argument('--min-per-band', type=int, default=100)
+    p.add_argument('--real-epochs-cap', type=int, default=None,
+                   help="evenly thin each real cadence to <= this many epochs/band "
+                        "(default: n_master_epochs, so real and synthetic are "
+                        "epoch-matched and the dense real LC scores fast)")
     p.add_argument('--err-model', choices=['empirical', 'exp'], default='empirical',
                    help="error-vs-mag model shared by both cadences")
     p.add_argument('--n-jobs', type=int, default=1)
@@ -282,9 +295,17 @@ def main(argv=None):
     print("error-vs-mag model: %s" % err_label)
 
     # 2. real cadence(s) + matched synthetic cadence --------------------------
+    # Cap the dense full-survey real LC to the synthetic master count by default,
+    # so real vs synthetic are epoch-matched (the gap is sampling *structure*, not
+    # epoch count) and the dense LC scores fast.
+    epochs_cap = (args.n_master_epochs if args.real_epochs_cap is None
+                  else args.real_epochs_cap)
     real_cads = pick_real_cadences(
         args.cache_dir, obs_bands, err_model, n_cadences=args.n_real_cadences,
-        catflags_max=args.catflags_max, min_per_band=args.min_per_band)
+        catflags_max=args.catflags_max, min_per_band=args.min_per_band,
+        max_epochs_per_band=epochs_cap)
+    print("real cadence epochs/band capped at %d (even thinning, full baseline kept)"
+          % epochs_cap)
     if not real_cads:
         print("NO usable cached real ZTF cadence covering bands %s with >=%d "
               "epochs/band in %s. Run fetch_ztf_cadence.py first. Aborting."
