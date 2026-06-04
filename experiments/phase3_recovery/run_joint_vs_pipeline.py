@@ -46,8 +46,20 @@ def _load_truth(universe, n_harmonics, bands):
 def run(args):
     bands = list(args.bands)
     truth = _load_truth(args.universe, args.n_harmonics, bands)
-    print("universe=%s: %d truth shapes (H=%d), bands=%s"
-          % (args.universe, len(truth), args.n_harmonics, bands))
+    # Library holdout: reserve a disjoint fraction of shapes as the POPULATION
+    # (injected truth) so the library both arms cluster does NOT contain the
+    # generating shapes -- the realistic mismatch that gives joint legitimate
+    # headroom to adapt. With holdout=0 population and library are the same set.
+    if args.library_holdout_frac > 0:
+        idx = np.random.RandomState(args.seed).permutation(len(truth))
+        n_pop = max(1, int(round(args.library_holdout_frac * len(truth))))
+        population = [truth[i] for i in idx[:n_pop]]
+        library = [truth[i] for i in idx[n_pop:]]
+    else:
+        population = library = truth
+    print("universe=%s: %d shapes (H=%d), bands=%s | population=%d, library=%d"
+          % (args.universe, len(truth), args.n_harmonics, bands,
+             len(population), len(library)))
     freqs = frequency_grid(args.f_min, args.f_max, args.n_freq)
     n_master = max(args.n_epochs_values)
     cad = SyntheticCadence(n_epochs={b: n_master for b in bands}, bands=bands,
@@ -61,7 +73,7 @@ def run(args):
               % (df, 0.5 / args.baseline_days))
 
     def master(seed):
-        return make_recovery_scorer(cad, truth, freqs=freqs,
+        return make_recovery_scorer(cad, population, freqs=freqs,
                                     n_sources=args.n_sources, mean_mag=args.mean_mag,
                                     intrinsic_jitter=args.intrinsic_jitter,
                                     random_state=seed, n_jobs=args.n_jobs)
@@ -70,8 +82,8 @@ def run(args):
     val_m = master(args.seed + 22)
     eval_m = master(args.seed + 33)
 
-    # pipeline vocabulary is N-independent -- build once.
-    pipeline_vocab = build_template_catalog(truth, args.k, method='pam',
+    # pipeline vocabulary is N-independent -- build once (from the library).
+    pipeline_vocab = build_template_catalog(library, args.k, method='pam',
                                             random_state=args.seed,
                                             n_harmonics=args.n_harmonics)
     gls = [Template([1.0], [0.0])]
@@ -83,7 +95,7 @@ def run(args):
         eval_N = eval_m.downsample(N, random_state=args.seed)
 
         joint_vocab, diag = build_joint_em_catalog(
-            truth, args.k, train_N, val_scorer=val_N, max_iter=args.max_iter,
+            library, args.k, train_N, val_scorer=val_N, max_iter=args.max_iter,
             n_harmonics=args.n_harmonics, random_state=args.seed,
             n_jobs=args.n_jobs, return_diagnostics=True)
 
@@ -106,6 +118,7 @@ def run(args):
                   freq_grid=[args.f_min, args.f_max, args.n_freq],
                   baseline_days=args.baseline_days,
                   intrinsic_jitter=args.intrinsic_jitter, mean_mag=args.mean_mag,
+                  library_holdout_frac=args.library_holdout_frac,
                   max_iter=args.max_iter, seed=args.seed, rows=rows)
     with open(os.path.join(args.out, 'results.json'), 'w') as fh:
         json.dump(result, fh, indent=2)
@@ -180,6 +193,9 @@ def main():
     p.add_argument('--mean-mag', type=float, default=15.0,
                    help='mean magnitude; raise toward 20 to lower per-epoch SNR '
                         'into the 1/SNR^3 regime where joint should help most')
+    p.add_argument('--library-holdout-frac', type=float, default=0.0,
+                   help='fraction of shapes reserved as the population, disjoint '
+                        'from the library both arms cluster (joint headroom)')
     p.add_argument('--max-iter', type=int, default=10)
     p.add_argument('--n-jobs', type=int, default=1)
     p.add_argument('--seed', type=int, default=0)
