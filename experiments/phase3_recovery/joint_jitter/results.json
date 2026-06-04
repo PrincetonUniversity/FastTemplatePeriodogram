@@ -1,0 +1,72 @@
+{
+  "universe": "sesar",
+  "bands": [
+    "g",
+    "r"
+  ],
+  "k": 2,
+  "n_sources": 64,
+  "n_harmonics": 4,
+  "freq_grid": [
+    1.4,
+    3.6,
+    2000
+  ],
+  "baseline_days": 60.0,
+  "intrinsic_jitter": 0.15,
+  "mean_mag": 19.0,
+  "max_iter": 8,
+  "seed": 0,
+  "rows": [
+    {
+      "n_epochs": 4,
+      "pipeline": 0.65625,
+      "joint": 0.65625,
+      "gls": 0.28125,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    },
+    {
+      "n_epochs": 6,
+      "pipeline": 0.984375,
+      "joint": 0.984375,
+      "gls": 0.546875,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    },
+    {
+      "n_epochs": 8,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 0.8125,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    },
+    {
+      "n_epochs": 12,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 0.984375,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    },
+    {
+      "n_epochs": 20,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 1.0,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    }
+  ]
+}
