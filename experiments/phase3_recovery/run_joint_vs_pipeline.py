@@ -102,14 +102,22 @@ def run(args):
         pipe_rec = float(eval_N(pipeline_vocab))
         joint_rec = float(eval_N(joint_vocab))
         gls_rec = float(eval_N(gls))
+        # mechanism metric: correct-template assignment on the correct-period subset
+        # (period recovery clips shape gains; this exposes them if joint learns
+        # better-matched templates).
+        pipe_assign = float(eval_N.assignment_accuracy(pipeline_vocab))
+        joint_assign = float(eval_N.assignment_accuracy(joint_vocab))
         rows.append(dict(n_epochs=int(N), pipeline=pipe_rec, joint=joint_rec,
                          gls=gls_rec, gap=joint_rec - pipe_rec,
+                         pipeline_assign=pipe_assign, joint_assign=joint_assign,
+                         mechanism_gap=joint_assign - pipe_assign,
                          em_best_iter=int(diag.best_iter),
                          em_n_iter=int(diag.n_iter),
                          em_stop=diag.stop_reason))
-        print("N=%2d  pipeline=%.3f  joint=%.3f  gap=%+.3f  gls=%.3f  "
-              "(EM best_iter=%d/%d, %s)"
-              % (N, pipe_rec, joint_rec, joint_rec - pipe_rec, gls_rec,
+        print("N=%2d  rec pipe=%.3f joint=%.3f gap=%+.3f | assign pipe=%.3f "
+              "joint=%.3f mech_gap=%+.3f | gls=%.3f (EM %d/%d %s)"
+              % (N, pipe_rec, joint_rec, joint_rec - pipe_rec, pipe_assign,
+                 joint_assign, joint_assign - pipe_assign, gls_rec,
                  diag.best_iter, diag.n_iter, diag.stop_reason))
 
     os.makedirs(args.out, exist_ok=True)
@@ -137,13 +145,19 @@ def _write_summary(args, rows):
                 args.seed, ''.join(args.bands), args.intrinsic_jitter,
                 args.mean_mag, args.baseline_days),
              "",
-             "| N_epochs | pipeline | joint | gap | GLS |",
-             "|---|---|---|---|---|"]
+             "| N_epochs | rec pipe | rec joint | rec gap | assign pipe | "
+             "assign joint | mech gap | GLS |",
+             "|---|---|---|---|---|---|---|---|"]
     for r in rows:
-        lines.append("| %d | %.3f | %.3f | %+.3f | %.3f |"
+        lines.append("| %d | %.3f | %.3f | %+.3f | %.3f | %.3f | %+.3f | %.3f |"
                      % (r['n_epochs'], r['pipeline'], r['joint'], r['gap'],
-                        r['gls']))
+                        r.get('pipeline_assign', float('nan')),
+                        r.get('joint_assign', float('nan')),
+                        r.get('mechanism_gap', float('nan')), r['gls']))
     lines += ["",
+              "rec gap = period-recovery (1%) joint-minus-pipeline; mech gap = "
+              "correct-template-assignment on the correct-period subset (the shape "
+              "mechanism, unclipped by period recovery).",
               "Hypothesis: gap > 0 in the sparse regime, -> 0 as N_epochs grows."]
     with open(os.path.join(args.out, 'SUMMARY.md'), 'w') as fh:
         fh.write("\n".join(lines) + "\n")

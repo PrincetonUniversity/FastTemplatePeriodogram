@@ -119,6 +119,30 @@ def test_recovery_scorer_deterministic_and_masked():
     assert masks.shape == (4, 6)
 
 
+def test_assignment_accuracy_mechanism_metric():
+    arch = [Template(c, s) for c, s in _ARCH]          # clean archetypes as vocab
+    population = _population(seed=1)                    # jittered copies of them
+    cad = SyntheticCadence(n_epochs={'g': 30, 'r': 30}, bands=['g', 'r'],
+                           baseline_days=60.0, random_state=2)
+    scorer = val.make_recovery_scorer(
+        cad, population, freqs=val.frequency_grid(1.0, 5.0, 600),
+        n_sources=12, random_state=0)
+    assert len(scorer._truth) == 12
+    assert all(isinstance(t, Template) for t in scorer._truth)
+    rate, n_correct, n_subset = scorer.assignment_accuracy(arch, return_counts=True)
+    assert 0 <= n_correct <= n_subset <= 12 and n_subset >= 1
+    assert rate == pytest.approx(n_correct / n_subset)
+    assert rate >= 0.5                                  # archetype vocab fits well
+    # downsample propagates the truth shapes; the metric still runs
+    ds = scorer.downsample(8)
+    assert len(ds._truth) == 12
+    assert 0.0 <= ds.assignment_accuracy(arch) <= 1.0
+    # a scorer built without truth (raw _from_sources) cannot compute it
+    bare = val.RecoveryScorer._from_sources(scorer._sources, freqs=scorer.freqs)
+    with pytest.raises(ValueError):
+        bare.assignment_accuracy(arch)
+
+
 def test_k_sweep_real_scorer_runs_and_is_reproducible():
     templates = _population(seed=1)
     cad = SyntheticCadence(n_epochs={'g': 20, 'r': 20}, bands=['g', 'r'],

@@ -29,7 +29,7 @@ from .template import Template
 from .multiband import (build_template_set, compute_band_summations,
                         solve_over_frequencies)
 from .baselines import FTPEstimator
-from .catalog_builder import build_template_catalog
+from .catalog_builder import build_template_catalog, _orbit_distance
 from . import simulate as _sim
 from . import recovery as _rec
 
@@ -238,6 +238,7 @@ class RecoveryScorer(object):
 
         # Freeze the population: each source = one simulated multiband light curve.
         self._sources = []
+        self._truth = []                  # per-source generating shape (post-jitter)
         for i in range(self.n_sources):
             truth = truth_templates[rng.randint(len(truth_templates))]
             if self.intrinsic_jitter > 0:
@@ -256,6 +257,7 @@ class RecoveryScorer(object):
                 band_offsets=band_offsets, random_state=rng, add_noise=True,
                 shuffle=True)
             baseline = float(lc.t.max() - lc.t.min())
+            self._truth.append(truth)
             self._sources.append((lc.t, lc.y, lc.bands, lc.dy, self.p_true[i],
                                   baseline))
 
@@ -349,6 +351,46 @@ class RecoveryScorer(object):
                 _parsm_col)
         return np.stack(cols, axis=1)                # (len(templates), n_sources)
 
+    def assignment_accuracy(self, vocab, *, return_counts=False):
+        """Correct-template-assignment rate on the correct-period subset.
+
+        Among the frozen sources whose period this ``vocab`` recovers (the FTP
+        catalog peak passes :func:`ftperiodogram.recovery.classify_recovery`), the
+        fraction the FTP catalog assigns -- the argmax-power template at that peak --
+        to the ``vocab`` template that is orbit-closest to the source's TRUE generating
+        shape.  This is the *mechanism* metric for the joint-vs-pipeline study: period
+        recovery saturates and clips shape gains, so this exposes whether a vocabulary
+        matches the underlying shapes better even where period recovery cannot show it.
+
+        Requires a scorer built with per-source truth shapes (``__init__`` /
+        :meth:`downsample`); raises ``ValueError`` otherwise.  ``return_counts`` also
+        returns ``(rate, n_correct, n_subset)``.
+        """
+        from .joint_em import _estep_one              # lazy: avoids an import cycle
+        if getattr(self, '_truth', None) is None:
+            raise ValueError("assignment_accuracy needs per-source truth shapes; "
+                             "build via RecoveryScorer / make_recovery_scorer")
+        vocab = list(vocab)
+        H = len(vocab[0].c_n)
+        # truth -> orbit-nearest vocab template (the "correct" assignment target)
+        target = [int(np.argmin([_orbit_distance(tr, v) for v in vocab]))
+                  for tr in self._truth]
+        crit = self._crit()
+        n_correct, n_subset = 0, 0
+        for i, source in enumerate(self._sources):
+            assigned, freq_rec, _ = _estep_one(source, vocab, self.freqs,
+                                               self.mode, H)
+            recovered = _rec.classify_recovery(
+                1.0 / freq_rec, self.p_true[i], baseline=source[5],
+                criterion=crit['criterion'], rtol=crit['rtol'],
+                delta_phi_max=crit['delta_phi_max'],
+                count_harmonics=crit['harmonic_aware']).recovered
+            if recovered:
+                n_subset += 1
+                n_correct += int(assigned == target[i])
+        rate = (n_correct / n_subset) if n_subset else 0.0
+        return (rate, n_correct, n_subset) if return_counts else rate
+
     def _set_scoring_params(self, *, mode, criterion, harmonic_aware,
                             delta_phi_max, rtol):
         """Set the scoring knobs shared by ``__init__`` and ``_from_sources``."""
@@ -359,7 +401,7 @@ class RecoveryScorer(object):
         self.rtol = float(rtol)
 
     @classmethod
-    def _from_sources(cls, sources, *, freqs, p_true=None,
+    def _from_sources(cls, sources, *, freqs, p_true=None, truth=None,
                       mode='floating_offsets', criterion='fractional',
                       harmonic_aware=False, delta_phi_max=0.5, rtol=0.01,
                       n_jobs=1):
@@ -375,6 +417,7 @@ class RecoveryScorer(object):
         self.n_sources = len(self._sources)
         self.n_jobs = int(n_jobs)
         self.intrinsic_jitter = 0.0      # already baked into the frozen sources
+        self._truth = list(truth) if truth is not None else None
         self._set_scoring_params(mode=mode, criterion=criterion,
                                  harmonic_aware=harmonic_aware,
                                  delta_phi_max=delta_phi_max, rtol=rtol)
@@ -432,6 +475,7 @@ class RecoveryScorer(object):
             new_sources.append((t_k, y_k, bands_k, dy_k, P_true, new_baseline))
         return RecoveryScorer._from_sources(
             new_sources, freqs=self.freqs, p_true=self.p_true, mode=self.mode,
+            truth=getattr(self, '_truth', None),
             criterion=self.criterion, harmonic_aware=self.harmonic_aware,
             delta_phi_max=self.delta_phi_max, rtol=self.rtol, n_jobs=self.n_jobs)
 
