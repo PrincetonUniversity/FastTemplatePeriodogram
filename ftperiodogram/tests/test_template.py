@@ -16,8 +16,10 @@ def test_template_round_trip(nharmonics, rseed=42):
     y = template(phase)
     template2 = Template.from_sampled(y, nharmonics)
 
-    assert_allclose(c_n, template2.c_n)
-    assert_allclose(s_n, template2.s_n)
+    # Compare against the template's own (unit-energy-normalized) coefficients --
+    # Template no longer mutates its input arrays in place, so c_n/s_n stay raw.
+    assert_allclose(template.c_n, template2.c_n)
+    assert_allclose(template.s_n, template2.s_n)
 
 
 def test_template_infer_harmonics(rseed=42):
