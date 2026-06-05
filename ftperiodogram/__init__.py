@@ -18,3 +18,4 @@ from .baselines import (FTPEstimator, GLSEstimator, MHLSEstimator,
 from .validation import (RecoveryScorer, make_recovery_scorer, k_sweep_recovery,
                          KSweepResult, frequency_grid, n_epochs_sweep_recovery,
                          NEpochsSweepResult)
+from .joint_em import build_joint_em_catalog, EMDiagnostics

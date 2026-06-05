@@ -1,0 +1,59 @@
+{
+  "universe": "sesar",
+  "bands": [
+    "g",
+    "r"
+  ],
+  "k": 2,
+  "n_sources": 32,
+  "n_harmonics": 4,
+  "freq_grid": [
+    1.0,
+    5.0,
+    800
+  ],
+  "max_iter": 6,
+  "seed": 0,
+  "rows": [
+    {
+      "n_epochs": 6,
+      "pipeline": 0.90625,
+      "joint": 0.90625,
+      "gls": 0.5,
+      "gap": 0.0,
+      "em_best_iter": 1,
+      "em_n_iter": 4,
+      "em_stop": "early_stop"
+    },
+    {
+      "n_epochs": 10,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 0.96875,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    },
+    {
+      "n_epochs": 18,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 1.0,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    },
+    {
+      "n_epochs": 30,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 1.0,
+      "gap": 0.0,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop"
+    }
+  ]
+}

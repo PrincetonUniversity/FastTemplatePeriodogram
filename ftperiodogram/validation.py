@@ -209,10 +209,12 @@ class RecoveryScorer(object):
                  p_true=None, mode='floating_offsets', criterion='fractional',
                  harmonic_aware=False, delta_phi_max=0.5, rtol=0.01,
                  amplitude=0.5, mean_mag=15.0, band_amplitudes=None,
-                 band_offsets=None, random_state=0, n_jobs=1):
+                 band_offsets=None, intrinsic_jitter=0.0, random_state=0,
+                 n_jobs=1):
         self.freqs = _align_grid(freqs)        # NFFT-aligned (snaps if needed)
         self.n_sources = int(n_sources)
         self.n_jobs = int(n_jobs)              # source-loop processes (1 = serial)
+        self.intrinsic_jitter = float(intrinsic_jitter)
         self._set_scoring_params(mode=mode, criterion=criterion,
                                  harmonic_aware=harmonic_aware,
                                  delta_phi_max=delta_phi_max, rtol=rtol)
@@ -238,6 +240,16 @@ class RecoveryScorer(object):
         self._sources = []
         for i in range(self.n_sources):
             truth = truth_templates[rng.randint(len(truth_templates))]
+            if self.intrinsic_jitter > 0:
+                # Per-source relative (zero-mean) Fourier jitter: the population
+                # shares a latent library shape but no fixed finite vocabulary is
+                # exactly right, so joint refinement has legitimate headroom to
+                # recover the cluster centroid that a frozen clean medoid cannot.
+                z = np.asarray(truth.c_n, float) - 1j * np.asarray(truth.s_n, float)
+                z = z + self.intrinsic_jitter * np.abs(z) * (
+                    rng.randn(len(z)) + 1j * rng.randn(len(z)))
+                truth = Template(np.real(z).copy(), (-np.imag(z)).copy(),
+                                 template_id=truth.template_id)
             lc = _sim.simulate_multiband_lightcurve(
                 truth, self.p_true[i], cadence, amplitude=amplitude,
                 mean_mag=mean_mag, tau=rng.rand(), band_amplitudes=band_amplitudes,
@@ -428,14 +440,15 @@ def make_recovery_scorer(cadence, truth_templates, *, freqs, n_sources=64,
                          criterion='fractional', harmonic_aware=False,
                          delta_phi_max=0.5, rtol=0.01, amplitude=0.5,
                          mean_mag=15.0, band_amplitudes=None, band_offsets=None,
-                         random_state=0, n_jobs=1):
+                         intrinsic_jitter=0.0, random_state=0, n_jobs=1):
     """Build a :class:`RecoveryScorer` over a frozen simulated population."""
     return RecoveryScorer(
         cadence, truth_templates, freqs=freqs, n_sources=n_sources, p_true=p_true,
         mode=mode, criterion=criterion, harmonic_aware=harmonic_aware,
         delta_phi_max=delta_phi_max, rtol=rtol, amplitude=amplitude,
         mean_mag=mean_mag, band_amplitudes=band_amplitudes,
-        band_offsets=band_offsets, random_state=random_state, n_jobs=n_jobs)
+        band_offsets=band_offsets, intrinsic_jitter=intrinsic_jitter,
+        random_state=random_state, n_jobs=n_jobs)
 
 
 # ----------------------------------------------------------------------
