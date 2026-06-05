@@ -35,12 +35,13 @@ import numpy as np
 
 from ftperiodogram.catalog_builder import (fetch_sesar_templates,
                                            fetch_baeza_villagra_templates)
-from ftperiodogram.simulate import SyntheticCadence
+from ftperiodogram.simulate import SyntheticCadence, exp_mag_error
 from ftperiodogram.validation import (frequency_grid, make_recovery_scorer,
                                        RecoveryScorer, build_template_catalog)
 from ftperiodogram.baselines import (GLSEstimator, MHLSEstimator,
                                      MultibandLSEstimator, FTPEstimator,
                                      SesarOracleEstimator)
+import ztf_error_model as zerr             # sibling experiment module
 
 
 # ----------------------------------------------------------------------
@@ -48,6 +49,26 @@ from ftperiodogram.baselines import (GLSEstimator, MHLSEstimator,
 # ----------------------------------------------------------------------
 def _ints(text):
     return [int(x) for x in str(text).split(',') if str(x).strip()]
+
+
+def _build_err_model(args, log):
+    """Return ``(mag->sigma callable or None, label)`` for the cadence noise.
+
+    ``synthetic`` (default) returns ``None`` so the cadence uses ``exp_mag_error``;
+    ``empirical`` loads the binned-median ZTF error-vs-mag curve from the cached
+    real cadence sample (1.6-3.5x larger than the synthetic default), falling back
+    to synthetic with a warning if the cache is absent."""
+    if getattr(args, 'err_model', 'synthetic') != 'empirical':
+        return None, 'synthetic(exp_mag_error)'
+    try:
+        emp = zerr.make_empirical_error_model()
+        log("  empirical ZTF error model: %d-bin median, faint sigma=%.3f"
+            % (len(emp.curve[0]), emp.faint_sigma))
+        return emp, 'empirical_ztf(binned-median)'
+    except (FileNotFoundError, ValueError) as exc:
+        log("  WARNING empirical error model unavailable (%s); using synthetic"
+            % str(exc)[:80])
+        return None, 'synthetic(exp_mag_error)[fallback]'
 
 
 def knee_k(k_values, recovery, frac=0.98):
@@ -149,9 +170,10 @@ def run_seed(templates, args, seed, log):
     max_k = max(k_values)
 
     freqs = frequency_grid(args.f_min, args.f_max, args.n_freq)
+    err_model, err_label = _build_err_model(args, log)
     cadence = SyntheticCadence(
         n_epochs={b: args.dense_master_epochs for b in obs_bands}, bands=obs_bands,
-        baseline_days=args.baseline_days, random_state=seed + 1)
+        baseline_days=args.baseline_days, err_model=err_model, random_state=seed + 1)
     master = make_recovery_scorer(cadence, templates, freqs=freqs,
                                   n_sources=args.n_sources, random_state=seed,
                                   n_jobs=args.n_jobs)
@@ -165,7 +187,7 @@ def run_seed(templates, args, seed, log):
         'mbls': MultibandLSEstimator(args.mbls_h),
     }
 
-    result = {'seed': seed}
+    result = {'seed': seed, 'err_model': err_label}
 
     # PAM vocabularies are cadence-independent (they cluster template SHAPES), so
     # build them ONCE per K and reuse across both regimes and the N-sweep.
@@ -316,6 +338,11 @@ def parse_args(argv=None):
     p.add_argument('--n-jobs', type=int, default=1)
     p.add_argument('--outdir', default=os.path.join(os.path.dirname(__file__), 'output_prod'))
     p.add_argument('--no-figures', action='store_true')
+    p.add_argument('--err-model', choices=['synthetic', 'empirical'],
+                   default='synthetic',
+                   help="cadence noise: synthetic exp_mag_error (default) or the "
+                        "empirical ZTF binned-median model from the cached real "
+                        "cadence sample (1.6-3.5x larger errors)")
     p.add_argument('--smoke', action='store_true')
     return p.parse_args(argv)
 
