@@ -46,6 +46,61 @@ Outputs: `results.json` + `results.npz` (raw numbers) and, when matplotlib is
 installed, `figures/` (recovery-vs-K, recovery-vs-N_epochs, and the two-panel
 figure).
 
+## Track B — real ZTF cadence
+
+`fetch_ztf_cadence.py`, `ztf_error_model.py`, and `run_real_cadence_recovery.py`
+drop a **real ZTF DR observing cadence** into this same harness and re-run the
+recovery sweeps on real vs. synthetic sampling.
+
+```bash
+# 1. fetch ~150 real ZTF light curves (magnitude-matched, g+r) and cache them
+#    (uses the isolated fetch venv -- see the astroquery note below)
+python fetch_ztf_cadence.py --no-tap --n-objects 150 --bands g,r \
+    --seed-oids 686103400067717,486103400000001,786103400000001 \
+    --walk-span 160 --max-probe 900 --min-epochs 80
+
+# 2. inspect the empirical error-vs-mag model vs exp_mag_error()
+python ztf_error_model.py
+
+# 3. real-vs-synthetic recovery draft (LOCAL scale; writes real_cadence_draft/)
+python run_real_cadence_recovery.py            # bounded draft
+python run_real_cadence_recovery.py --smoke    # tiny wiring check
+```
+
+`RealZTFCadence` (in `ftperiodogram.simulate`) replays the cached per-band epochs
+through the same `CadenceSample` contract as `SyntheticCadence`, so every simulator
+and driver consumes it unchanged. The driver matches the synthetic cadence to the
+real one's baseline + bands and uses the *same* empirical error model, so a
+real-vs-synthetic recovery gap is attributable to the **sampling structure**
+(seasonal gaps + clumping), the regime where FTP's shape prior should help most.
+
+### Data source (probed 2026-06-04)
+
+IRSA's TAP `ztf_objects_dr22` summary table (the natural magnitude-selection path)
+was **down at fetch time** (`ORA-12541: TNS:no listener`, all DRs), as was the
+spatial/cone path of the lightcurve API. The **`nph_light_curves` API by `ID=<oid>`
+worked**, returning full epochal photometry, so the fetcher falls back to walking
+oid ranges and pulling LCs by id. Because ZTF's per-filter reference catalogs use
+independent running-number orderings, a g-block walk and an r-block walk land on
+disjoint sky positions, so genuine same-star g+r matching needs the (down) spatial
+index; the fetcher instead pairs a g oid with an r oid **from the same ZTF field**
+(`group_mode='same_field_cadence'`): different physical stars, but an authentic
+two-band real cadence off one survey schedule — exactly what Track B needs
+(realistic *sampling + error-vs-mag*, not a confirmed RR Lyrae). The grouping mode
+is recorded per object so it is never silently conflated with a true multiband star.
+
+### astroquery / venv note (important)
+
+`astroquery` pulls in `astropy`, whose only Python-3.9 release (6.0.1) is
+**binary- and runtime-incompatible with the core package's numpy 2.0.2**
+(`np._core.umath._ljust` is a numpy≥2.1 symbol; the precompiled wheel is numpy-1.x
+ABI). Installing it into the shared `.venv` breaks the core test suite
+(`test_slow_template_modeler.py` collection). So astroquery lives in an **isolated
+`.fetch_venv/`** (numpy<2 + astroquery) used *only* by `fetch_ztf_cadence.py`; the
+shared `.venv` stays pure numpy/scipy/nfft and the suite stays green. The fetch's
+TAP path lazy-imports astroquery (and its stdlib `nph_light_curves` fallback needs
+no astroquery at all), so the cache it writes is consumed downstream under numpy 2.
+
 ## Scale / compute note
 
 The script **defaults** are the full bounded-ugriz config (98 templates,

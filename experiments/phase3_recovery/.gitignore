@@ -2,6 +2,7 @@
 output_smoke/
 output_prod_smoke/
 output_prod/
+real_cadence_smoke/
 # adversarial-verification scratch (independent reference impls written by agents)
 _verify/
 *_run.log

@@ -1,0 +1,106 @@
+{
+  "config": {
+    "obs_bands": "g,r",
+    "nharmonics": 8,
+    "n_sources": 16,
+    "seeds": "0",
+    "n_master_epochs": 60,
+    "n_universe": 40,
+    "f_min": 1.0,
+    "f_max": 5.0,
+    "n_freq": 1500,
+    "err_model": "empirical_ztf(binned-median)",
+    "real_gids": [
+      "g00000"
+    ],
+    "cache_dir": "/Users/johnhoffman/.ftperiodogram_data/ztf_cadence_sample"
+  },
+  "results": [
+    {
+      "seed": 0,
+      "real_gid": "g00000",
+      "real": {
+        "label": "real:g00000",
+        "seed": 0,
+        "fixed_k": 1,
+        "baseline_days": 2619.982708399999,
+        "epoch_counts": {
+          "g": 60,
+          "r": 60
+        },
+        "k_sweep": {
+          "k_values": [
+            1,
+            2
+          ],
+          "recovery": [
+            0.1875,
+            0.1875
+          ],
+          "gls_baseline": 0.1875
+        },
+        "n_epochs_sweep": {
+          "n_epochs_values": [
+            10,
+            40
+          ],
+          "recovery": [
+            0.0625,
+            0.1875
+          ],
+          "gls_baseline": [
+            0.0,
+            0.1875
+          ]
+        },
+        "comparisons": {
+          "FTP_PAM_k1": 0.1875,
+          "GLS": 0.1875,
+          "MHLS_H8": 0.125,
+          "MultibandLS_H1": 0.1875
+        },
+        "wall_seconds": 44.6
+      },
+      "synthetic": {
+        "label": "synthetic",
+        "seed": 0,
+        "fixed_k": 1,
+        "baseline_days": 2619.982708399999,
+        "epoch_counts": null,
+        "k_sweep": {
+          "k_values": [
+            1,
+            2
+          ],
+          "recovery": [
+            0.25,
+            0.25
+          ],
+          "gls_baseline": 0.1875
+        },
+        "n_epochs_sweep": {
+          "n_epochs_values": [
+            10,
+            40
+          ],
+          "recovery": [
+            0.0625,
+            0.1875
+          ],
+          "gls_baseline": [
+            0.0625,
+            0.3125
+          ]
+        },
+        "comparisons": {
+          "FTP_PAM_k1": 0.25,
+          "GLS": 0.1875,
+          "MHLS_H8": 0.1875,
+          "MultibandLS_H1": 0.25
+        },
+        "wall_seconds": 45.0
+      }
+    }
+  ],
+  "wall_seconds": 89.7
+}

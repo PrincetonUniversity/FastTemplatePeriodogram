@@ -17,6 +17,7 @@ error-vs-magnitude relation (fainter => larger sigma).
 stdlib + numpy only.  Observing windows are set by explicit time spans, never via a
 Nyquist heuristic.
 """
+import os
 from collections import namedtuple
 
 import numpy as np
@@ -176,6 +177,148 @@ class SyntheticCadence(Cadence):
         order = np.argsort(t, kind='mergesort')
         return CadenceSample(t=t[order], bands=bands[order],
                              mag_err_model=self.err_model)
+
+
+class RealZTFCadence(Cadence):
+    """A *real* observing cadence taken from recorded per-band ZTF epochs.
+
+    This is the drop-in real-data sibling of :class:`SyntheticCadence`: instead of
+    rejection-sampling epochs inside a parametric seasonal window, it replays the
+    actual MJDs of a recorded ZTF DR light curve (with its real seasonal gaps,
+    per-band epoch counts, and clumping), plus an *empirical* error-vs-magnitude
+    relation measured from that survey's ``magerr`` vs ``mag`` scatter.  Because it
+    is a :class:`Cadence` subclass returning the same :class:`CadenceSample`, every
+    simulator and recovery driver consumes it with zero churn -- a population is
+    simulated by injecting different truth shapes onto this one *fixed* sampling
+    pattern, exactly as with the synthetic cadence.
+
+    Parameters
+    ----------
+    epochs_by_band : dict {band: 1-D array of MJD}
+        Recorded observation epochs (days) per band.  Each array must be non-empty;
+        order is irrelevant (epochs are concatenated and globally mergesorted).
+    err_model : callable mag -> sigma or None
+        Empirical photometric error-vs-magnitude relation (e.g. from
+        :func:`ftperiodogram.simulate.exp_mag_error` or a measured ZTF table).
+        ``None`` falls back to :func:`exp_mag_error` defaults (synthetic), which is
+        only sensible for a smoke test -- pass the real one in production.
+    object_id : hashable or None
+        Provenance tag (e.g. the ZTF ``oid`` / sky position the cadence came from).
+    metadata : dict or None
+        Free-form provenance (release, RA/Dec, ngoodobs, ...); not used in sampling.
+
+    Notes
+    -----
+    :meth:`sample` ignores ``rng`` (the cadence is deterministic -- the *noise* is
+    added by the simulators, not here), so a frozen population built on a
+    :class:`RealZTFCadence` reuses the identical real sampling for every source.
+    """
+
+    def __init__(self, epochs_by_band, err_model=None, object_id=None,
+                 metadata=None):
+        if not epochs_by_band:
+            raise ValueError("epochs_by_band must be a non-empty {band: epochs} dict")
+        self.bands = list(epochs_by_band.keys())
+        self._epochs = {}
+        for b in self.bands:
+            arr = np.sort(np.asarray(epochs_by_band[b], dtype=float))
+            if arr.size == 0:
+                raise ValueError("band %r has no epochs" % (b,))
+            if not np.all(np.isfinite(arr)):
+                raise ValueError("band %r has non-finite epochs" % (b,))
+            self._epochs[b] = arr
+        self.err_model = exp_mag_error() if err_model is None else err_model
+        self.object_id = object_id
+        self.metadata = dict(metadata or {})
+
+        all_t = np.concatenate([self._epochs[b] for b in self.bands])
+        self._t_min = float(all_t.min())
+        self._t_max = float(all_t.max())
+
+    @property
+    def baseline(self):
+        """Total recorded observing span ``T = max(t) - min(t)`` (days)."""
+        return self._t_max - self._t_min
+
+    def epoch_counts(self):
+        """Per-band recorded epoch counts ``{band: n}``."""
+        return {b: int(self._epochs[b].size) for b in self.bands}
+
+    def sample(self, rng=None):
+        """Replay the recorded epochs as a globally ascending-sorted multiband
+        :class:`CadenceSample` (deterministic; ``rng`` is ignored)."""
+        t_parts, b_parts = [], []
+        for b in self.bands:
+            tb = self._epochs[b]
+            t_parts.append(tb)
+            b_parts.append(np.full(tb.size, b))
+        t = np.concatenate(t_parts)
+        bands = np.concatenate(b_parts)
+        order = np.argsort(t, kind='mergesort')
+        return CadenceSample(t=t[order], bands=bands[order],
+                             mag_err_model=self.err_model)
+
+    @classmethod
+    def from_cache(cls, oid, *, err_model=None, bands=None, data_home=None,
+                   catflags_max=0, max_epochs_per_band=None):
+        """Build a :class:`RealZTFCadence` from one cached ZTF object's epochs.
+
+        Reads the per-object record written by
+        ``experiments/phase3_recovery/fetch_ztf_cadence.py`` (a ``.npz`` under
+        ``~/.ftperiodogram_data/ztf_cadence_sample/`` keyed by sky-grouped ``oid``).
+        Lazily imports nothing network-y -- it only touches the local cache, so the
+        core package stays pure numpy/scipy.
+
+        Parameters
+        ----------
+        oid : str
+            The grouped-object id (cache filename stem ``<oid>.npz``).
+        err_model : callable mag -> sigma or None
+            Error model to attach (defaults to :func:`exp_mag_error`).
+        bands : sequence of str or None
+            Keep only these bands (e.g. ``['g', 'r']``); ``None`` keeps all present.
+        data_home : str or None
+            Cache root (defaults to ``~/.ftperiodogram_data/ztf_cadence_sample``).
+        catflags_max : int
+            Keep only epochs with ``catflags <= catflags_max`` (0 = clean only).
+        max_epochs_per_band : int or None
+            If set, *evenly* thin each band to at most this many epochs across the
+            full baseline (``np.linspace`` index subset).  This preserves the real
+            seasonal-gap / clumping structure and full time span while capping the
+            per-band count -- the lever that makes scoring a dense full-survey ZTF
+            light curve tractable without distorting the cadence shape.  ``None``
+            keeps every recorded epoch.
+        """
+        home = (os.path.join(os.path.expanduser("~"), ".ftperiodogram_data",
+                             "ztf_cadence_sample")
+                if data_home is None else data_home)
+        path = os.path.join(home, "%s.npz" % oid)
+        if not os.path.exists(path):
+            raise FileNotFoundError("no cached ZTF cadence at %s" % path)
+        with np.load(path, allow_pickle=True) as rec:
+            t = np.asarray(rec['mjd'], dtype=float)
+            bnd = np.asarray(rec['band']).astype(str)
+            catf = (np.asarray(rec['catflags'], dtype=int) if 'catflags' in rec
+                    else np.zeros(t.size, dtype=int))
+            meta = (rec['metadata'].item() if 'metadata' in rec.files
+                    else {})
+        keep = catf <= int(catflags_max)
+        t, bnd = t[keep], bnd[keep]
+        present = list(dict.fromkeys(bnd.tolist()))
+        wanted = present if bands is None else [b for b in bands if b in present]
+        if not wanted:
+            raise ValueError("none of bands=%r present for oid=%s (have %r)"
+                             % (bands, oid, present))
+        epochs_by_band = {}
+        for b in wanted:
+            tb = np.sort(t[bnd == b])
+            if (max_epochs_per_band is not None
+                    and tb.size > int(max_epochs_per_band)):
+                idx = np.linspace(0, tb.size - 1, int(max_epochs_per_band))
+                tb = tb[np.unique(np.round(idx).astype(int))]
+            epochs_by_band[b] = tb
+        return cls(epochs_by_band, err_model=err_model, object_id=oid,
+                   metadata=meta)
 
 
 # ----------------------------------------------------------------------

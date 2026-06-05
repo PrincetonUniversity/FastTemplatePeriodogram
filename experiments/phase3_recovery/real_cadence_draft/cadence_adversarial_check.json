@@ -1,0 +1,50 @@
+{
+  "n_objects": 99,
+  "per_band": {
+    "g": {
+      "n_objects": 64,
+      "median": 625.5,
+      "min": 229,
+      "max": 746,
+      "total": 34105
+    },
+    "r": {
+      "n_objects": 91,
+      "median": 947.0,
+      "min": 221,
+      "max": 996,
+      "total": 65453
+    }
+  },
+  "baseline_days": {
+    "median": 2730.6832060000015,
+    "min": 1057.0315392999983,
+    "max": 2746.6917245000004
+  },
+  "mjd_span": [
+    58202.2773495,
+    60951.1984722
+  ],
+  "years": 7.526135859548249,
+  "seasonal": {
+    "duty_median": 0.875,
+    "max_gap_days_median": 143.1591202999989,
+    "n_seasons_median": 7.0
+  },
+  "fields": [
+    486,
+    686,
+    786
+  ],
+  "group_modes": {
+    "same_star": 8,
+    "same_field_cadence": 48,
+    "single_band": 43
+  },
+  "mag_range": [
+    13.9967232,
+    19.9852066
+  ],
+  "magerr_median": 0.02635749615,
+  "warnings": []
+}
