@@ -374,6 +374,7 @@ class RecoveryScorer(object):
         self._sources = list(sources)
         self.n_sources = len(self._sources)
         self.n_jobs = int(n_jobs)
+        self.intrinsic_jitter = 0.0      # already baked into the frozen sources
         self._set_scoring_params(mode=mode, criterion=criterion,
                                  harmonic_aware=harmonic_aware,
                                  delta_phi_max=delta_phi_max, rtol=rtol)
