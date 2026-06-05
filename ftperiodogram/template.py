@@ -14,10 +14,16 @@ class Template(object):
         One-dimensional arrays of model coefficients
     """
     def __init__(self, c_n, s_n, template_id=None):
-        self.c_n, self.s_n = np.broadcast_arrays(c_n, s_n)
+        # Own writeable float copies: np.broadcast_arrays returns read-only views
+        # under numpy >= 2 (the in-place /= below would raise a FutureWarning now
+        # and crash on a future numpy), and copying also avoids mutating the
+        # caller's input arrays.
+        c_n, s_n = np.broadcast_arrays(c_n, s_n)
+        self.c_n = np.array(c_n, dtype=float)
+        self.s_n = np.array(s_n, dtype=float)
 
-        # normalize
-        A = np.sqrt(sum(np.power(self.c_n, 2) + np.power(self.s_n, 2)))
+        # normalize to unit Fourier energy
+        A = np.sqrt(np.sum(self.c_n ** 2 + self.s_n ** 2))
         self.c_n /= A
         self.s_n /= A
 
