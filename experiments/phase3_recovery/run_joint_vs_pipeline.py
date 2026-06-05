@@ -27,12 +27,13 @@ import os
 import numpy as np
 
 from ftperiodogram.template import Template
-from ftperiodogram.simulate import SyntheticCadence
+from ftperiodogram.simulate import SyntheticCadence, exp_mag_error
 from ftperiodogram.validation import make_recovery_scorer, frequency_grid
 from ftperiodogram.catalog_builder import (build_template_catalog,
                                            fetch_sesar_templates,
                                            fetch_baeza_villagra_templates)
 from ftperiodogram.joint_em import build_joint_em_catalog
+import ztf_error_model as zerr             # sibling experiment module
 
 
 def _load_truth(universe, n_harmonics, bands):
@@ -62,8 +63,17 @@ def run(args):
              len(population), len(library)))
     freqs = frequency_grid(args.f_min, args.f_max, args.n_freq)
     n_master = max(args.n_epochs_values)
+    err_model = None
+    if args.err_model == 'empirical':
+        try:
+            err_model = zerr.make_empirical_error_model()
+            print("  empirical ZTF error model (faint sigma=%.3f)"
+                  % err_model.faint_sigma)
+        except (FileNotFoundError, ValueError) as exc:
+            print("  WARNING empirical error model unavailable (%s); synthetic"
+                  % str(exc)[:70])
     cad = SyntheticCadence(n_epochs={b: n_master for b in bands}, bands=bands,
-                           baseline_days=args.baseline_days,
+                           baseline_days=args.baseline_days, err_model=err_model,
                            random_state=args.seed)
     # The grid must resolve periodogram peaks (width ~ 1/T): require df << 1/T.
     df = (args.f_max - args.f_min) / (args.n_freq - 1)
@@ -127,6 +137,7 @@ def run(args):
                   baseline_days=args.baseline_days,
                   intrinsic_jitter=args.intrinsic_jitter, mean_mag=args.mean_mag,
                   library_holdout_frac=args.library_holdout_frac,
+                  err_model=args.err_model,
                   max_iter=args.max_iter, seed=args.seed, rows=rows)
     with open(os.path.join(args.out, 'results.json'), 'w') as fh:
         json.dump(result, fh, indent=2)
@@ -210,6 +221,10 @@ def main():
     p.add_argument('--library-holdout-frac', type=float, default=0.0,
                    help='fraction of shapes reserved as the population, disjoint '
                         'from the library both arms cluster (joint headroom)')
+    p.add_argument('--err-model', choices=['synthetic', 'empirical'],
+                   default='synthetic',
+                   help='cadence noise: synthetic exp_mag_error or empirical ZTF '
+                        '(1.6-3.5x larger -> lower per-epoch SNR, MRA regime)')
     p.add_argument('--max-iter', type=int, default=10)
     p.add_argument('--n-jobs', type=int, default=1)
     p.add_argument('--seed', type=int, default=0)
