@@ -141,20 +141,34 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
     # only keep non-zero roots.
     roots = roots[np.absolute(roots) > 0]
 
+    # Degenerate inputs (constant y, single observation) give YM ~ 0 and an
+    # empty candidate set; report a flat zero-power fit instead of crashing
+    # (mirrors the multiband flat-band guard).
+    flat_params = ModelFitParams(a=0.0, b=1.0, c=ybar, sgn=1.0)
+    if len(roots) == 0:
+        return flat_params, 0.0, 1.0 + 0.0j
+
     # ensure they are on the unit circle.
     roots /= np.absolute(roots)
 
-    # Get periodogram values at each root
-    pdg_phi = np.real(YM(roots) ** 2 /  MM(roots)) / YY
+    # Get periodogram values at each root; map non-finite values (YY = 0, or
+    # a candidate with MM ~ 0) to -inf so they cannot hijack the argmax.
+    with np.errstate(divide='ignore', invalid='ignore'):
+        pdg_phi = np.real(YM(roots) ** 2 /  MM(roots)) / YY
+    pdg_phi[~np.isfinite(pdg_phi)] = -np.inf
 
     if positive_amplitude:
         # K.18: among the roots, keep only those whose amplitude theta_1 >= 0,
         # then pick the best-fitting one. A half-phase flip would NOT preserve
         # the fitted curve for H > 1, so we filter the root set instead.
-        theta_1_all = np.real(np.power(roots, H) * YM(roots) / MM(roots))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            theta_1_all = np.real(np.power(roots, H) * YM(roots) / MM(roots))
         positive = theta_1_all >= 0
         if np.any(positive):
             pdg_phi = np.where(positive, pdg_phi, -np.inf)
+
+    if not np.any(pdg_phi > -np.inf):
+        return flat_params, 0.0, 1.0 + 0.0j
 
     # find root that maximizes periodogram
     i = np.argmax(pdg_phi)
