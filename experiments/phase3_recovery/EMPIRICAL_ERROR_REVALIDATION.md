@@ -32,13 +32,17 @@ not by photometric noise. The realistic errors do not move the recovery curves.
 
 **Implication for Paper 1.** The published synthetic-error headline numbers are
 robust to the realistic ZTF error model -- they do **not** need re-deriving under
-empirical errors. (This also means the empirical error model alone is not a valid
-"low per-epoch SNR" lever for the §3.4 joint study; that regime requires faint
-magnitudes, mean_mag -> 20, where the empirical curve blows up.)
+empirical errors. (Note the empirical error model is NOT a "low per-epoch SNR"
+lever for the §3.4 joint study: it constant-clips at sigma = 0.0393 past mag
+~18.5, the cached sample's faint limit, so mean_mag -> 20 does not lower SNR any
+further. To reach the low-SNR regime, shrink `amplitude` (e.g. 0.1-0.15) or
+raise sigma directly.)
 
-**Caveat.** This holds for the bright headline population (mean_mag ~ 15). For a
-faint-end demo (mag -> 20) the empirical errors grow steeply and could matter;
-re-check there if Paper 1's ZTF demo includes faint sources.
+**Caveat.** This holds for the bright headline population (mean_mag ~ 15). The
+empirical model is built from a bright cached sample and constant-extrapolates
+(sigma = 0.0393) past mag ~18.5, so it UNDERSTATES true faint-end ZTF errors;
+if Paper 1's ZTF demo includes faint sources, rebuild the error curve from a
+fainter sample rather than trusting the clipped extrapolation.
 
 ## Reproduce
 ```

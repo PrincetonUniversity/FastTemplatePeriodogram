@@ -216,8 +216,10 @@ def main():
                    help='per-source relative Fourier shape jitter; gives joint '
                         'MRA headroom (0 = degenerate same-library control)')
     p.add_argument('--mean-mag', type=float, default=15.0,
-                   help='mean magnitude; raise toward 20 to lower per-epoch SNR '
-                        'into the 1/SNR^3 regime where joint should help most')
+                   help='mean magnitude; NOT a low-SNR lever under the empirical '
+                        'error model (sigma clips at 0.0393 past mag ~18.5) -- '
+                        'lower per-epoch SNR via --amplitude (e.g. 0.1-0.15) or '
+                        'sigma instead')
     p.add_argument('--library-holdout-frac', type=float, default=0.0,
                    help='fraction of shapes reserved as the population, disjoint '
                         'from the library both arms cluster (joint headroom)')

@@ -86,6 +86,10 @@ def make_empirical_error_model(cache_dir=DEFAULT_CACHE_DIR, *, n_bins=24,
     curve, constant-extrapolated past both ends (bright -> first bin's sigma;
     faint -> last bin's sigma, the empirical ``sigma_max``).
 
+    With the shipped cache the faint clip is ``sigma ~= 0.0393`` past mag ~18.5,
+    so pushing ``mean_mag`` toward 20 does NOT keep lowering per-epoch SNR; for
+    low-SNR studies shrink the source amplitude or raise sigma directly.
+
     Also returns the ``(centers, medians)`` curve for inspection/plotting as the
     callable's ``.curve`` attribute.
     """
