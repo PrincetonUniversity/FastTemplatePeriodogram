@@ -33,6 +33,7 @@ relaxation of the single-band monotonic-``t`` contract).
 """
 from __future__ import print_function
 
+import warnings
 from collections import namedtuple, OrderedDict
 
 import numpy as np
@@ -670,6 +671,8 @@ class FastMultibandTemplatePeriodogram(object):
         self.bands = np.asarray(bands)
         self.dy = dy
         self.bands_ = np.unique(self.bands)
+        # a best fit from previously-fit data would be stale for this dataset
+        self.best_model = None
         return self
 
     def autofrequency(self, nyquist_factor=5, samples_per_peak=5,
@@ -678,8 +681,11 @@ class FastMultibandTemplatePeriodogram(object):
 
         For irregularly-sampled data the average-Nyquist heuristic is not
         meaningful; the recommended path is to set ``minimum_frequency`` and
-        ``maximum_frequency`` explicitly. ``nyquist_factor`` is retained only for
-        API parity with the single-band class.
+        ``maximum_frequency`` explicitly (the grid then starts at the point
+        at/just below the requested minimum and ends at the first point
+        at/above the requested maximum, so both bounds are searched).
+        ``nyquist_factor`` is deprecated and retained only for API parity with
+        the single-band class; relying on it warns.
         """
         baseline = self.t.max() - self.t.min()
         n_samples = self.t.size
@@ -693,8 +699,16 @@ class FastMultibandTemplatePeriodogram(object):
             nf0 = 1
 
         if maximum_frequency is not None:
-            Nf = int(np.ceil(maximum_frequency / df - nf0))
+            # end at the first grid point >= maximum_frequency, so the
+            # requested maximum is included (the grid stays on multiples of df)
+            Nf = int(np.ceil(maximum_frequency / df - nf0)) + 1
         else:
+            warnings.warn(
+                "Choosing the maximum frequency from nyquist_factor (the "
+                "'average Nyquist frequency') is deprecated: the average "
+                "Nyquist frequency is not meaningful for irregularly-sampled "
+                "data. Pass explicit minimum_frequency and maximum_frequency "
+                "bounds instead.", FutureWarning)
             Nf = int(0.5 * samples_per_peak * nyquist_factor * n_samples)
 
         return df * (nf0 + np.arange(Nf))

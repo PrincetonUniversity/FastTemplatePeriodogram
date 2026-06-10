@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import warnings
 from functools import wraps
 
 import numpy as np
@@ -153,6 +154,8 @@ class FastTemplatePeriodogram(object):
         self.t = np.array(t)
         self.y = np.array(y)
         self.dy = np.array(dy)
+        # a best fit from previously-fit data would be stale for this dataset
+        self.best_model = None
         return self
 
     @requires_data
@@ -190,25 +193,27 @@ class FastTemplatePeriodogram(object):
         If you are searching for periods longer than the baseline of your
         observations, this may not perform well.
 
-        Even with a large baseline, be aware that the maximum frequency
-        returned is based on the concept of "average Nyquist frequency", which
-        may not be useful for irregularly-sampled data. The maximum frequency
-        can be adjusted via the nyquist_factor argument, or through the
-        maximum_frequency argument.
+        The recommended usage is to set the search band explicitly via
+        ``minimum_frequency`` and ``maximum_frequency``. The default path --
+        a maximum frequency chosen as a multiple of the "average Nyquist
+        frequency" -- is deprecated and warns: the average-Nyquist concept is
+        not meaningful for irregularly-sampled data.
 
         Parameters
         ----------
         samples_per_peak : float (optional, default=5)
             The approximate number of desired samples across the typical peak
         nyquist_factor : float (optional, default=5)
-            The multiple of the average nyquist frequency used to choose the
-            maximum frequency if maximum_frequency is not provided.
+            Deprecated. The multiple of the average nyquist frequency used to
+            choose the maximum frequency if maximum_frequency is not provided.
         minimum_frequency : float (optional)
-            If specified, then use this minimum frequency rather than one
-            chosen based on the size of the baseline.
+            If specified, the grid starts at the grid point at/just below this
+            frequency (default: one grid spacing ``df``).
         maximum_frequency : float (optional)
-            If specified, then use this maximum frequency rather than one
-            chosen based on the average nyquist frequency.
+            If specified, the grid ends at the first grid point at/above this
+            frequency, so the requested maximum is always included in the
+            search. Leaving this unset (the deprecated average-Nyquist path)
+            warns.
 
         Returns
         -------
@@ -221,13 +226,22 @@ class FastTemplatePeriodogram(object):
         df = 1. / (baseline * samples_per_peak)
 
         if minimum_frequency is not None:
-            nf0 = min([ 1, np.floor(minimum_frequency / df) ])
+            # start the grid at (or just below) the requested minimum frequency
+            nf0 = max(1, int(np.floor(minimum_frequency / df)))
         else:
             nf0 = 1
 
         if maximum_frequency is not None:
-            Nf = int(np.ceil(maximum_frequency / df - nf0))
+            # end at the first grid point >= maximum_frequency, so the
+            # requested maximum is included (the grid stays on multiples of df)
+            Nf = int(np.ceil(maximum_frequency / df - nf0)) + 1
         else:
+            warnings.warn(
+                "Choosing the maximum frequency from nyquist_factor (the "
+                "'average Nyquist frequency') is deprecated: the average "
+                "Nyquist frequency is not meaningful for irregularly-sampled "
+                "data. Pass explicit minimum_frequency and maximum_frequency "
+                "bounds instead.", FutureWarning)
             Nf = int(0.5 * samples_per_peak * nyquist_factor * n_samples)
 
         return df * (nf0 + np.arange(Nf))
