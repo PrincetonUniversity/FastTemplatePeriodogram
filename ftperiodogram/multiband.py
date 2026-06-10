@@ -437,7 +437,9 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
         G(phi) = sum_k W_k P_YM^(k) q_k prod_{l != k} (P_MM^(l))^2 = 0,
         q_k = 2 P_MM^(k) (P_YM^(k))' - (P_MM^(k))' P_YM^(k),
 
-    of degree ``8 H K - 1`` -- a genuinely larger root problem than the
+    of degree at most ``8 H K - 2`` (each term's nominal ``8 H K - 1`` leading
+    coefficient cancels exactly, by the same top-term cancellation as the
+    single-band ``q_k``) -- a genuinely larger root problem than the
     single-band case (cost grows as ``(H K)^3`` per frequency).
 
     POSITIVITY: unlike the shared-amplitude modes, the phase here is shared, so
@@ -465,6 +467,9 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
                 prod_others = prod_others * (PMM[l] * PMM[l])
         term = stats.W[k] * (P_YM * q * prod_others)
         G = term if G is None else G + term
+
+    # true degree <= 8HK-2; the nominal leading coefficient is FP residue
+    G = pdg.trim_zero_leading_coef(G)
 
     roots = G.roots()
     roots = roots[np.absolute(roots) > 0]

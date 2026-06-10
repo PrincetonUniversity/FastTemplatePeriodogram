@@ -88,6 +88,32 @@ def YM_MM_from_sums(cn, sn, sums):
     return YM, MM, AC
 
 
+def trim_zero_leading_coef(p):
+    r"""Drop the analytically-zero leading coefficient of a stationarity
+    polynomial of the form ``2 MM YM' - MM' YM``.
+
+    Because ``deg MM = 2 deg YM`` (4H vs 2H), the nominal top terms cancel
+    exactly (``2 * mm * 2H * ym - 4H * mm * ym = 0``): the true degree is at
+    most ``6H - 2``, and the stored leading coefficient is pure floating-point
+    residue (~1e-19). Left in place it injects a spurious huge-modulus
+    (~1e15) companion root -- harmless to the power after unit-circle
+    projection, but a numerical wart. The same per-term cancellation applies
+    to the multiband shared-phase polynomial ``G`` (true degree at most
+    ``8HK - 2``).
+
+    The trim is conditional because the cancellation is often EXACT in
+    floating point, in which case numpy's polynomial arithmetic has already
+    trimmed the zero and the stored leading coefficient is genuine: only a
+    residue-scale leading coefficient is dropped.
+    """
+    coef = p.coef
+    if len(coef) > 1:
+        scale = np.max(np.abs(coef))
+        if scale > 0 and np.abs(coef[-1]) <= 1e-9 * scale:
+            return pol.Polynomial(coef[:-1])
+    return p
+
+
 def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
     r"""
     Find the optimal phase root of the ``YM``/``MM`` polynomials and reconstruct
@@ -135,6 +161,9 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
     """
     # Polynomial math + root finding!
     p = 2 * MM * YM.deriv() - MM.deriv() * YM
+
+    # true degree <= 6H-2; the nominal leading coefficient is FP residue
+    p = trim_zero_leading_coef(p)
 
     roots = p.roots()
 
