@@ -297,7 +297,7 @@ def fit_template(t, y, dy, cn, sn, freq, sums=None,
 
 
 def template_periodogram(t, y, dy, cn, sn, freqs,
-                        summations=None, fast=True):
+                        summations=None, fast=True, sigma=2, tol=1E-7):
     r"""
     Produces a template periodogram using a single template
 
@@ -320,6 +320,12 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         in freqs. Default is None, which means the sums are computed via
         direct summations (if `fast=False`) or via fast summations (NFFT, if
         `fast=True`)
+    sigma : float, optional (default 2)
+        NFFT oversampling factor; forwarded to `fast_summations` (only used
+        when `fast=True` and `summations` is None).
+    tol : float, optional (default 1e-7)
+        NFFT kernel truncation tolerance; forwarded to `fast_summations`
+        (only used when `fast=True` and `summations` is None).
 
     Returns
     -------
@@ -339,7 +345,8 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
     if summations is None:
         # compute sums using NFFT
         if fast:
-            summations = fast_summations(t, y, w, freqs, nh)
+            summations = fast_summations(t, y, w, freqs, nh, sigma=sigma,
+                                          tol=tol)
         else:
             summations = direct_summations(t, y, w, freqs, nh)
 

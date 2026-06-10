@@ -234,7 +234,8 @@ class FastTemplatePeriodogram(object):
 
     @requires_data
     @requires_template
-    def autopower(self, save_best_model=True, fast=True, **kwargs):
+    def autopower(self, save_best_model=True, fast=True, sigma=2, tol=1E-7,
+                  **kwargs):
         """
         Compute template periodogram at automatically-determined frequencies
 
@@ -242,6 +243,10 @@ class FastTemplatePeriodogram(object):
         ----------
         save_best_model : optional, bool (default = True)
             Save a TemplateModel instance corresponding to the best-fit model found
+        sigma : optional, float (default = 2)
+            NFFT oversampling factor (only used when `fast=True`)
+        tol : optional, float (default = 1e-7)
+            NFFT kernel truncation tolerance (only used when `fast=True`)
         **kwargs : optional, dict
             Passed to `autofrequency`
 
@@ -252,7 +257,8 @@ class FastTemplatePeriodogram(object):
         """
         frequency = self.autofrequency(**kwargs)
         p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy, self.template.c_n,
-                            self.template.s_n, frequency, fast=fast)
+                            self.template.s_n, frequency, fast=fast,
+                            sigma=sigma, tol=tol)
 
         if save_best_model:
             i = np.argmax(p)
@@ -377,7 +383,8 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
 
     @requires_data
     @requires_templates
-    def autopower(self, save_best_model=True, fast=True, **kwargs):
+    def autopower(self, save_best_model=True, fast=True, sigma=2, tol=1E-7,
+                  **kwargs):
         """
         Compute template periodogram at automatically-determined frequencies
 
@@ -385,6 +392,10 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         ----------
         save_best_model : optional, bool (default = True)
             Save a TemplateModel instance corresponding to the best-fit model found
+        sigma : optional, float (default = 2)
+            NFFT oversampling factor (only used when `fast=True`)
+        tol : optional, float (default = 1e-7)
+            NFFT kernel truncation tolerance (only used when `fast=True`)
         **kwargs : optional, dict
             Passed to `autofrequency`
 
@@ -396,7 +407,8 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         frequency = self.autofrequency(**kwargs)
 
         results = [pdg.template_periodogram(self.t, self.y, self.dy, template.c_n,
-                                            template.s_n, frequency, fast=fast)
+                                            template.s_n, frequency, fast=fast,
+                                            sigma=sigma, tol=tol)
                    for template in self.templates]
 
         p, bfpars = zip(*results)
@@ -413,7 +425,8 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         return frequency, np.max(p, axis=0)
 
     @requires_data
-    def power_from_single_template(self, frequency, template, fast=False, save_best_model=True):
+    def power_from_single_template(self, frequency, template, fast=False,
+                                   save_best_model=True, sigma=2, tol=1E-7):
         """
         Compute template periodogram at a given set of frequencies; slower than
         `autopower`, but frequencies are not restricted to being evenly spaced
@@ -424,6 +437,10 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
             Frequenc(ies) at which to determine template periodogram power
         save_best_model : optional, bool (default=True)
             Save best model fit, accessible via the `best_model` attribute
+        sigma : optional, float (default = 2)
+            NFFT oversampling factor (only used when `fast=True`)
+        tol : optional, float (default = 1e-7)
+            NFFT kernel truncation tolerance (only used when `fast=True`)
         **kwargs : optional, dict
             Passed to `autofrequency`
 
@@ -440,7 +457,7 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         p, bfpars = pdg.template_periodogram(self.t, self.y, self.dy,
                                              template.c_n, template.s_n,
                                              frequency,
-                                             fast=fast)
+                                             fast=fast, sigma=sigma, tol=tol)
         p = np.asarray(p)
         if save_best_model:
             i = np.argmax(p)
@@ -452,7 +469,8 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
 
     @requires_data
     @requires_templates
-    def power(self, frequency, save_best_model=True, fast=False):
+    def power(self, frequency, save_best_model=True, fast=False, sigma=2,
+              tol=1E-7):
         """
         Compute template periodogram at a given set of frequencies
 
@@ -462,6 +480,10 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
             Frequenc(ies) at which to determine template periodogram power
         save_best_model : optional, bool (default=True)
             Save best model fit, accessible via the `best_model` attribute
+        sigma : optional, float (default = 2)
+            NFFT oversampling factor (only used when `fast=True`)
+        tol : optional, float (default = 1e-7)
+            NFFT kernel truncation tolerance (only used when `fast=True`)
         **kwargs : optional, dict
             Passed to `autofrequency`
 
@@ -472,7 +494,8 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         """
         all_power = [self.power_from_single_template(frequency, template,
                                                      fast=fast,
-                                                     save_best_model=save_best_model)\
+                                                     save_best_model=save_best_model,
+                                                     sigma=sigma, tol=tol)\
                      for template in self.templates ]
 
         return np.max(all_power, axis=0)

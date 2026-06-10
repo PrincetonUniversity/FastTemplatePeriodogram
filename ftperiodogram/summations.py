@@ -1,7 +1,40 @@
+import warnings
+
 from nfft import nfft_adjoint
 from .utils import Summations
 import numpy as np
 from math import floor
+
+
+def _warn_if_concentrated_weights(w):
+    """Warn when the inverse-variance weights are concentrated enough to
+    trigger catastrophic cancellation in the ``E[xy] - E[x]E[y]`` moment sums.
+
+    The fast (NFFT) path computes the raw moments and subtracts the means, so
+    when a handful of points (fewer than ~the model dof) dominate the weight
+    budget the subtraction cancels catastrophically.  The direct path avoids
+    this with two-pass centered sums, hence the ``fast=False`` advice.
+    """
+    w = np.asarray(w)
+    if w.size < 2:
+        return
+    total = np.sum(w)
+    if not (total > 0):
+        return
+    wmax = np.max(w)
+    wmin = np.min(w)
+    share = wmax / total
+    ratio = wmax / wmin if wmin > 0 else np.inf
+    if share > 1 - 1e-6 or ratio > 1e6:
+        warnings.warn(
+            "Inverse-variance weights are highly concentrated "
+            "(largest single-point weight share = {0:.6g}, "
+            "max(w)/min(w) = {1:.3g}). The NFFT fast path can lose "
+            "precision to catastrophic cancellation in the moment sums "
+            "when fewer points than the model dof dominate the weight "
+            "budget; consider fast=False (direct summations, which use "
+            "centered two-pass sums).".format(share, ratio),
+            UserWarning)
 
 
 def inspect_freqs(freqs):
@@ -22,7 +55,49 @@ def inspect_freqs(freqs):
 def direct_summations_single_freq(t, y, w, freq, nharmonics):
     """
     Compute summations (C, S, CC, ...) via direct summation
-    for a single frequency
+    for a single frequency.
+
+    The covariance sums are computed as two-pass *centered* moments: first
+    the weighted first moments (C, S, ybar), then moments of the residuals
+    (cos - C, sin - S, y - ybar).  This is analytically identical to the
+    uncentered ``E[xy] - E[x]E[y]`` form (the weights are normalized) but
+    avoids its catastrophic cancellation when the inverse-variance weight
+    concentrates in fewer points than ~the model dof.
+    """
+    ybar = np.dot(w, y)
+    wt = 2 * np.pi * freq * t
+    h = 1 + np.arange(nharmonics)[:, np.newaxis]
+
+    ch = np.cos(h * wt)
+    sh = np.sin(h * wt)
+
+    # first pass: weighted first moments
+    C = np.dot(ch, w)
+    S = np.dot(sh, w)
+
+    # second pass: moments of the centered residuals
+    dc = ch - C[:, np.newaxis]
+    ds = sh - S[:, np.newaxis]
+    yres = y - ybar
+
+    YC = np.dot(dc, w * yres)
+    YS = np.dot(ds, w * yres)
+
+    wdc = w * dc
+    CC = np.dot(wdc, dc.T)
+    CS = np.dot(wdc, ds.T)
+    SS = np.dot(w * ds, ds.T)
+
+    return Summations(C=C, S=S, YC=YC, YS=YS, CC=CC, CS=CS, SS=SS)
+
+
+def _direct_summations_single_freq_uncentered(t, y, w, freq, nharmonics):
+    """Uncentered (single-pass) covariance sums: ``E[xy] - E[x]E[y]``.
+
+    Retained as the regression reference for the weight-conditioning tests
+    (tests/test_weight_conditioning.py): this form cancels catastrophically
+    under concentrated inverse-variance weights.  Production code uses the
+    centered :func:`direct_summations_single_freq`.
     """
     ybar = np.dot(w, y)
     wt = 2 * np.pi * freq * t
@@ -33,10 +108,6 @@ def direct_summations_single_freq(t, y, w, freq, nharmonics):
 
     YC = np.dot((y - ybar) * np.cos(h * wt), w)
     YS = np.dot((y - ybar) * np.sin(h * wt), w)
-
-    CC = np.zeros((nharmonics, nharmonics))
-    CS = np.zeros((nharmonics, nharmonics))
-    SS = np.zeros((nharmonics, nharmonics))
 
     hT = h[:, :, np.newaxis]
 
@@ -73,7 +144,9 @@ def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
     Computes C, S, YC, YS, CC, CS, SS using
     nfft Python implementation by Jake Vanderplas
     """
-    nfft_kwargs = dict(sigma=sigma, tol=tol, m=m, 
+    _warn_if_concentrated_weights(w)
+
+    nfft_kwargs = dict(sigma=sigma, tol=tol, m=m,
                         kernel=kernel, use_fft=use_fft, 
                         truncated=truncated)
 
