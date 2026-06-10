@@ -17,4 +17,4 @@ Full RunPod fleet result (3 seeds, mean across seeds). Figures in this dir.
 
 ## Cost vs accuracy (FTP vs Sesar-style non-linear oracle)
 - FTP recovery 0.438 vs oracle recovery 0.438 (gold-standard equivalence)
-- speedup 2.5x (reduced cost-panel grid; full-grid speedup is larger)
+- speedup 2.5x measured in-harness (oracle n_tau=128; the ratio is grid-stable and grows with N_obs)

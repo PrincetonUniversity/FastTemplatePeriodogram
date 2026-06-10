@@ -12,7 +12,12 @@ aggregated across seeds:
   (ii)  recovery-vs-N_epochs at the K-sweep knee -- FTP(PAM), FTP(greedy), and the
         three LS baselines as curves vs per-band epoch count (the sparse-regime story);
   (iii) cost-vs-accuracy -- FTP vs the slow Sesar-style non-linear oracle on a source
-        subsample: equal recovery at a large wall-time ratio (the ~10^3x speed claim).
+        subsample.  FTP matches the oracle's recovery exactly, at a measured ~2.5x
+        wall-time advantage in-harness (oracle n_tau=128; ~5x at the documented
+        n_tau=256).  The ratio is grid-stable and grows with N_obs (~5x @60 obs ->
+        ~96x @3840 measured); literature per-star pipelines (Sesar 2017, ~30 min/star)
+        are 10^2-10^3x slower for external reasons.  Never print ~10^3x as a measured
+        result.
 
 The oracle's RECOVERY equals FTP's by construction (baselines.SesarOracleEstimator
 reproduces FTP's analytic optimum to <1e-6; see tests/test_baselines.py), so it is

@@ -14,6 +14,7 @@ import json
 import os
 import sys
 
+import fleet
 import run_production_matrix as rpm
 import production_figures
 
@@ -26,6 +27,16 @@ def _fmt(stat):
     return ["%.3f" % m for m in stat["mean"]]
 
 
+def _sweep_config():
+    """Sweep-level config parsed from fleet.CONFIG (the launch string the pods
+    actually ran) -- the per-seed jsons are flat run_seed dicts with no config."""
+    toks = fleet.CONFIG.split()
+    grab = lambda flag: toks[toks.index(flag) + 1]
+    return {"nharmonics": int(grab("--nharmonics")),
+            "n_sources": int(grab("--n-sources")),
+            "n_freq": int(grab("--n-freq"))}
+
+
 def finalize(universe):
     seeds = []
     for s in (0, 1, 2):
@@ -36,9 +47,10 @@ def finalize(universe):
         raise SystemExit("no seed results for %s" % universe)
     print("aggregating %d seed(s) for %s" % (len(seeds), universe))
     agg = rpm.aggregate(seeds)
-    results = {"config": {"universe": universe, "nharmonics": 8, "n_sources": 256,
-                          "n_freq": 8000, "n_seeds": 3},
-               "per_seed": seeds, "aggregate": agg}
+    cfg = _sweep_config()
+    cfg.update({"universe": universe, "n_seeds": len(seeds),
+                "seeds": [s["seed"] for s in seeds]})
+    results = {"config": cfg, "per_seed": seeds, "aggregate": agg}
     dest = os.path.join(DEST, universe)
     os.makedirs(dest, exist_ok=True)
     json.dump(results, open(os.path.join(dest, "results.json"), "w"), indent=2)
@@ -48,8 +60,9 @@ def finalize(universe):
     c = agg.get("cost", {})
     nseed = len(seeds)
     lines = [
-        "# Phase 3.2 production headline -- %s universe (H=8, 256 src x %d seed%s)"
-        % (universe, nseed, "s" if nseed != 1 else ""),
+        "# Phase 3.2 production headline -- %s universe (H=%d, %d src x %d seed%s)"
+        % (universe, cfg["nharmonics"], cfg["n_sources"], nseed,
+           "s" if nseed != 1 else ""),
         "",
         "RunPod fleet result (%d seed%s, mean across seeds). Figures in this dir."
         % (nseed, "s" if nseed != 1 else ""),
@@ -77,8 +90,10 @@ def finalize(universe):
         "- FTP recovery %.3f vs oracle recovery %.3f (gold-standard equivalence)"
         % (c.get("ftp_recovery", {}).get("mean", [0])[0],
            c.get("oracle_recovery", {}).get("mean", [0])[0]),
-        "- speedup %.1fx (reduced cost-panel grid; full-grid speedup is larger)"
-        % c.get("speedup", {}).get("mean", [0])[0],
+        "- speedup %.1fx measured in-harness (oracle n_tau=%d; the ratio is"
+        " grid-stable and grows with N_obs)"
+        % (c.get("speedup", {}).get("mean", [0])[0],
+           seeds[0]["cost"]["oracle_n_tau"]),
     ]
     open(os.path.join(dest, "SUMMARY.md"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))

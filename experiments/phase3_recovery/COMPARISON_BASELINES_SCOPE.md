@@ -58,8 +58,10 @@ class RecoveryScorer:
 
 Cost/value notes:
 - **Sesar oracle** is deliberately slow (per-frequency, per-template non-linear fit) —
-  it is what deliverable (iii)'s cost-vs-accuracy panel times FTP against (the ~10³×
-  speedup claim). Keep it brute-force; never loosen its tolerance.
+  it is what deliverable (iii)'s cost-vs-accuracy panel times FTP against (measured
+  ~2.5× in-harness at oracle n_tau=128, ~5× at the documented n_tau=256; the ratio is
+  grid-stable and grows with N_obs — never quote ~10³× as a measured result). Keep it
+  brute-force; never loosen its tolerance.
 - **MHLS** is the headline foil: FTP's learned shape prior should beat free-shape MHLS
   *especially at low N_epochs* (the recovery-vs-N_epochs panel).
 - **BLS** is a contaminant/EB control, not central to recovery-vs-K — safe to defer to
