@@ -27,6 +27,13 @@ Search band is explicit RR-Lyrae [f_min, f_max] (default [1, 5] cyc/day, P in
 [0.2, 1.0] d) -- never a Nyquist heuristic.  The per-source loop is embarrassingly
 parallel: ``--n-jobs -1`` fans it across all cores (mask-identical to serial).
 Results stream to ``--outdir`` per seed (checkpointed) and are aggregated at the end.
+
+Robustness arms (each a separate run, recorded in the results.json config block):
+``--library-holdout-frac`` injects truth from a held-out shape split so the
+vocabulary never contains the generating shapes; ``--truth-universe`` crosses
+universes (truth from one, library from ``--universe``); ``--band-amp-ratio``
+breaks the equal-band-amplitude assumption (e.g. 1.4 for g/r).  Greedy selection
+always runs on a DISJOINT simulated source split (selection seed != eval seed).
 Every scored (seed, method, cell) also persists per-source ``(P_true, P_rec,
 recovered)`` as one npz under ``--outdir/per_source/`` -- any recovery criterion is
 re-scorable post hoc -- aggregation quotes pooled Wilson 95% CIs (not +/-std of a
@@ -36,6 +43,7 @@ few seed means), and the N-sweep records exact McNemar paired contrasts vs FTP(P
     python run_production_matrix.py --n-jobs -1 --outdir output_prod   # full (RunPod)
 """
 import argparse
+import copy
 import json
 import os
 import time
@@ -105,22 +113,87 @@ def subsample_scorer(master, n, freqs=None):
         rtol=master.rtol, n_jobs=master.n_jobs)
 
 
-def greedy_order_reduced(scorer, templates, max_k, args):
-    """Greedy order computed on a REDUCED scorer (source subsample + coarse grid).
+# Greedy SELECTION sources are simulated with this seed offset so they are
+# disjoint from the evaluation population (selection seed != eval seed) -- the
+# selected vocabulary is never scored on the sources that chose it.
+_SEL_SEED_OFFSET = 100003
 
-    The greedy forward-selection ORDER is a set-cover on per-template recovery and is
-    robust to both source count and grid resolution, so computing it on
-    ``--greedy-select-sources`` sources at ``--greedy-select-nfreq`` frequencies (then
-    scoring the resulting vocabulary prefixes at FULL resolution) cuts the dominant
-    ``source_masks`` cost ~20-40x with no measurable change to the order.  Pass
-    ``--greedy-select-sources 0`` to disable the reduction (full-resolution greedy).
+
+def selection_scorers(truth_templates, args, seed, obs_bands, err_model,
+                      band_amplitudes):
+    """Dense + sparse scorers for greedy selection, DISJOINT from evaluation.
+
+    The greedy forward-selection ORDER is a set-cover on per-template recovery and
+    is robust to source count and grid resolution, so it is computed on
+    ``--greedy-select-sources`` freshly simulated sources at
+    ``--greedy-select-nfreq`` frequencies (``--greedy-select-sources 0`` =
+    ``--n-sources`` sources on the full grid), then the vocabulary prefixes are
+    scored on the untouched evaluation population at full resolution.
     """
-    if not args.greedy_select_sources or args.greedy_select_sources >= scorer.n_sources:
-        sel = scorer
+    n_sel = int(args.greedy_select_sources) or int(args.n_sources)
+    nf = (int(args.greedy_select_nfreq) if args.greedy_select_sources
+          else int(args.n_freq))
+    freqs = frequency_grid(args.f_min, args.f_max, nf)
+    cad = SyntheticCadence(
+        n_epochs={b: args.dense_master_epochs for b in obs_bands}, bands=obs_bands,
+        baseline_days=args.baseline_days, err_model=err_model,
+        random_state=seed + _SEL_SEED_OFFSET + 1)
+    dense = make_recovery_scorer(cad, truth_templates, freqs=freqs,
+                                 n_sources=n_sel,
+                                 band_amplitudes=band_amplitudes,
+                                 random_state=seed + _SEL_SEED_OFFSET,
+                                 n_jobs=args.n_jobs)
+    sparse = dense.downsample(args.sparse_master_epochs,
+                              random_state=seed + _SEL_SEED_OFFSET)
+    return dense, sparse
+
+
+def band_amplitude_dict(obs_bands, ratio):
+    """Per-band amplitude scalings spanning ``ratio`` from first to last band.
+
+    ``None`` (the shared-shape default) when ratio is 1/unset or there is a single
+    band; otherwise log-spaced from ``ratio`` down to 1.0 across the band list,
+    e.g. ratio 1.4 with bands g,r -> {'g': 1.4, 'r': 1.0}.
+    """
+    ratio = float(ratio or 1.0)
+    if ratio == 1.0 or len(obs_bands) < 2:
+        return None
+    if ratio <= 0:
+        raise SystemExit("--band-amp-ratio must be positive; got %r" % ratio)
+    n = len(obs_bands)
+    return {b: float(ratio ** (1.0 - i / (n - 1.0)))
+            for i, b in enumerate(obs_bands)}
+
+
+def split_truth_library(templates, truth_pool, args, seed):
+    """Resolve the (truth population, vocabulary library) pair for one seed.
+
+    Cross-universe (``--truth-universe``): truth = the other universe, library =
+    the ``--universe`` shapes.  Holdout (``--library-holdout-frac``): a per-seed
+    disjoint split of the single universe, mirroring run_joint_vs_pipeline.py --
+    the library never contains the generating shapes.  Default: truth == library.
+    Returns ``(truth, library, arms_metadata_dict)``.
+    """
+    arms = {'truth_universe': args.truth_universe,
+            'library_holdout_frac': float(args.library_holdout_frac),
+            'band_amp_ratio': float(args.band_amp_ratio)}
+    if truth_pool is not None:
+        truth, library = truth_pool, templates
+    elif args.library_holdout_frac > 0:
+        idx = np.random.RandomState(seed).permutation(len(templates))
+        n_pop = max(1, int(round(args.library_holdout_frac * len(templates))))
+        if n_pop >= len(templates):
+            raise SystemExit("--library-holdout-frac %.2f leaves an empty library "
+                             "(%d templates)" % (args.library_holdout_frac,
+                                                 len(templates)))
+        truth = [templates[i] for i in idx[:n_pop]]
+        library = [templates[i] for i in idx[n_pop:]]
+        arms['holdout_truth_idx'] = [int(i) for i in idx[:n_pop]]
+        arms['library_idx'] = [int(i) for i in idx[n_pop:]]
     else:
-        coarse = frequency_grid(args.f_min, args.f_max, args.greedy_select_nfreq)
-        sel = subsample_scorer(scorer, args.greedy_select_sources, freqs=coarse)
-    return greedy_order(sel, templates, max_k)
+        truth = library = templates
+    arms['n_truth'], arms['n_library'] = len(truth), len(library)
+    return truth, library, arms
 
 
 # ----------------------------------------------------------------------
@@ -202,23 +275,34 @@ def k_curves(scorer, templates, pam_vocabs, greedy_ord, k_values, baselines, sav
 # ----------------------------------------------------------------------
 # Per-seed run
 # ----------------------------------------------------------------------
-def run_seed(templates, args, seed, log):
+def run_seed(templates, truth_pool, args, seed, log):
     obs_bands = [b for b in str(args.obs_bands).split(',') if b]
     k_values = _ints(args.k_values)
     n_epochs_values = _ints(args.n_epochs_values)
     max_k = max(k_values)
+
+    truth, library, arms = split_truth_library(templates, truth_pool, args, seed)
+    band_amps = band_amplitude_dict(obs_bands, args.band_amp_ratio)
+    arms['band_amplitudes'] = band_amps
 
     freqs = frequency_grid(args.f_min, args.f_max, args.n_freq)
     err_model, err_label = _build_err_model(args, log)
     cadence = SyntheticCadence(
         n_epochs={b: args.dense_master_epochs for b in obs_bands}, bands=obs_bands,
         baseline_days=args.baseline_days, err_model=err_model, random_state=seed + 1)
-    master = make_recovery_scorer(cadence, templates, freqs=freqs,
-                                  n_sources=args.n_sources, random_state=seed,
+    master = make_recovery_scorer(cadence, truth, freqs=freqs,
+                                  n_sources=args.n_sources,
+                                  band_amplitudes=band_amps, random_state=seed,
                                   n_jobs=args.n_jobs)
     log("seed %d: frozen %d sources, bands=%s, dense=%d epochs/band, grid=[%.2f,%.2f]x%d"
         % (seed, args.n_sources, obs_bands, args.dense_master_epochs, args.f_min,
            args.f_max, args.n_freq))
+    if (arms['truth_universe'] or arms['library_holdout_frac'] > 0
+            or band_amps is not None):
+        log("  arms: truth=%d shapes, library=%d shapes, truth_universe=%s, "
+            "holdout=%.2f, band_amplitudes=%s"
+            % (arms['n_truth'], arms['n_library'], arms['truth_universe'],
+               arms['library_holdout_frac'], band_amps))
 
     baselines = {
         'gls': GLSEstimator(),
@@ -226,28 +310,32 @@ def run_seed(templates, args, seed, log):
         'mbls': MultibandLSEstimator(args.mbls_h),
     }
 
-    result = {'seed': seed, 'err_model': err_label}
+    result = {'seed': seed, 'err_model': err_label, 'arms': arms}
 
     # PAM vocabularies are cadence-independent (they cluster template SHAPES), so
     # build them ONCE per K and reuse across both regimes and the N-sweep.
-    pam_vocabs = {K: build_template_catalog(templates, K, method='pam',
+    # Vocabularies always come from the LIBRARY split (== truth unless an arm
+    # separates them).
+    pam_vocabs = {K: build_template_catalog(library, K, method='pam',
                                             random_state=seed) for K in k_values}
     # Greedy is recovery-driven, so its order is per-cadence: one source_masks
-    # precompute on the dense master and one on the sparse scorer (each parallel).
+    # precompute on the dense selection scorer and one on its sparse downsample
+    # (each parallel), on a DISJOINT simulated split (selection seed != eval seed).
     sparse = master.downsample(args.sparse_master_epochs, random_state=seed)
     t0 = time.time()
-    greedy_dense = greedy_order_reduced(master, templates, max_k, args)
-    greedy_sparse = greedy_order_reduced(sparse, templates, max_k, args)
-    log("  greedy orders (dense+sparse, %d sel-src x %d sel-freq) in %.0fs"
-        % (args.greedy_select_sources or master.n_sources,
-           args.greedy_select_nfreq, time.time() - t0))
+    sel_dense, sel_sparse = selection_scorers(truth, args, seed, obs_bands,
+                                              err_model, band_amps)
+    greedy_dense = greedy_order(sel_dense, library, max_k)
+    greedy_sparse = greedy_order(sel_sparse, library, max_k)
+    log("  greedy orders (dense+sparse, %d disjoint sel-src x %d sel-freq) in %.0fs"
+        % (sel_dense.n_sources, sel_dense.freqs.size, time.time() - t0))
 
     # (i) recovery-vs-K, sparse + dense regimes ------------------------------------
     for regime, sc, order in (('sparse', sparse, greedy_sparse),
                              ('dense', master, greedy_dense)):
         t0 = time.time()
         save = make_saver(sc, args.outdir, seed, 'ksweep-%s' % regime)
-        pam, grd, base = k_curves(sc, templates, pam_vocabs, order, k_values,
+        pam, grd, base = k_curves(sc, library, pam_vocabs, order, k_values,
                                   baselines, save)
         result['k_sweep_%s' % regime] = {
             'n_epochs': (args.sparse_master_epochs if regime == 'sparse'
@@ -268,7 +356,7 @@ def run_seed(templates, args, seed, log):
     # dense master), then evaluated across down-sampled epoch counts -- the sparse-
     # regime story. No per-N re-selection: the SAME vocab is scored at each N.
     pam_vocab = pam_vocabs[fixed_k]
-    greedy_vocab = [templates[i] for i in greedy_dense[:fixed_k]]
+    greedy_vocab = [library[i] for i in greedy_dense[:fixed_k]]
     t0 = time.time()
     n_curves = {'ftp_pam': [], 'ftp_greedy': [], 'gls': [], 'mhls': [], 'mbls': []}
     contrasts = []
@@ -299,7 +387,7 @@ def run_seed(templates, args, seed, log):
         sub = subsample_scorer(master, args.cost_subsample)
         cost_freqs = frequency_grid(args.f_min, args.f_max, args.cost_n_freq)
         sub.freqs = cost_freqs                       # coarser grid; ratio is grid-stable
-        cost_vocab = build_template_catalog(templates, args.cost_k, method='pam',
+        cost_vocab = build_template_catalog(library, args.cost_k, method='pam',
                                             random_state=seed)
         save = make_saver(sub, args.outdir, seed, 'cost')
         fast = FTPEstimator(cost_vocab, mode=sub.mode)
@@ -430,6 +518,17 @@ def parse_args(argv=None):
                    help="cadence noise: synthetic exp_mag_error (default) or the "
                         "empirical ZTF binned-median model from the cached real "
                         "cadence sample (1.6-3.5x larger errors)")
+    p.add_argument('--library-holdout-frac', type=float, default=0.0,
+                   help="robustness arm: per-seed fraction of the universe held "
+                        "out as the truth POPULATION; the vocabulary library is "
+                        "the disjoint remainder (0 = truth == library)")
+    p.add_argument('--truth-universe', default=None, choices=['sesar', 'bv'],
+                   help="robustness arm: simulate truth from THIS universe while "
+                        "the vocabulary library comes from --universe "
+                        "(cross-universe mismatch)")
+    p.add_argument('--band-amp-ratio', type=float, default=1.0,
+                   help="robustness arm: first-to-last band amplitude ratio "
+                        "(e.g. 1.4 for g/r); 1.0 = shared shape across bands")
     p.add_argument('--smoke', action='store_true')
     return p.parse_args(argv)
 
@@ -471,6 +570,23 @@ def load_universe(args):
     return templates
 
 
+def load_truth_universe(args, log):
+    """Templates for the ``--truth-universe`` cross-universe arm (None if unset).
+
+    Mutually exclusive with ``--library-holdout-frac`` (the two arms answer
+    different mismatch questions; composing them muddles both)."""
+    if not args.truth_universe or args.truth_universe == args.universe:
+        if args.truth_universe:
+            log("--truth-universe == --universe; cross-universe arm disabled")
+        return None
+    if args.library_holdout_frac > 0:
+        raise SystemExit("--truth-universe and --library-holdout-frac are "
+                         "mutually exclusive; run them as separate arms")
+    other = copy.copy(args)
+    other.universe = args.truth_universe
+    return load_universe(other)
+
+
 def main(argv=None):
     args = parse_args(argv)
     if args.smoke:
@@ -483,12 +599,16 @@ def main(argv=None):
         print(msg, flush=True)
 
     templates = load_universe(args)
+    truth_pool = load_truth_universe(args, log)
     log("universe: %d templates (H=%d), seeds=%s, n_jobs=%d"
         % (len(templates), len(templates[0].c_n), seeds, args.n_jobs))
+    if truth_pool is not None:
+        log("cross-universe arm: truth from %r (%d shapes), library from %r"
+            % (args.truth_universe, len(truth_pool), args.universe))
 
     seed_results = []
     for seed in seeds:
-        r = run_seed(templates, args, seed, log)
+        r = run_seed(templates, truth_pool, args, seed, log)
         seed_results.append(r)
         with open(os.path.join(args.outdir, 'seed_%d.json' % seed), 'w') as fh:
             json.dump(r, fh, indent=2)
@@ -498,7 +618,9 @@ def main(argv=None):
             'universe', 'nharmonics', 'obs_bands', 'n_sources', 'f_min', 'f_max',
             'n_freq', 'baseline_days', 'dense_master_epochs', 'sparse_master_epochs',
             'k_values', 'n_epochs_values', 'mhls_h', 'mbls_h', 'cost_subsample',
-            'cost_n_freq', 'cost_k', 'oracle_n_tau')},
+            'cost_n_freq', 'cost_k', 'oracle_n_tau', 'err_model',
+            'library_holdout_frac', 'truth_universe', 'band_amp_ratio',
+            'greedy_select_sources', 'greedy_select_nfreq')},
         'n_universe': len(templates), 'seeds': seeds,
         'per_seed': seed_results, 'aggregate': aggregate(seed_results),
         'wall_seconds': round(time.time() - t_start, 1)}
