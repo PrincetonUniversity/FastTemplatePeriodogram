@@ -18,5 +18,5 @@ from .baselines import (FTPEstimator, GLSEstimator, MHLSEstimator,
                         MultibandLSEstimator, SesarOracleEstimator)
 from .validation import (RecoveryScorer, make_recovery_scorer, k_sweep_recovery,
                          KSweepResult, frequency_grid, n_epochs_sweep_recovery,
-                         NEpochsSweepResult)
+                         NEpochsSweepResult, wilson_interval, mcnemar_test)
 from .joint_em import build_joint_em_catalog, EMDiagnostics

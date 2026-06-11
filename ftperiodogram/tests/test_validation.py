@@ -308,5 +308,67 @@ def test_harness_public_api_exports():
                  'harmonic_alias_set', 'classify_recovery', 'recovery_rate',
                  'RecoveryScorer', 'make_recovery_scorer', 'k_sweep_recovery',
                  'KSweepResult', 'frequency_grid', 'n_epochs_sweep_recovery',
-                 'NEpochsSweepResult'):
+                 'NEpochsSweepResult', 'wilson_interval', 'mcnemar_test'):
         assert hasattr(ftp, name)
+
+
+# ----------------------------------------------------------------------
+# Per-source recovered periods + pooled-uncertainty helpers (WP B1)
+# ----------------------------------------------------------------------
+def test_score_estimator_return_periods():
+    from ftperiodogram.baselines import FTPEstimator
+    templates, scorer = _master_scorer()
+    est = FTPEstimator(templates[:2], mode=scorer.mode)
+    rate_m, mask_m = scorer.score_estimator(est, return_mask=True)
+    rate, mask, periods = scorer.score_estimator(est, return_periods=True)
+    assert rate == rate_m                              # same scoring, richer return
+    npt.assert_array_equal(mask, mask_m)
+    assert periods.shape == (scorer.n_sources,)
+    assert np.all(np.isfinite(periods)) and np.all(periods > 0)
+    # recovered periods come off the explicit search grid -> inside its band
+    assert np.all(periods >= 1.0 / scorer.freqs.max() - 1e-12)
+    assert np.all(periods <= 1.0 / scorer.freqs.min() + 1e-12)
+
+
+def test_return_periods_parallel_matches_serial():
+    from ftperiodogram.baselines import GLSEstimator
+    _, scorer = _master_scorer()
+    est = GLSEstimator()
+    r1, m1, p1 = scorer.score_estimator(est, return_periods=True, n_jobs=1)
+    r2, m2, p2 = scorer.score_estimator(est, return_periods=True, n_jobs=2)
+    assert r1 == r2
+    npt.assert_array_equal(m1, m2)
+    npt.assert_array_equal(p1, p2)                     # bit-identical, not approx
+
+
+def test_wilson_interval_known_values():
+    lo, hi = val.wilson_interval(8, 10)
+    npt.assert_allclose([lo, hi], [0.490162, 0.943318], atol=1e-5)
+    lo0, hi0 = val.wilson_interval(0, 10)
+    assert lo0 == 0.0 and 0.0 < hi0 < 0.35             # never an empty [0, 0]
+    lo1, hi1 = val.wilson_interval(10, 10)
+    assert hi1 == 1.0 and 0.65 < lo1 < 1.0
+    # vectorized over curve points
+    lo, hi = val.wilson_interval([0, 5, 10], 10)
+    assert lo.shape == (3,) and np.all(lo <= hi)
+    assert np.all((0.0 <= lo) & (hi <= 1.0))
+    # n = 0 -> full-ignorance interval, no division warning
+    assert val.wilson_interval(0, 0) == (0.0, 1.0)
+
+
+def test_mcnemar_exact_known_value():
+    # 1 a-only vs 9 b-only discordant pairs: p = 2*sum_{i<=1} C(10,i)/2^10
+    a = np.array([True] * 1 + [False] * 9 + [True] * 5 + [False] * 5)
+    b = np.array([False] * 1 + [True] * 9 + [True] * 5 + [False] * 5)
+    n01, n10, p = val.mcnemar_test(a, b)
+    assert (n01, n10) == (1, 9)
+    assert p == pytest.approx(22.0 / 1024.0)
+    # symmetric in its arguments
+    n01s, n10s, ps = val.mcnemar_test(b, a)
+    assert (n01s, n10s) == (9, 1) and ps == p
+    # no discordant pairs -> no evidence either way
+    same = np.array([True, False, True])
+    assert val.mcnemar_test(same, same) == (0, 0, 1.0)
+    # balanced discordance: two-sided p capped at 1
+    a2 = np.array([True] * 3 + [False] * 3)
+    assert val.mcnemar_test(a2, ~a2)[2] == 1.0
