@@ -435,8 +435,12 @@ class RecoveryScorer(object):
         matches the underlying shapes better even where period recovery cannot show it.
 
         Requires a scorer built with per-source truth shapes (``__init__`` /
-        :meth:`downsample`); raises ``ValueError`` otherwise.  ``return_counts`` also
-        returns ``(rate, n_correct, n_subset)``.
+        :meth:`downsample`); raises ``ValueError`` otherwise.  ``return_counts``
+        returns ``(rate, n_correct, n_subset, null_rate)`` where ``null_rate`` is
+        the MAJORITY-TARGET null on the same subset -- the accuracy of always
+        predicting the subset's most common correct target.  Quote accuracies
+        against this null (and with ``n_subset``), not against ``1/K``: targets
+        are not uniform, so ``1/K`` overstates the skill.
         """
         from .joint_em import _estep_one              # lazy: avoids an import cycle
         if getattr(self, '_truth', None) is None:
@@ -449,6 +453,7 @@ class RecoveryScorer(object):
                   for tr in self._truth]
         crit = self._crit()
         n_correct, n_subset = 0, 0
+        subset_targets = []
         for i, source in enumerate(self._sources):
             assigned, freq_rec, _ = _estep_one(source, vocab, self.freqs,
                                                self.mode, H)
@@ -460,8 +465,11 @@ class RecoveryScorer(object):
             if recovered:
                 n_subset += 1
                 n_correct += int(assigned == target[i])
+                subset_targets.append(target[i])
         rate = (n_correct / n_subset) if n_subset else 0.0
-        return (rate, n_correct, n_subset) if return_counts else rate
+        null_rate = (max(np.bincount(subset_targets)) / n_subset
+                     if n_subset else 0.0)
+        return (rate, n_correct, n_subset, null_rate) if return_counts else rate
 
     def _set_scoring_params(self, *, mode, criterion, harmonic_aware,
                             delta_phi_max, rtol):

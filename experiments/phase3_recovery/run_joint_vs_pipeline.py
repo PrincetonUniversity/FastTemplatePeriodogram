@@ -85,6 +85,7 @@ def run(args):
     def master(seed):
         return make_recovery_scorer(cad, population, freqs=freqs,
                                     n_sources=args.n_sources, mean_mag=args.mean_mag,
+                                    amplitude=args.amplitude,
                                     intrinsic_jitter=args.intrinsic_jitter,
                                     random_state=seed, n_jobs=args.n_jobs)
 
@@ -114,20 +115,34 @@ def run(args):
         gls_rec = float(eval_N(gls))
         # mechanism metric: correct-template assignment on the correct-period subset
         # (period recovery clips shape gains; this exposes them if joint learns
-        # better-matched templates).
-        pipe_assign = float(eval_N.assignment_accuracy(pipeline_vocab))
-        joint_assign = float(eval_N.assignment_accuracy(joint_vocab))
+        # better-matched templates).  Quoted with n_subset and the MAJORITY-TARGET
+        # null (always predicting the subset's most common correct target) -- the
+        # honest chance bar; 1/K understates it because targets are not uniform.
+        pipe_assign, _, pipe_n_sub, pipe_null = eval_N.assignment_accuracy(
+            pipeline_vocab, return_counts=True)
+        joint_assign, _, joint_n_sub, joint_null = eval_N.assignment_accuracy(
+            joint_vocab, return_counts=True)
         rows.append(dict(n_epochs=int(N), pipeline=pipe_rec, joint=joint_rec,
                          gls=gls_rec, gap=joint_rec - pipe_rec,
                          pipeline_assign=pipe_assign, joint_assign=joint_assign,
                          mechanism_gap=joint_assign - pipe_assign,
+                         pipeline_assign_n=int(pipe_n_sub),
+                         pipeline_assign_null=float(pipe_null),
+                         joint_assign_n=int(joint_n_sub),
+                         joint_assign_null=float(joint_null),
                          em_best_iter=int(diag.best_iter),
                          em_n_iter=int(diag.n_iter),
-                         em_stop=diag.stop_reason))
+                         em_stop=diag.stop_reason,
+                         em_val_signal=diag.val_signal_name,
+                         em_val_hist=[float(v) for v in diag.val_signal],
+                         em_n_gated=[int(v) for v in diag.n_gated],
+                         em_n_reverted=[int(v) for v in diag.n_reverted]))
         print("N=%2d  rec pipe=%.3f joint=%.3f gap=%+.3f | assign pipe=%.3f "
-              "joint=%.3f mech_gap=%+.3f | gls=%.3f (EM %d/%d %s)"
+              "joint=%.3f mech_gap=%+.3f (n=%d/%d null=%.2f/%.2f) | gls=%.3f "
+              "(EM %d/%d %s)"
               % (N, pipe_rec, joint_rec, joint_rec - pipe_rec, pipe_assign,
-                 joint_assign, joint_assign - pipe_assign, gls_rec,
+                 joint_assign, joint_assign - pipe_assign, pipe_n_sub,
+                 joint_n_sub, pipe_null, joint_null, gls_rec,
                  diag.best_iter, diag.n_iter, diag.stop_reason))
 
     os.makedirs(args.out, exist_ok=True)
@@ -136,6 +151,7 @@ def run(args):
                   freq_grid=[args.f_min, args.f_max, args.n_freq],
                   baseline_days=args.baseline_days,
                   intrinsic_jitter=args.intrinsic_jitter, mean_mag=args.mean_mag,
+                  amplitude=args.amplitude,
                   library_holdout_frac=args.library_holdout_frac,
                   err_model=args.err_model,
                   max_iter=args.max_iter, seed=args.seed, rows=rows)
@@ -151,24 +167,34 @@ def _write_summary(args, rows):
     lines = ["# Phase 3.4 joint-vs-pipeline gap -- %s universe" % args.universe,
              "",
              "K=%d, %d sources, H=%d, max_iter=%d, seed=%d, bands=%s, "
-             "jitter=%.3g, mean_mag=%.3g, T=%.0fd"
+             "jitter=%.3g, mean_mag=%.3g, amplitude=%.3g, T=%.0fd"
              % (args.k, args.n_sources, args.n_harmonics, args.max_iter,
                 args.seed, ''.join(args.bands), args.intrinsic_jitter,
-                args.mean_mag, args.baseline_days),
+                args.mean_mag, args.amplitude, args.baseline_days),
              "",
              "| N_epochs | rec pipe | rec joint | rec gap | assign pipe | "
-             "assign joint | mech gap | GLS |",
-             "|---|---|---|---|---|---|---|---|"]
+             "assign joint | mech gap | n_sub (p/j) | null (p/j) | GLS | "
+             "EM best/n |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
-        lines.append("| %d | %.3f | %.3f | %+.3f | %.3f | %.3f | %+.3f | %.3f |"
-                     % (r['n_epochs'], r['pipeline'], r['joint'], r['gap'],
-                        r.get('pipeline_assign', float('nan')),
-                        r.get('joint_assign', float('nan')),
-                        r.get('mechanism_gap', float('nan')), r['gls']))
+        lines.append(
+            "| %d | %.3f | %.3f | %+.3f | %.3f | %.3f | %+.3f | %d/%d | "
+            "%.2f/%.2f | %.3f | %d/%d |"
+            % (r['n_epochs'], r['pipeline'], r['joint'], r['gap'],
+               r.get('pipeline_assign', float('nan')),
+               r.get('joint_assign', float('nan')),
+               r.get('mechanism_gap', float('nan')),
+               r.get('pipeline_assign_n', -1), r.get('joint_assign_n', -1),
+               r.get('pipeline_assign_null', float('nan')),
+               r.get('joint_assign_null', float('nan')), r['gls'],
+               r.get('em_best_iter', -1), r.get('em_n_iter', -1)))
     lines += ["",
               "rec gap = period-recovery (1%) joint-minus-pipeline; mech gap = "
               "correct-template-assignment on the correct-period subset (the shape "
-              "mechanism, unclipped by period recovery).",
+              "mechanism, unclipped by period recovery). n_sub = subset size; "
+              "null = majority-target null on that subset (the honest chance bar, "
+              "not 1/K). EM best/n = accepted best iteration / iterations run "
+              "(early stop on the continuous power-margin val signal).",
               "Hypothesis: gap > 0 in the sparse regime, -> 0 as N_epochs grows."]
     with open(os.path.join(args.out, 'SUMMARY.md'), 'w') as fh:
         fh.write("\n".join(lines) + "\n")
@@ -220,6 +246,10 @@ def main():
                         'error model (sigma clips at 0.0393 past mag ~18.5) -- '
                         'lower per-epoch SNR via --amplitude (e.g. 0.1-0.15) or '
                         'sigma instead')
+    p.add_argument('--amplitude', type=float, default=0.5,
+                   help='signal amplitude (mag); THE low-SNR lever -- e.g. 0.1 '
+                        'gives the MRA sparse/low-SNR regime (per WP A5, not '
+                        'mean_mag->20)')
     p.add_argument('--library-holdout-frac', type=float, default=0.0,
                    help='fraction of shapes reserved as the population, disjoint '
                         'from the library both arms cluster (joint headroom)')

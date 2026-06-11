@@ -65,15 +65,17 @@ from .validation import _parallel_map
 
 
 #: Per-iteration trace returned by :func:`build_joint_em_catalog` with
-#: ``return_diagnostics=True``.  ``val_recovery`` is the held-out recovery curve
-#: over iterations (``val_recovery[0]`` is the pipeline-init recovery), ``best_iter``
-#: the index whose vocabulary is returned, ``min_pairwise_distance`` the orbit
-#: distance of the closest template pair each iteration (collapse monitor),
-#: ``n_gated`` the per-iteration gated source count, ``n_reverted`` the per-iteration
-#: count of anti-collapse reverts, and ``stop_reason`` why the loop ended.
+#: ``return_diagnostics=True``.  ``val_signal`` is the held-out early-stop curve
+#: over iterations (``val_signal[0]`` is the pipeline-init value) under the
+#: criterion named by ``val_signal_name`` (``'power_margin'`` default, or
+#: ``'recovery'``), ``best_iter`` the index whose vocabulary is returned,
+#: ``min_pairwise_distance`` the orbit distance of the closest template pair each
+#: iteration (collapse monitor), ``n_gated`` the per-iteration gated source count,
+#: ``n_reverted`` the per-iteration count of anti-collapse reverts, and
+#: ``stop_reason`` why the loop ended.
 EMDiagnostics = namedtuple(
     'EMDiagnostics',
-    ['n_iter', 'best_iter', 'val_recovery', 'mean_fit_quality',
+    ['n_iter', 'best_iter', 'val_signal', 'val_signal_name', 'mean_fit_quality',
      'min_pairwise_distance', 'n_gated', 'n_reverted', 'stop_reason'])
 
 
@@ -320,6 +322,66 @@ def _mstep(sources, assign, freq_rec, gated, vocab, H, m_step):
         raise ValueError("m_step must be 'pooled' or 'median'; got %r" % (m_step,))
 
 
+# ----------------------------------------------------------------------
+# Continuous held-out early-stop signal (WP B6)
+# ----------------------------------------------------------------------
+def _margin_one(source, p_true, templates, freqs, mode, H):
+    """Mean-max periodogram-power margin at the true period for ONE source.
+
+    ``max_k P_k(f_nearest_truth) - max_f max_k P_k(f)`` -- continuous, <= 0,
+    exactly 0 when the bank's global peak sits in the truth frequency bin.  The
+    per-band summations are computed once and reused across the bank (the
+    ``source_masks`` fast path)."""
+    t, y, bands, dy = source[0], source[1], source[2], source[3]
+    sumlists, stats = compute_band_summations(t, y, bands, freqs, H, dy=dy,
+                                              mode=mode, fast=True)
+    best = None
+    for tmpl in templates:
+        template_dict = build_template_set(tmpl, bands)
+        powers, _ = solve_over_frequencies(template_dict, sumlists, stats,
+                                           freqs.size, mode=mode)
+        best = powers if best is None else np.maximum(best, powers)
+    i_true = int(np.argmin(np.abs(freqs - 1.0 / p_true)))
+    return float(best[i_true] - best.max())
+
+
+_VM_PAR = {}                       # per-worker fixed data for the margin signal
+
+
+def _vm_par_init(templates, freqs, mode, H, sources, p_true):
+    _VM_PAR.update(templates=templates, freqs=freqs, mode=mode, H=H,
+                   sources=sources, p_true=p_true)
+
+
+def _vm_par_worker(i):
+    return _margin_one(_VM_PAR['sources'][i], _VM_PAR['p_true'][i],
+                       _VM_PAR['templates'], _VM_PAR['freqs'],
+                       _VM_PAR['mode'], _VM_PAR['H'])
+
+
+def _val_margin(val_scorer, vocab, H, n_jobs):
+    """Population-mean power margin at truth -- the CONTINUOUS early-stop signal.
+
+    The held-out recovery rate is quantized at ``1/n_sources``, so on small val
+    populations most EM iterations tie the init and the best-held-out return
+    degenerates to the pipeline vocabulary verbatim.  The mean margin moves with
+    every sub-threshold improvement, letting genuinely better vocabularies be
+    accepted.  Supervised on the VAL truth only (training stays unsupervised);
+    identical serial or parallel."""
+    sources = val_scorer._sources
+    p_true = np.asarray(val_scorer.p_true, dtype=float)
+    freqs = val_scorer.freqs
+    mode = val_scorer.mode
+    if n_jobs == 1 or len(sources) <= 1:
+        out = [_margin_one(s, p, vocab, freqs, mode, H)
+               for s, p in zip(sources, p_true)]
+    else:
+        out = _parallel_map(n_jobs, len(sources), _vm_par_init,
+                            (vocab, freqs, mode, H, sources, p_true),
+                            _vm_par_worker)
+    return float(np.mean(out))
+
+
 def _min_pairwise_distance(vocab):
     """Smallest orbit distance between any two templates (``inf`` if K < 2)."""
     if len(vocab) < 2:
@@ -334,6 +396,7 @@ def _min_pairwise_distance(vocab):
 # ----------------------------------------------------------------------
 def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
                            val_scorer=None, max_iter=12, patience=3,
+                           val_signal='power_margin',
                            fit_quality_quantile=0.5, fit_quality_floor=0.0,
                            min_members=3, diversity_eps=1e-3, m_step='pooled',
                            n_harmonics=None, random_state=None,
@@ -344,8 +407,9 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
     Initializes from the pipeline vocabulary
     (:func:`~ftperiodogram.catalog_builder.build_template_catalog`, k-medoids) and
     alternates a fast-FTP E-step with a gated/robust orbit-aligned M-step, early
-    stopping on a held-out recovery metric and returning the **best held-out**
-    vocabulary (non-monotone-safe).  Drop-in interchangeable with a
+    stopping on a held-out signal (continuous power margin at truth by default,
+    see ``val_signal``) and returning the **best held-out** vocabulary
+    (non-monotone-safe).  Drop-in interchangeable with a
     ``build_template_catalog`` result.
 
     Parameters
@@ -367,7 +431,14 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
     max_iter : int
         Maximum EM iterations.
     patience : int
-        Stop if held-out recovery has not improved for this many iterations.
+        Stop if the held-out signal has not improved for this many iterations.
+    val_signal : {'power_margin', 'recovery'}
+        Held-out early-stop signal.  ``'power_margin'`` (default) is the
+        population-mean periodogram-power margin at the true period --
+        CONTINUOUS, so sub-threshold improvements register; the held-out
+        ``'recovery'`` rate is quantized at ``1/n_sources`` and on small val
+        populations ties the init almost always, returning the pipeline
+        vocabulary verbatim.
     fit_quality_quantile : float in [0, 1)
         Relative gate: drop sources whose E-step power is below this quantile of the
         population's powers that iteration (wrong-period fits have low power).
@@ -412,11 +483,18 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
     val = val_scorer if val_scorer is not None else train_scorer
     n_jobs = int(n_jobs)
 
-    def _val_recovery(v):
-        return float(val(v))
+    if val_signal == 'power_margin':
+        def _val_signal_fn(v):
+            return _val_margin(val, v, H, n_jobs)
+    elif val_signal == 'recovery':
+        def _val_signal_fn(v):
+            return float(val(v))
+    else:
+        raise ValueError("val_signal must be 'power_margin' or 'recovery'; "
+                         "got %r" % (val_signal,))
 
     best_vocab = [Template(t.c_n.copy(), t.s_n.copy(), t.template_id) for t in vocab]
-    best_val = _val_recovery(vocab)
+    best_val = _val_signal_fn(vocab)
     best_iter = 0
     val_hist = [best_val]
     fq_hist, dist_hist, gated_hist, revert_hist = [], [], [], []
@@ -460,7 +538,7 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
         vocab = proposed
         dist_hist.append(_min_pairwise_distance(vocab))
 
-        cur_val = _val_recovery(vocab)
+        cur_val = _val_signal_fn(vocab)
         val_hist.append(cur_val)
         if cur_val > best_val + 1e-12:
             best_val = cur_val
@@ -479,7 +557,8 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
 
     diagnostics = EMDiagnostics(
         n_iter=len(val_hist) - 1, best_iter=best_iter,
-        val_recovery=np.asarray(val_hist, dtype=float),
+        val_signal=np.asarray(val_hist, dtype=float),
+        val_signal_name=val_signal,
         mean_fit_quality=np.asarray(fq_hist, dtype=float),
         min_pairwise_distance=np.asarray(dist_hist, dtype=float),
         n_gated=np.asarray(gated_hist, dtype=int),

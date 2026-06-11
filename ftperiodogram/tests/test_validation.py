@@ -129,10 +129,13 @@ def test_assignment_accuracy_mechanism_metric():
         n_sources=12, random_state=0)
     assert len(scorer._truth) == 12
     assert all(isinstance(t, Template) for t in scorer._truth)
-    rate, n_correct, n_subset = scorer.assignment_accuracy(arch, return_counts=True)
+    rate, n_correct, n_subset, null_rate = scorer.assignment_accuracy(
+        arch, return_counts=True)
     assert 0 <= n_correct <= n_subset <= 12 and n_subset >= 1
     assert rate == pytest.approx(n_correct / n_subset)
     assert rate >= 0.5                                  # archetype vocab fits well
+    # majority-target null: at least as hard a bar as 1/K, never above 1
+    assert 1.0 / len(arch) <= null_rate <= 1.0
     # downsample propagates the truth shapes; the metric still runs
     ds = scorer.downsample(8)
     assert len(ds._truth) == 12

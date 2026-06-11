@@ -156,14 +156,21 @@ def test_max_iter_zero_equals_pipeline_init(shapes, freqs):
 
 
 @pytest.mark.parametrize('m_step', ['pooled', 'median'])
-def test_validation_recovery_never_regresses(shapes, freqs, m_step):
-    """Best-held-out return: the kept vocab is >= the pipeline init on validation."""
+@pytest.mark.parametrize('val_signal', ['power_margin', 'recovery'])
+def test_validation_signal_never_regresses(shapes, freqs, m_step, val_signal):
+    """Best-held-out return: the kept vocab is >= the pipeline init on validation,
+    under both the continuous power-margin signal (default) and quantized recovery."""
     train = _scorer(shapes, freqs, 8, 24, seed=3)
     val = _scorer(shapes, freqs, 8, 24, seed=4)
     _, diag = build_joint_em_catalog(shapes, 2, train, val_scorer=val, max_iter=4,
                                      n_harmonics=H, m_step=m_step,
+                                     val_signal=val_signal,
                                      return_diagnostics=True)
-    assert diag.val_recovery[diag.best_iter] >= diag.val_recovery[0] - 1e-12
+    assert diag.val_signal_name == val_signal
+    assert diag.val_signal[diag.best_iter] >= diag.val_signal[0] - 1e-12
+    if val_signal == 'power_margin':
+        # margin is <= 0 by construction (power at truth minus global max)
+        assert np.all(diag.val_signal <= 1e-12)
 
 
 def test_fit_quality_gate_blocks_all_updates(shapes, freqs):
