@@ -214,7 +214,8 @@ def make_saver(scorer, outdir, seed, cell_prefix):
         np.savez_compressed(
             os.path.join(d, 'seed%d__%s__%s.npz' % (seed, method, cell)),
             p_true=np.asarray(scorer.p_true, dtype=float), p_rec=p_rec,
-            recovered=mask, rate=rate, seed=seed, method=method, cell=cell)
+            recovered=mask, rate=rate, seed=seed, method=method, cell=cell,
+            baseline=np.asarray([s[5] for s in scorer._sources], dtype=float))
         return rate, mask
     return save
 

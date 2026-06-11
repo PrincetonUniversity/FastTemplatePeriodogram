@@ -166,6 +166,49 @@ def classify_recovery(P_rec, P_true, baseline=None, criterion='fractional',
         delta_f=delta_f, baseline=baseline)
 
 
+def rescore_aliases(P_rec, P_true, baseline=None, criterion='phase_coherence',
+                    rtol=0.01, delta_phi_max=0.5, **alias_kwargs):
+    """Post-hoc alias re-scoring of persisted per-source recovered periods.
+
+    Classifies every ``(P_rec, P_true)`` pair under ``criterion`` and names WHAT
+    was recovered: ``'exact'``, the first matching alias from
+    :func:`harmonic_alias_set` (e.g. ``'P/2'``, ``'beat_+1/year'``), or
+    ``'miss'``.  Returns ``(labels, breakdown)`` -- ``labels`` is the per-source
+    list of those strings and ``breakdown`` an ordered count dict (``'exact'``
+    first, aliases sorted, ``'miss'`` and ``'n'`` last).
+
+    Why this exists: under the headline fractional criterion (``rtol=0.01``) a
+    +/-1/yr window beat (``|df| = 1/365.25`` c/d) falls WITHIN the 1% tolerance
+    for ``f_true >~ 0.28`` c/d and is counted as exact -- the exact test runs
+    first, so the alias scan never sees it -- while 1-day beats and P/2 fail the
+    same tolerance (asymmetric).  Phase coherence (``|df| * T``) separates year
+    beats whenever ``T >~ 0.5 / delta_phi_max`` years; it is the intended
+    re-scoring criterion (requires per-source ``baseline``).
+    """
+    P_rec = np.atleast_1d(np.asarray(P_rec, dtype=float))
+    P_true = np.atleast_1d(np.asarray(P_true, dtype=float))
+    if P_rec.shape != P_true.shape:
+        raise ValueError("P_rec and P_true must have matching shapes; got %r vs "
+                         "%r" % (P_rec.shape, P_true.shape))
+    if baseline is None:
+        baselines = [None] * P_rec.size
+    else:
+        baselines = np.broadcast_to(np.asarray(baseline, dtype=float),
+                                    P_rec.shape)
+    labels = []
+    for p_rec, p_true, T in zip(P_rec, P_true, baselines):
+        r = classify_recovery(p_rec, p_true, baseline=T, criterion=criterion,
+                              rtol=rtol, delta_phi_max=delta_phi_max,
+                              count_harmonics=True, **alias_kwargs)
+        labels.append('exact' if r.exact else (r.alias_name or 'miss'))
+    breakdown = {'exact': labels.count('exact')}
+    for name in sorted(set(labels) - {'exact', 'miss'}):
+        breakdown[name] = labels.count(name)
+    breakdown['miss'] = labels.count('miss')
+    breakdown['n'] = len(labels)
+    return labels, breakdown
+
+
 def recovery_rate(results):
     """Aggregate a sequence of :class:`RecoveryResult` into summary statistics.
 

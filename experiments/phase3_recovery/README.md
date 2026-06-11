@@ -8,6 +8,17 @@ knee, vs per-band epoch count **N_epochs** (the sparse-regime story). The FTP@H=
 single-cosine (== GLS) baseline is included as the reference. Headline criterion is
 the hard 1% fractional rule; the search grid is an explicit `[f_min, f_max]` band.
 
+**Year-beat caveat (WP B5).** Under the headline fractional criterion a ±1/yr
+window beat (|Δf| = 1/365.25 c/d) falls within the 1% tolerance for
+f_true ≳ 0.28 c/d and is counted as *exact* — the exact test runs first, so the
+in-run alias scan never surfaces it — while 1-day beats and P/2 fail the same
+tolerance (asymmetric). `rescore_alias_breakdown.py` re-scores the persisted
+per-source periods post hoc under phase coherence (|Δf|·T < 0.5), which does
+separate year beats, and emits an alias-breakdown table per (method, cell). The
+recovery-driven greedy selection optimized the fractional criterion and therefore
+inherited this convention — caveat on the selection objective only, no
+re-selection.
+
 ## Running
 
 ```bash

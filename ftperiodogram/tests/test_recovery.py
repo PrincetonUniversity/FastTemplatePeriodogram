@@ -143,3 +143,70 @@ def test_recovery_rate_empty():
     assert summary['n'] == 0
     assert summary['recovered'] == 0.0
     assert summary['alias_breakdown'] == {}
+
+
+# ----------------------------------------------------------------------
+# alias-aware re-scoring (WP B5): the year-beat asymmetry, pinned
+# ----------------------------------------------------------------------
+def test_year_beat_counted_exact_under_fractional_pinned():
+    """PINNED known bug of the headline criterion: a +1/yr window beat
+    (|df| = 1/365.25 c/d) passes the 1% fractional tolerance for
+    f_true >~ 0.28 c/d, and because the exact test runs FIRST it is counted
+    as (wrongly) exact -- the alias scan never surfaces it."""
+    f_true = 2.0                                  # c/d, production band [1, 5]
+    P_true = 1.0 / f_true
+    P_rec = 1.0 / (f_true + 1.0 / 365.25)         # exact +1/yr beat
+    r = rec.classify_recovery(P_rec, P_true, criterion='fractional', rtol=0.01)
+    assert r.exact                                # the bug, pinned
+    assert r.alias_name is None                   # alias scan never ran
+
+
+def test_year_beat_classified_beat_under_phase_coherence():
+    """The same planted year beat under phase coherence (T = 3 yr): exact
+    fails (|df|*T = 3 cycles >> 0.5) and the alias scan names it."""
+    f_true = 2.0
+    P_true = 1.0 / f_true
+    P_rec = 1.0 / (f_true + 1.0 / 365.25)
+    T = 3 * 365.25
+    r = rec.classify_recovery(P_rec, P_true, baseline=T,
+                              criterion='phase_coherence', delta_phi_max=0.5)
+    assert not r.exact
+    assert r.alias_name == 'beat_+1/year'
+    assert r.exact_or_harmonic
+
+
+def test_day_beat_asymmetry_under_fractional():
+    """The asymmetry: a 1-day beat / P2 FAIL the same fractional tolerance
+    that the year beat slips through (they land on the alias scan instead)."""
+    f_true = 2.0
+    P_true = 1.0 / f_true
+    day_beat = 1.0 / (f_true + 1.0)
+    r = rec.classify_recovery(day_beat, P_true, criterion='fractional')
+    assert not r.exact
+    assert r.alias_name == 'beat_+1/day'
+
+
+def test_rescore_aliases_breakdown():
+    f_true = 2.0
+    P_true = 1.0 / f_true
+    T = 3 * 365.25
+    p_rec = np.array([P_true,                          # exact
+                      1.0 / (f_true + 1.0 / 365.25),   # +1/yr beat
+                      2.0 * P_true,                     # 2P harmonic
+                      0.37])                            # miss
+    p_true = np.full(4, P_true)
+    labels, breakdown = rec.rescore_aliases(p_rec, p_true, baseline=T,
+                                            criterion='phase_coherence')
+    assert labels == ['exact', 'beat_+1/year', '2P', 'miss']
+    assert breakdown == {'exact': 1, '2P': 1, 'beat_+1/year': 1,
+                         'miss': 1, 'n': 4}
+    # under fractional, the year beat is absorbed into 'exact' (the bug)
+    labels_f, breakdown_f = rec.rescore_aliases(p_rec, p_true,
+                                                criterion='fractional')
+    assert labels_f[1] == 'exact'
+    assert breakdown_f['exact'] == 2
+
+
+def test_rescore_aliases_requires_matching_shapes():
+    with pytest.raises(ValueError):
+        rec.rescore_aliases([0.5, 0.5], [0.5], criterion='fractional')
