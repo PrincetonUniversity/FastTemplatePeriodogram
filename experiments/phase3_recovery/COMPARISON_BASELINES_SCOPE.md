@@ -16,6 +16,7 @@ unit and flags the dependency decision — it does **not** implement anything.
 | **Multiband LS** (VanderPlas & Ivezić 2015) | per-band Fourier, shared period | the *fair* sparse-multiband LS **competitor** | ❌ new |
 | **Sesar-style non-linear fit** (Sesar 2017; Stringer & Long 2019) | same templates, slow optimizer | **gold standard** (the <1e-6 brute-force oracle) | ❌ new |
 | **BLS** (Kovács et al. 2002) | boxcar | off-Fourier-axis control / EB flag | ❌ new (optional / deferrable) |
+| **Conditional entropy** (Graham et al. 2013) | none (10×5 binned fold, per-band offset+amplitude normalized, band-merged) | off-Fourier-axis folding control | ✅ have — `ConditionalEntropyEstimator` |
 
 ## Dependency decision (the flag)
 
@@ -67,3 +68,14 @@ Cost/value notes:
   At N=4/band the cap makes MHLS ≡ GLS — the correct identifiable model, not a bug.
 - **BLS** is a contaminant/EB control, not central to recovery-vs-K — safe to defer to
   the variable-TYPE confusion-matrix unit.
+
+## Conditional-entropy sparse-end caveat (expected, not a bug)
+
+Binned folding statistics (CE, PDM, AoV) **structurally collapse below ~20 merged
+epochs**: with fewer points than ~histogram cells (10×5 default) the occupancy
+histogram is mostly empty and the conditional entropy is dominated by quantization,
+so recovery falls to near-chance regardless of signal strength. This is expected
+sparse-end behavior of ALL binned folding methods — the informative result is the
+**crossover vs the Fourier-based methods near N ~ 40 merged points** (CE competitive
+dense, collapsing sparse), not the collapse itself. Do not "fix" it by shrinking the
+bins: that just moves the collapse point while degrading the dense-end statistic.

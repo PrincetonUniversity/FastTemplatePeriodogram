@@ -19,6 +19,7 @@ estimator           shape degrees of freedom                     role
 ``MHLSEstimator``   free shared Fourier order H (2H coeffs)       free-shape reference (H capped vs n_obs)
 ``MultibandLS``     free per-band Fourier order H, shared period  fair sparse-multiband LS
 ``SesarOracle``     same templates, slow non-linear fit          GOLD standard (<1e-6 oracle)
+``CondEntropy``     none (binned fold, Graham 2013)              off-Fourier-axis control
 ==================  ===========================================  =================
 
 All estimators are **picklable plain objects** (their state is templates / ints /
@@ -240,6 +241,72 @@ class MultibandLSEstimator(_LinearLSEstimator):
             X[np.ix_(m, base + 1 + np.arange(H))] = cosines[m]
             X[np.ix_(m, base + 1 + H + np.arange(H))] = sines[m]
         return X
+
+
+# ----------------------------------------------------------------------
+# Conditional entropy (Graham et al. 2013): the binned folding statistic
+# ----------------------------------------------------------------------
+class ConditionalEntropyEstimator(object):
+    """Conditional-entropy period finder (Graham et al. 2013, MNRAS 434, 3423).
+
+    Each band is min-max normalized to ``[0, 1]`` (removing per-band offsets
+    AND amplitude ratios), the bands are merged into one series, and each trial
+    frequency folds the merged series into an ``(phase_bins x mag_bins)``
+    occupancy histogram; the recovered period minimizes the conditional entropy
+    ``H(m|phi) = sum_ij p_ij ln(p_i. / p_ij)``.  Defaults follow Graham et al.
+    (``delta_phi = 0.1``, ``delta_m = 0.2``).  ``dy`` is accepted for the seam
+    but ignored -- folding statistics are unweighted.
+
+    Sparse-end caveat: with fewer merged points than ~histogram cells
+    (N <~ 20 epochs) the occupancy histogram is mostly empty and the statistic
+    structurally collapses -- expected behavior of ALL binned folding methods,
+    not a bug; the informative comparison against Fourier-based methods is the
+    crossover (near N ~ 40 merged points).
+    """
+
+    def __init__(self, phase_bins=10, mag_bins=5):
+        if int(phase_bins) < 2 or int(mag_bins) < 2:
+            raise ValueError("need >= 2 phase_bins and >= 2 mag_bins")
+        self.phase_bins = int(phase_bins)
+        self.mag_bins = int(mag_bins)
+
+    def _normalized(self, y, bands, n):
+        """Per-band min-max map of ``y`` onto ``[0, 1]`` (constant band -> 0.5)."""
+        y = np.array(y, dtype=float)
+        _, codes = _band_index(bands, n)
+        for b in range(int(codes.max()) + 1):
+            m = codes == b
+            lo, hi = y[m].min(), y[m].max()
+            y[m] = (y[m] - lo) / (hi - lo) if hi > lo else 0.5
+        return y
+
+    def entropy_spectrum(self, t, y, bands, dy, freqs):
+        """Conditional entropy at every trial frequency (lower = better fold).
+
+        Vectorized across the whole grid: one flat ``bincount`` over
+        ``(freq, phase_bin, mag_bin)`` cells -- the per-point mag bin is
+        frequency-independent, so only phases are recomputed per frequency."""
+        t = np.asarray(t, dtype=float)
+        freqs = np.asarray(freqs, dtype=float)
+        n = t.size
+        npb, nmb = self.phase_bins, self.mag_bins
+        ynorm = self._normalized(y, bands, n)
+        mag_bin = np.minimum((ynorm * nmb).astype(int), nmb - 1)
+        phase_bin = np.minimum((np.outer(freqs, t) % 1.0 * npb).astype(int),
+                               npb - 1)
+        cell = (np.arange(freqs.size)[:, None] * (npb * nmb)
+                + phase_bin * nmb + mag_bin[None, :])
+        counts = np.bincount(cell.ravel(), minlength=freqs.size * npb * nmb)
+        p = counts.reshape(freqs.size, npb, nmb) / float(n)
+        p_phi = p.sum(axis=2, keepdims=True)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            term = p * np.log(p_phi / p)
+        return np.where(p > 0, term, 0.0).sum(axis=(1, 2))
+
+    def __call__(self, t, y, bands, dy, freqs):
+        freqs = np.asarray(freqs, dtype=float)
+        ce = self.entropy_spectrum(t, y, bands, dy, freqs)
+        return 1.0 / freqs[int(np.argmin(ce))]
 
 
 # ----------------------------------------------------------------------

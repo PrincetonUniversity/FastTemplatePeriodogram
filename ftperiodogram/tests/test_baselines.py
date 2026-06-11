@@ -19,6 +19,7 @@ from ftperiodogram.utils import weights
 from ftperiodogram.multiband import FastMultibandTemplatePeriodogram
 from ftperiodogram.baselines import (FTPEstimator, GLSEstimator, MHLSEstimator,
                                      MultibandLSEstimator, SesarOracleEstimator,
+                                     ConditionalEntropyEstimator,
                                      _errs, _band_index, _chi2_0)
 from ftperiodogram.simulate import SyntheticCadence, simulate_multiband_lightcurve
 from ftperiodogram.validation import frequency_grid, make_recovery_scorer
@@ -212,6 +213,89 @@ def test_mhls_cap_inactive_on_dense_data():
 
 
 # ----------------------------------------------------------------------
+# Conditional entropy (Graham 2013): binned folding statistic (WP B3) ----
+# ----------------------------------------------------------------------
+def _ref_conditional_entropy(t, ynorm, freqs, npb, nmb):
+    """Brute-force per-frequency fold: an explicit 2-D occupancy histogram via
+    ``np.add.at`` -- an independent accumulation path from the module's single
+    flat ``bincount`` over (freq, phase, mag) cells.  Shares only the binning
+    rule (``floor(x * nbins)`` clamped to the top bin), which is trivial by
+    inspection; the recovery test exercises it end-to-end."""
+    out = np.empty(freqs.size)
+    mag_bin = np.minimum((ynorm * nmb).astype(int), nmb - 1)
+    for i, f in enumerate(freqs):
+        phase = (t * f) % 1.0
+        phase_bin = np.minimum((phase * npb).astype(int), npb - 1)
+        H = np.zeros((npb, nmb))
+        np.add.at(H, (phase_bin, mag_bin), 1.0)
+        p = H / len(t)
+        p_phi = p.sum(axis=1, keepdims=True)
+        mask = p > 0
+        out[i] = float((p[mask] * np.log(
+            np.broadcast_to(p_phi, p.shape)[mask] / p[mask])).sum())
+    return out
+
+
+def _sinusoid_lc(period=0.55, n_epochs=40, seed=3):
+    truth = Template([1.0], [0.0])                      # pure sinusoid
+    cadence = SyntheticCadence(n_epochs={'g': n_epochs, 'r': n_epochs},
+                               bands=['g', 'r'], baseline_days=60.0,
+                               random_state=seed)
+    rng = np.random.RandomState(seed)
+    return simulate_multiband_lightcurve(
+        truth, period, cadence, amplitude=0.6, mean_mag=15.0, tau=rng.rand(),
+        band_offsets={'g': 0.0, 'r': 0.7}, random_state=rng, add_noise=True,
+        shuffle=True)
+
+
+def test_conditional_entropy_matches_bruteforce_fold():
+    lc = _sinusoid_lc()
+    freqs = frequency_grid(1.0, 3.0, 400)
+    est = ConditionalEntropyEstimator()
+    got = est.entropy_spectrum(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    ynorm = est._normalized(lc.y, lc.bands, lc.t.size)
+    ref = _ref_conditional_entropy(np.asarray(lc.t, float), ynorm, freqs,
+                                   est.phase_bins, est.mag_bins)
+    np.testing.assert_allclose(got, ref, atol=1e-12, rtol=0)
+
+
+def test_conditional_entropy_recovers_sinusoid_period():
+    lc = _sinusoid_lc(period=0.55)
+    freqs = frequency_grid(1.0, 3.0, 800)               # df << 1/T_baseline
+    P_rec = ConditionalEntropyEstimator()(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    assert abs(P_rec - 0.55) / 0.55 < 0.01
+
+
+def test_conditional_entropy_band_normalization_invariance():
+    # an affine remap of one band (offset AND amplitude) must not change the
+    # statistic: per-band min-max normalization removes both
+    lc = _sinusoid_lc()
+    freqs = frequency_grid(1.0, 3.0, 200)
+    est = ConditionalEntropyEstimator()
+    ce0 = est.entropy_spectrum(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    y2 = np.array(lc.y, dtype=float)
+    m = np.asarray(lc.bands) == 'r'
+    y2[m] = 4.0 * y2[m] + 8.0                           # exact in binary FP
+    ce1 = est.entropy_spectrum(lc.t, y2, lc.bands, lc.dy, freqs)
+    np.testing.assert_allclose(ce0, ce1, atol=1e-12, rtol=0)
+
+
+def test_conditional_entropy_validates_bins_and_degenerate_band():
+    with pytest.raises(ValueError):
+        ConditionalEntropyEstimator(phase_bins=1)
+    with pytest.raises(ValueError):
+        ConditionalEntropyEstimator(mag_bins=1)
+    # a constant band (zero range) must not divide by zero
+    lc = _sinusoid_lc()
+    y2 = np.array(lc.y, dtype=float)
+    y2[np.asarray(lc.bands) == 'r'] = 17.0
+    freqs = frequency_grid(1.0, 3.0, 50)
+    ce = ConditionalEntropyEstimator().entropy_spectrum(
+        lc.t, y2, lc.bands, lc.dy, freqs)
+    assert np.all(np.isfinite(ce))
+
+
+# ----------------------------------------------------------------------
 # Sesar oracle reproduces FTP (gold-standard equivalence) ---------------
 # ----------------------------------------------------------------------
 def test_sesar_oracle_matches_ftp_power():
@@ -241,7 +325,8 @@ def test_sesar_oracle_recovers_injected_period():
 def test_estimators_picklable():
     truth = Template([1.0, 0.3], [0.0, 0.1])
     estimators = [FTPEstimator([truth]), GLSEstimator(), MHLSEstimator(8),
-                  MultibandLSEstimator(2), SesarOracleEstimator([truth])]
+                  MultibandLSEstimator(2), SesarOracleEstimator([truth]),
+                  ConditionalEntropyEstimator()]
     lc, _ = _injection()
     freqs = _grid()
     for est in estimators:
