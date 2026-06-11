@@ -148,9 +148,11 @@ def _mint_token():
 
 
 def _post(token, job, suffix):
-    return ("for i in $(seq 1 20); do curl -sf --max-time 60 -X POST "
+    # payload comes from a FILE: a tar.gz beacon base64s to ~0.5 MB, far past
+    # Linux's 128 KiB per-argument cap, so "$PAYLOAD" in argv would fail
+    return ("for i in $(seq 1 20); do curl -sf --max-time 90 -X POST "
             "https://webhook.site/%s -H 'X-Job: %s%s' -H \"X-Status: $ST\" "
-            "--data-binary \"$PAYLOAD\" && break; sleep 20; done"
+            "--data-binary @/workspace/payload.b64 && break; sleep 20; done"
             % (token, job, suffix))
 
 
@@ -164,8 +166,9 @@ def _bootstrap(tag, driver, token):
     # success -> tar.gz of the whole out dir (results json + per_source npz);
     # failure -> run.log tail.  [ -n "$(ls -A ...)" ] guards tar-of-empty.
     result = ('if [ "$ST" = "0" ] && [ -n "$(ls -A /workspace/out 2>/dev/null)" ]; '
-              "then PAYLOAD=$(tar czf - -C /workspace out | base64 -w0); else "
-              "PAYLOAD=$(tail -80 /workspace/run.log 2>/dev/null | gzip -c | base64 -w0); fi")
+              "then tar czf - -C /workspace out | base64 -w0 >/workspace/payload.b64; "
+              "else tail -80 /workspace/run.log 2>/dev/null | gzip -c | base64 -w0 "
+              ">/workspace/payload.b64; fi")
     lines = [
         "set +e",
         "mkdir -p /workspace /workspace/out",            # volume mount point may not exist
@@ -176,7 +179,7 @@ def _bootstrap(tag, driver, token):
         "pip install --break-system-packages -q numpy scipy nfft >/workspace/pip.log 2>&1",
         'export PYTHONPATH="$REPO"',
         diag,
-        'ST=diag; PAYLOAD=$(gzip -c /workspace/diag.txt | base64 -w0)',
+        'ST=diag; gzip -c /workspace/diag.txt | base64 -w0 >/workspace/payload.b64',
         _post(token, tag, "-START"),
         'cd "$REPO/experiments/phase3_recovery"',
         "ST=run; { %s ; } >/workspace/run.log 2>&1; ST=$?" % driver,
