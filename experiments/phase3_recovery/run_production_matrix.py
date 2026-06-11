@@ -89,6 +89,29 @@ def _build_err_model(args, log):
         return None, 'synthetic(exp_mag_error)[fallback]'
 
 
+def grid_guard(f_min, f_max, n_freq, baseline_days, log):
+    """The grid must resolve periodogram peaks (Rayleigh width ``1/T``).
+
+    Returns grid points per Rayleigh width, ``(1/T)/df``.  Hard error if
+    ``df > 0.5/T`` (peaks undersampled -- recovery rates are then grid
+    artifacts, not method properties); warn if ``df > 0.2/T``.
+    """
+    df = (float(f_max) - float(f_min)) / (int(n_freq) - 1)
+    rayleigh = 1.0 / float(baseline_days)
+    pts = rayleigh / df
+    if df > 0.5 * rayleigh:
+        n_min = int(np.ceil((float(f_max) - float(f_min)) / (0.5 * rayleigh))) + 1
+        raise SystemExit(
+            "grid undersamples periodogram peaks: df=%.3g > 0.5/T=%.3g "
+            "(%.2f grid points per Rayleigh width); raise --n-freq to >= %d "
+            "or shorten --baseline-days" % (df, 0.5 * rayleigh, pts, n_min))
+    if df > 0.2 * rayleigh:
+        log("WARNING: df=%.3g > 0.2/T=%.3g (%.2f grid points per Rayleigh "
+            "width); near-threshold recovery may be grid-limited"
+            % (df, 0.2 * rayleigh, pts))
+    return pts
+
+
 def knee_k(k_values, recovery, frac=0.98):
     """Smallest K reaching ``frac`` of the best observed recovery."""
     recovery = np.asarray(recovery, dtype=float)
@@ -539,7 +562,7 @@ def apply_smoke(args):
     args.n_sources = 16
     args.seeds = '0,1'
     args.n_freq = 1200
-    args.baseline_days = 365.25
+    args.baseline_days = 120.0       # keeps df <= 0.5/T (grid_guard hard tier)
     args.dense_master_epochs = 30
     args.sparse_master_epochs = 6
     args.k_values = '1,2,4'
@@ -599,6 +622,8 @@ def main(argv=None):
     def log(msg):
         print(msg, flush=True)
 
+    rayleigh_pts = grid_guard(args.f_min, args.f_max, args.n_freq,
+                              args.baseline_days, log)
     templates = load_universe(args)
     truth_pool = load_truth_universe(args, log)
     log("universe: %d templates (H=%d), seeds=%s, n_jobs=%d"
@@ -622,6 +647,8 @@ def main(argv=None):
             'cost_n_freq', 'cost_k', 'oracle_n_tau', 'err_model',
             'library_holdout_frac', 'truth_universe', 'band_amp_ratio',
             'greedy_select_sources', 'greedy_select_nfreq')},
+        'grid_df': (args.f_max - args.f_min) / (args.n_freq - 1),
+        'grid_points_per_rayleigh': round(rayleigh_pts, 3),
         'n_universe': len(templates), 'seeds': seeds,
         'per_seed': seed_results, 'aggregate': aggregate(seed_results),
         'wall_seconds': round(time.time() - t_start, 1)}

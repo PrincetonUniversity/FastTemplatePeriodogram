@@ -154,6 +154,9 @@ def run(args):
                   amplitude=args.amplitude,
                   library_holdout_frac=args.library_holdout_frac,
                   err_model=args.err_model,
+                  grid_points_per_rayleigh=round(
+                      (1.0 / args.baseline_days) /
+                      ((args.f_max - args.f_min) / (args.n_freq - 1)), 3),
                   max_iter=args.max_iter, seed=args.seed, rows=rows)
     with open(os.path.join(args.out, 'results.json'), 'w') as fh:
         json.dump(result, fh, indent=2)
