@@ -58,7 +58,8 @@ from ftperiodogram.validation import (frequency_grid, make_recovery_scorer,
                                        wilson_interval, mcnemar_test)
 from ftperiodogram.baselines import (GLSEstimator, MHLSEstimator,
                                      MultibandLSEstimator, FTPEstimator,
-                                     SesarOracleEstimator)
+                                     SesarOracleEstimator,
+                                     ConditionalEntropyEstimator)
 import ztf_error_model as zerr             # sibling experiment module
 
 
@@ -67,6 +68,31 @@ import ztf_error_model as zerr             # sibling experiment module
 # ----------------------------------------------------------------------
 def _ints(text):
     return [int(x) for x in str(text).split(',') if str(x).strip()]
+
+
+# Result blocks a run can compute; ``--stages`` selects a subset so B8 arms and
+# shards skip work they do not report (e.g. dense K-sweep, cost panel).
+ALL_STAGES = ('k_sparse', 'k_dense', 'n_sweep', 'cost')
+
+
+def _stages(args):
+    """Validated stage set for this run (``--no-cost`` folds into it)."""
+    txt = getattr(args, 'stages', 'all') or 'all'
+    if txt == 'all':
+        s = set(ALL_STAGES)
+    else:
+        s = {x.strip() for x in str(txt).split(',') if x.strip()}
+        bad = s - set(ALL_STAGES)
+        if bad:
+            raise SystemExit("unknown --stages %s; choose from %s"
+                             % (sorted(bad), ','.join(ALL_STAGES)))
+    if 'n_sweep' in s and 'k_sparse' not in s and not args.fixed_k:
+        raise SystemExit("--stages n_sweep without k_sparse needs an explicit "
+                         "--fixed-k (the knee normally comes from the sparse "
+                         "K-sweep)")
+    if args.no_cost:
+        s.discard('cost')
+    return s
 
 
 def _build_err_model(args, log):
@@ -80,9 +106,9 @@ def _build_err_model(args, log):
         return None, 'synthetic(exp_mag_error)'
     try:
         emp = zerr.make_empirical_error_model()
-        log("  empirical ZTF error model: %d-bin median, faint sigma=%.3f"
-            % (len(emp.curve[0]), emp.faint_sigma))
-        return emp, 'empirical_ztf(binned-median)'
+        log("  empirical ZTF error model: %d-bin median, faint sigma=%.3f, source=%s"
+            % (len(emp.curve[0]), emp.faint_sigma, getattr(emp, 'source', '?')))
+        return emp, 'empirical_ztf(binned-median;%s)' % getattr(emp, 'source', '?')
     except (FileNotFoundError, ValueError) as exc:
         log("  WARNING empirical error model unavailable (%s); using synthetic"
             % str(exc)[:80])
@@ -301,6 +327,7 @@ def k_curves(scorer, templates, pam_vocabs, greedy_ord, k_values, baselines, sav
 # ----------------------------------------------------------------------
 def run_seed(templates, truth_pool, args, seed, log):
     obs_bands = [b for b in str(args.obs_bands).split(',') if b]
+    stages = _stages(args)
     k_values = _ints(args.k_values)
     n_epochs_values = _ints(args.n_epochs_values)
     max_k = max(k_values)
@@ -333,30 +360,46 @@ def run_seed(templates, truth_pool, args, seed, log):
         'mhls': MHLSEstimator(args.mhls_h),
         'mbls': MultibandLSEstimator(args.mbls_h),
     }
+    if args.with_ce:
+        baselines['ce'] = ConditionalEntropyEstimator()
 
-    result = {'seed': seed, 'err_model': err_label, 'arms': arms}
+    result = {'seed': seed, 'err_model': err_label, 'arms': arms,
+              'stages': sorted(stages)}
 
     # PAM vocabularies are cadence-independent (they cluster template SHAPES), so
     # build them ONCE per K and reuse across both regimes and the N-sweep.
     # Vocabularies always come from the LIBRARY split (== truth unless an arm
-    # separates them).
+    # separates them).  Only the Ks this run's stages actually score are built.
+    need_k = set(k_values) if stages & {'k_sparse', 'k_dense'} else set()
+    if 'n_sweep' in stages and args.fixed_k:
+        need_k.add(int(args.fixed_k))
     pam_vocabs = {K: build_template_catalog(library, K, method='pam',
-                                            random_state=seed) for K in k_values}
+                                            random_state=seed)
+                  for K in sorted(need_k)}
     # Greedy is recovery-driven, so its order is per-cadence: one source_masks
     # precompute on the dense selection scorer and one on its sparse downsample
     # (each parallel), on a DISJOINT simulated split (selection seed != eval seed).
+    # Each precompute is real work, so only the orders the stages consume are built.
     sparse = master.downsample(args.sparse_master_epochs, random_state=seed)
-    t0 = time.time()
-    sel_dense, sel_sparse = selection_scorers(truth, args, seed, obs_bands,
-                                              err_model, band_amps)
-    greedy_dense = greedy_order(sel_dense, library, max_k)
-    greedy_sparse = greedy_order(sel_sparse, library, max_k)
-    log("  greedy orders (dense+sparse, %d disjoint sel-src x %d sel-freq) in %.0fs"
-        % (sel_dense.n_sources, sel_dense.freqs.size, time.time() - t0))
+    greedy_dense = greedy_sparse = None
+    if stages & {'k_sparse', 'k_dense', 'n_sweep'}:
+        t0 = time.time()
+        sel_dense, sel_sparse = selection_scorers(truth, args, seed, obs_bands,
+                                                  err_model, band_amps)
+        if stages & {'k_dense', 'n_sweep'}:
+            greedy_dense = greedy_order(sel_dense, library, max_k)
+        if 'k_sparse' in stages:
+            greedy_sparse = greedy_order(sel_sparse, library, max_k)
+        log("  greedy orders (%s, %d disjoint sel-src x %d sel-freq) in %.0fs"
+            % ('+'.join(n for n, o in (('dense', greedy_dense),
+                                       ('sparse', greedy_sparse)) if o),
+               sel_dense.n_sources, sel_dense.freqs.size, time.time() - t0))
 
     # (i) recovery-vs-K, sparse + dense regimes ------------------------------------
-    for regime, sc, order in (('sparse', sparse, greedy_sparse),
-                             ('dense', master, greedy_dense)):
+    regimes = ([('sparse', sparse, greedy_sparse)] if 'k_sparse' in stages else [])
+    if 'k_dense' in stages:
+        regimes.append(('dense', master, greedy_dense))
+    for regime, sc, order in regimes:
         t0 = time.time()
         save = make_saver(sc, args.outdir, seed, 'ksweep-%s' % regime)
         pam, grd, base = k_curves(sc, library, pam_vocabs, order, k_values,
@@ -372,42 +415,47 @@ def run_seed(templates, truth_pool, args, seed, log):
                ['%.2f' % v for v in grd], base['gls'], base['mhls'], base['mbls']))
 
     # knee from the sparse K-sweep PAM curve (the discriminating one)
-    fixed_k = args.fixed_k or knee_k(k_values, result['k_sweep_sparse']['ftp_pam'])
-    result['fixed_k'] = int(fixed_k)
+    fixed_k = args.fixed_k or (knee_k(k_values, result['k_sweep_sparse']['ftp_pam'])
+                               if 'k_sparse' in stages else None)
+    if fixed_k is not None:
+        result['fixed_k'] = int(fixed_k)
 
     # (ii) recovery-vs-N_epochs at fixed K -----------------------------------------
     # FTP(PAM) and FTP(greedy) vocabularies fixed at the knee K (greedy learned on the
     # dense master), then evaluated across down-sampled epoch counts -- the sparse-
     # regime story. No per-N re-selection: the SAME vocab is scored at each N.
-    pam_vocab = pam_vocabs[fixed_k]
-    greedy_vocab = [library[i] for i in greedy_dense[:fixed_k]]
-    t0 = time.time()
-    n_curves = {'ftp_pam': [], 'ftp_greedy': [], 'gls': [], 'mhls': [], 'mbls': []}
-    contrasts = []
-    for N in n_epochs_values:
-        ds = master.downsample(N, random_state=seed)
-        save = make_saver(ds, args.outdir, seed, 'nsweep')
-        masks = {}
-        for method, est in (('ftp_pam', ftp_est(ds, pam_vocab)),
-                            ('ftp_greedy', ftp_est(ds, greedy_vocab)),
-                            *baselines.items()):
-            rate, masks[method] = save(method, 'N%d' % N, est)
-            n_curves[method].append(rate)
-        # paired method contrasts on the identical sources (exact McNemar)
-        for other in ('ftp_greedy', 'gls', 'mhls', 'mbls'):
-            a_only, b_only, p = mcnemar_test(masks['ftp_pam'], masks[other])
-            contrasts.append({'n_epochs': int(N), 'a': 'ftp_pam', 'b': other,
-                              'a_only': a_only, 'b_only': b_only, 'p': p})
-    result['n_epochs_sweep'] = {'n_epochs_values': n_epochs_values, 'k': int(fixed_k),
-                                'n_sources': master.n_sources,
-                                'mcnemar_vs_ftp_pam': contrasts, **n_curves}
-    log("  N-sweep@K=%d %.0fs  FTP=%s  GLS=%s  MHLS=%s"
-        % (fixed_k, time.time() - t0, ['%.2f' % v for v in n_curves['ftp_pam']],
-           ['%.2f' % v for v in n_curves['gls']],
-           ['%.2f' % v for v in n_curves['mhls']]))
+    if 'n_sweep' in stages:
+        pam_vocab = pam_vocabs[fixed_k]
+        greedy_vocab = [library[i] for i in greedy_dense[:fixed_k]]
+        t0 = time.time()
+        n_curves = {m: [] for m in ('ftp_pam', 'ftp_greedy', *baselines)}
+        contrasts = []
+        for N in n_epochs_values:
+            ds = master.downsample(N, random_state=seed)
+            save = make_saver(ds, args.outdir, seed, 'nsweep')
+            masks = {}
+            for method, est in (('ftp_pam', ftp_est(ds, pam_vocab)),
+                                ('ftp_greedy', ftp_est(ds, greedy_vocab)),
+                                *baselines.items()):
+                rate, masks[method] = save(method, 'N%d' % N, est)
+                n_curves[method].append(rate)
+            # paired method contrasts on the identical sources (exact McNemar)
+            for other in ('ftp_greedy', *baselines):
+                a_only, b_only, p = mcnemar_test(masks['ftp_pam'], masks[other])
+                contrasts.append({'n_epochs': int(N), 'a': 'ftp_pam', 'b': other,
+                                  'a_only': a_only, 'b_only': b_only, 'p': p})
+        result['n_epochs_sweep'] = {'n_epochs_values': n_epochs_values,
+                                    'k': int(fixed_k),
+                                    'n_sources': master.n_sources,
+                                    'mcnemar_vs_ftp_pam': contrasts, **n_curves}
+        log("  N-sweep@K=%d %.0fs  FTP=%s  GLS=%s  MHLS=%s"
+            % (fixed_k, time.time() - t0,
+               ['%.2f' % v for v in n_curves['ftp_pam']],
+               ['%.2f' % v for v in n_curves['gls']],
+               ['%.2f' % v for v in n_curves['mhls']]))
 
     # (iii) cost-vs-accuracy: FTP vs the slow Sesar oracle on a subsample -----------
-    if not args.no_cost:
+    if 'cost' in stages:
         sub = subsample_scorer(master, args.cost_subsample)
         cost_freqs = frequency_grid(args.f_min, args.f_max, args.cost_n_freq)
         sub.freqs = cost_freqs                       # coarser grid; ratio is grid-stable
@@ -466,9 +514,13 @@ def _block_n(seed_results, key, n_sources):
 
 
 def aggregate(seed_results, n_sources=None):
+    """Blocks absent from the per-seed results (partial ``--stages`` runs) are
+    simply absent from the aggregate."""
     agg = {}
     for regime in ('sparse', 'dense'):
         key = 'k_sweep_%s' % regime
+        if key not in seed_results[0]:
+            continue
         ns_seed = _block_n(seed_results, key, n_sources)
         agg[key] = {
             'k_values': seed_results[0][key]['k_values'],
@@ -480,11 +532,14 @@ def aggregate(seed_results, n_sources=None):
                                              for r in seed_results], ns_seed)
                           for b in seed_results[0][key]['baselines']}}
     ns = 'n_epochs_sweep'
-    ns_seed = _block_n(seed_results, ns, n_sources)
-    agg[ns] = {'n_epochs_values': seed_results[0][ns]['n_epochs_values'],
-               'k_per_seed': [r['fixed_k'] for r in seed_results]}
-    for curve in ('ftp_pam', 'ftp_greedy', 'gls', 'mhls', 'mbls'):
-        agg[ns][curve] = _pooled_wilson([r[ns][curve] for r in seed_results], ns_seed)
+    if ns in seed_results[0]:
+        ns_seed = _block_n(seed_results, ns, n_sources)
+        agg[ns] = {'n_epochs_values': seed_results[0][ns]['n_epochs_values'],
+                   'k_per_seed': [r.get('fixed_k') for r in seed_results]}
+        for curve in ('ftp_pam', 'ftp_greedy', 'gls', 'mhls', 'mbls', 'ce'):
+            if curve in seed_results[0][ns]:
+                agg[ns][curve] = _pooled_wilson(
+                    [r[ns][curve] for r in seed_results], ns_seed)
     if 'cost' in seed_results[0]:
         nc = [r['cost']['n_sources'] for r in seed_results]
         agg['cost'] = {
@@ -533,6 +588,15 @@ def parse_args(argv=None):
     p.add_argument('--cost-k', type=int, default=2)
     p.add_argument('--oracle-n-tau', type=int, default=128)
     p.add_argument('--no-cost', action='store_true')
+    p.add_argument('--stages', default='all',
+                   help="comma subset of %s -- which result blocks this run "
+                        "computes ('all' = everything; B8 arm/shard control). "
+                        "n_sweep without k_sparse requires --fixed-k."
+                        % ','.join(ALL_STAGES))
+    p.add_argument('--with-ce', action='store_true',
+                   help="include the conditional-entropy baseline (Graham 2013) "
+                        "in every scored cell (cheap; sparse-collapse caveat in "
+                        "COMPARISON_BASELINES_SCOPE.md)")
     p.add_argument('--max-templates', type=int, default=None)
     p.add_argument('--n-jobs', type=int, default=1)
     p.add_argument('--outdir', default=os.path.join(os.path.dirname(__file__), 'output_prod'))
@@ -615,6 +679,7 @@ def main(argv=None):
     args = parse_args(argv)
     if args.smoke:
         args = apply_smoke(args)
+    stages = _stages(args)                      # validate before any work
     os.makedirs(args.outdir, exist_ok=True)
     seeds = _ints(args.seeds)
     t_start = time.time()
@@ -646,7 +711,8 @@ def main(argv=None):
             'k_values', 'n_epochs_values', 'mhls_h', 'mbls_h', 'cost_subsample',
             'cost_n_freq', 'cost_k', 'oracle_n_tau', 'err_model',
             'library_holdout_frac', 'truth_universe', 'band_amp_ratio',
-            'greedy_select_sources', 'greedy_select_nfreq')},
+            'greedy_select_sources', 'greedy_select_nfreq', 'stages',
+            'with_ce', 'fixed_k')},
         'grid_df': (args.f_max - args.f_min) / (args.n_freq - 1),
         'grid_points_per_rayleigh': round(rayleigh_pts, 3),
         'n_universe': len(templates), 'seeds': seeds,
@@ -657,7 +723,7 @@ def main(argv=None):
     log("wrote %s  (%.0fs total)"
         % (os.path.join(args.outdir, 'results.json'), time.time() - t_start))
 
-    if not args.no_figures:
+    if not args.no_figures and stages >= {'k_sparse', 'k_dense', 'n_sweep'}:
         try:
             import matplotlib
             matplotlib.use('Agg')
@@ -667,6 +733,8 @@ def main(argv=None):
         else:
             make_figures(results, args.outdir)
             log("wrote figures to %s" % args.outdir)
+    elif not args.no_figures:
+        log("figures skipped (partial --stages run)")
     return results
 
 
