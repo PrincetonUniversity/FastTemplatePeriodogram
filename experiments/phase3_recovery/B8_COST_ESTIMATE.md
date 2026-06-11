@@ -1,0 +1,61 @@
+# WP B8 consolidated rerun — RunPod cost estimate (2026-06-11)
+
+Escalation artifact required by `EXECUTION_PLAN.md` WP B8 ("ESCALATE first with a cost
+estimate"; budget cap ~$60). Prepared before any pod is launched.
+
+## Measured anchors (2026-06-02 production fleet — not guesses)
+
+| anchor | value | source |
+|---|---|---|
+| Full production job (one universe×seed, 256 src / 8k freq / K≤8, ALL stages) | **~81 core-hr** (~3 h on cpu5c/32) | `fleet.py:35-38` comment, measured |
+| Fleet of 6 such jobs | **~$20** | same |
+| Effective rate | **~$0.041/core-hr** (≈$1.31/h per 32-vCPU cpu5c SECURE) | derived from the two above |
+| BV job penalty vs sesar | ~1.5× core-hr (560-template griz library; the 7–8 h walls were partly cpu3c silicon) | PLAN.md compute saga |
+| Blended per-(freq × template × source) eval at H=8 | ~3.2 ms (81 core-hr ÷ 44 fit-units × 256 src × 8k freq); cost-panel timing brackets it at 3–7 ms | derived |
+
+Stage shares of a full job, from FTP template-fit units (sparse K-sweep ΣK=15, dense
+K-sweep 15, N-sweep@K=2 12, fixed-K 2, cost panel + greedy ≈ small):
+**sparse-K ≈ 34 %, N-sweep ≈ 27 %, dense-K ≈ 34 %, rest ≈ 5 %.**
+So "N-sweep + sparse-K only" ≈ 60 % of a full job ≈ **50 core-hr** (sesar) / **75** (BV).
+
+## Per-arm estimate
+
+| arm | scope assumed | core-hr | est. cost |
+|---|---|---|---|
+| (a) MHLS-capped N-sweep + sparse K-sweep | sesar seeds 0–2 + BV seed 0; CE estimator folded in (+0.02 s/src — negligible) | 3×50 + 75 = 225 | $9.2 |
+| (b) robustness arms ×3 (holdout 0.5, cross-universe, band-amp 1.4) | each 1 seed × (sparse-K + N-sweep@K=2) | 3×50 = 150 | $6.2 |
+| (c) grid convergence | sesar N-sweep @ n_freq=16 000, 1 seed (2× grid ⇒ 2× FTP cost) | 44 | $1.8 |
+| (d) empirical-error revalidation | full headline config, 1 seed sesar, `--err-model empirical` | 81 | $3.3 |
+| (e) joint/EM | (3 scenarios + low-SNR amplitude arm) × 3 seeds, 256 src, H=8, 2k freq, max_iter 8 w/ early stop; E-step refits every source over the full grid per iter | 220–340 | $9–14 |
+| (f) OPTIONAL | BV seeds 1–2 at arm-(a) scope + CE baseline curve | 150 | $6.2 |
+
+**Nominal (a)–(e): ~720–840 core-hr ≈ $30–34.**
+**With (f): ~870–990 core-hr ≈ $36–40.**
+**All-in with ~10 % pod/bootstrap/idle overhead: ~$40–45** → ~1.4× headroom under the
+$60 cap. Wall-clock with sharded jobs across ~12–14 pods: ~3–4 h compute; overnight easily.
+
+## Protocol (the "sizing was 15× off once" lesson, PLAN.md)
+
+1. **Canary first**: launch ONE arm-(a) sesar shard + ONE joint/EM cell pod; compare
+   measured core-hr (START→RESULT beacon timestamps) against this table. Release the
+   rest only if within ~2× — otherwise stop and re-estimate.
+2. Arm (f) launches **only** after (a)–(e) results are beaconed and projected spend ≤ $45.
+3. Hard kill: any pod past 12 h wall gets `cleanup`-terminated; `collect` runs every
+   few hours so finished pods never idle-bill.
+
+## Implementation deltas needed before launch (no cost impact)
+
+- `run_production_matrix.py`: stage-selection / `--shard` flag (skip dense-K + cost
+  panel in arms a/b; split K-values / N-sweep across pods — flattens the slow-job tail).
+- `fleet.py`: bootstrap currently posts only `seed_<s>.json`; B1's per-source npz
+  (needed for Wilson/McNemar + B5 alias re-scoring) must come back too — post a tar.gz
+  of the npz dir (KB-scale, fine for webhook.site).
+
+## Ordering note (decision surfaced, not made here)
+
+`EXECUTION_PLAN.md:41` nominal chain runs C1–C4 (scan+polish, measured 24–43×) BEFORE
+B8; rerunning after C-track would cut FTP-dominated arms ~5–10× (→ roughly $10–15
+total). Running B8 now costs ~$25–30 more but (i) decouples the consolidated science
+rerun from a brand-new numerical path (C2's gate is ≤1e-12 identical powers, so B8
+results remain valid regardless), and (ii) runs overnight in parallel with local
+C-track work. Either order is defensible under the cap.
