@@ -27,6 +27,10 @@ Search band is explicit RR-Lyrae [f_min, f_max] (default [1, 5] cyc/day, P in
 [0.2, 1.0] d) -- never a Nyquist heuristic.  The per-source loop is embarrassingly
 parallel: ``--n-jobs -1`` fans it across all cores (mask-identical to serial).
 Results stream to ``--outdir`` per seed (checkpointed) and are aggregated at the end.
+Every scored (seed, method, cell) also persists per-source ``(P_true, P_rec,
+recovered)`` as one npz under ``--outdir/per_source/`` -- any recovery criterion is
+re-scorable post hoc -- aggregation quotes pooled Wilson 95% CIs (not +/-std of a
+few seed means), and the N-sweep records exact McNemar paired contrasts vs FTP(PAM).
 
     python run_production_matrix.py --smoke                 # local wiring check
     python run_production_matrix.py --n-jobs -1 --outdir output_prod   # full (RunPod)
@@ -42,7 +46,8 @@ from ftperiodogram.catalog_builder import (fetch_sesar_templates,
                                            fetch_baeza_villagra_templates)
 from ftperiodogram.simulate import SyntheticCadence, exp_mag_error
 from ftperiodogram.validation import (frequency_grid, make_recovery_scorer,
-                                       RecoveryScorer, build_template_catalog)
+                                       RecoveryScorer, build_template_catalog,
+                                       wilson_interval, mcnemar_test)
 from ftperiodogram.baselines import (GLSEstimator, MHLSEstimator,
                                      MultibandLSEstimator, FTPEstimator,
                                      SesarOracleEstimator)
@@ -119,10 +124,35 @@ def greedy_order_reduced(scorer, templates, max_k, args):
 
 
 # ----------------------------------------------------------------------
+# Per-source persistence (WP B1): every scored (seed, method, cell) writes one
+# npz of (P_true, P_rec, recovered) so any recovery criterion -- fractional,
+# phase-coherence, alias breakdown -- is re-scorable post hoc, and so paired
+# (McNemar) contrasts and pooled Wilson CIs use real counts, not seed means.
+# ----------------------------------------------------------------------
+def make_saver(scorer, outdir, seed, cell_prefix):
+    """Bind a frozen ``scorer`` + output location; the returned ``save`` scores an
+    estimator, persists per-source arrays for ``(seed, method, cell)``, and hands
+    back ``(rate, mask)`` so callers can pair masks across methods."""
+    def save(method, cell_suffix, estimator):
+        cell = '%s-%s' % (cell_prefix, cell_suffix)
+        rate, mask, p_rec = scorer.score_estimator(estimator, return_periods=True)
+        d = os.path.join(outdir, 'per_source')
+        os.makedirs(d, exist_ok=True)
+        np.savez_compressed(
+            os.path.join(d, 'seed%d__%s__%s.npz' % (seed, method, cell)),
+            p_true=np.asarray(scorer.p_true, dtype=float), p_rec=p_rec,
+            recovered=mask, rate=rate, seed=seed, method=method, cell=cell)
+        return rate, mask
+    return save
+
+
+def ftp_est(scorer, vocab):
+    return FTPEstimator(vocab, mode=scorer.mode)
+
+
+# ----------------------------------------------------------------------
 # Vocabulary curves (PAM vs recovery-driven greedy)
 # ----------------------------------------------------------------------
-def ftp_rate(scorer, vocab):
-    return scorer.score_estimator(FTPEstimator(vocab, mode=scorer.mode))
 
 
 def greedy_order(scorer, templates, max_k):
@@ -156,12 +186,16 @@ def greedy_order(scorer, templates, max_k):
     return order
 
 
-def k_curves(scorer, templates, pam_vocabs, greedy_ord, k_values, baselines):
+def k_curves(scorer, templates, pam_vocabs, greedy_ord, k_values, baselines, save):
     """All recovery-vs-K curves on one ``scorer``: FTP(PAM), FTP(greedy prefixes),
-    and the K-independent baseline reference levels."""
-    pam = [ftp_rate(scorer, pam_vocabs[K]) for K in k_values]
-    grd = [ftp_rate(scorer, [templates[i] for i in greedy_ord[:K]]) for K in k_values]
-    base = {name: scorer.score_estimator(est) for name, est in baselines.items()}
+    and the K-independent baseline reference levels.  Every point is persisted
+    per-source through ``save`` (one npz per method and K; baselines once)."""
+    pam = [save('ftp_pam', 'K%d' % K, ftp_est(scorer, pam_vocabs[K]))[0]
+           for K in k_values]
+    grd = [save('ftp_greedy', 'K%d' % K,
+                ftp_est(scorer, [templates[i] for i in greedy_ord[:K]]))[0]
+           for K in k_values]
+    base = {name: save(name, 'ref', est)[0] for name, est in baselines.items()}
     return pam, grd, base
 
 
@@ -212,10 +246,13 @@ def run_seed(templates, args, seed, log):
     for regime, sc, order in (('sparse', sparse, greedy_sparse),
                              ('dense', master, greedy_dense)):
         t0 = time.time()
-        pam, grd, base = k_curves(sc, templates, pam_vocabs, order, k_values, baselines)
+        save = make_saver(sc, args.outdir, seed, 'ksweep-%s' % regime)
+        pam, grd, base = k_curves(sc, templates, pam_vocabs, order, k_values,
+                                  baselines, save)
         result['k_sweep_%s' % regime] = {
             'n_epochs': (args.sparse_master_epochs if regime == 'sparse'
                          else args.dense_master_epochs),
+            'n_sources': sc.n_sources,
             'k_values': k_values, 'ftp_pam': pam, 'ftp_greedy': grd,
             'greedy_order': order, 'baselines': base}
         log("  K-sweep[%s] %.0fs  PAM=%s  greedy=%s  GLS=%.3f MHLS=%.3f MBLS=%.3f"
@@ -234,14 +271,24 @@ def run_seed(templates, args, seed, log):
     greedy_vocab = [templates[i] for i in greedy_dense[:fixed_k]]
     t0 = time.time()
     n_curves = {'ftp_pam': [], 'ftp_greedy': [], 'gls': [], 'mhls': [], 'mbls': []}
+    contrasts = []
     for N in n_epochs_values:
         ds = master.downsample(N, random_state=seed)
-        n_curves['ftp_pam'].append(ftp_rate(ds, pam_vocab))
-        n_curves['ftp_greedy'].append(ftp_rate(ds, greedy_vocab))
-        for name, est in baselines.items():
-            n_curves[name].append(ds.score_estimator(est))
+        save = make_saver(ds, args.outdir, seed, 'nsweep')
+        masks = {}
+        for method, est in (('ftp_pam', ftp_est(ds, pam_vocab)),
+                            ('ftp_greedy', ftp_est(ds, greedy_vocab)),
+                            *baselines.items()):
+            rate, masks[method] = save(method, 'N%d' % N, est)
+            n_curves[method].append(rate)
+        # paired method contrasts on the identical sources (exact McNemar)
+        for other in ('ftp_greedy', 'gls', 'mhls', 'mbls'):
+            a_only, b_only, p = mcnemar_test(masks['ftp_pam'], masks[other])
+            contrasts.append({'n_epochs': int(N), 'a': 'ftp_pam', 'b': other,
+                              'a_only': a_only, 'b_only': b_only, 'p': p})
     result['n_epochs_sweep'] = {'n_epochs_values': n_epochs_values, 'k': int(fixed_k),
-                                **n_curves}
+                                'n_sources': master.n_sources,
+                                'mcnemar_vs_ftp_pam': contrasts, **n_curves}
     log("  N-sweep@K=%d %.0fs  FTP=%s  GLS=%s  MHLS=%s"
         % (fixed_k, time.time() - t0, ['%.2f' % v for v in n_curves['ftp_pam']],
            ['%.2f' % v for v in n_curves['gls']],
@@ -254,10 +301,11 @@ def run_seed(templates, args, seed, log):
         sub.freqs = cost_freqs                       # coarser grid; ratio is grid-stable
         cost_vocab = build_template_catalog(templates, args.cost_k, method='pam',
                                             random_state=seed)
-        ftp_est = FTPEstimator(cost_vocab, mode=sub.mode)
+        save = make_saver(sub, args.outdir, seed, 'cost')
+        fast = FTPEstimator(cost_vocab, mode=sub.mode)
         oracle = SesarOracleEstimator(cost_vocab, mode=sub.mode, n_tau=args.oracle_n_tau)
-        t0 = time.time(); ftp_rec = sub.score_estimator(ftp_est); ftp_t = time.time() - t0
-        t0 = time.time(); orc_rate = sub.score_estimator(oracle); orc_t = time.time() - t0
+        t0 = time.time(); ftp_rec = save('ftp', 'K%d' % args.cost_k, fast)[0]; ftp_t = time.time() - t0
+        t0 = time.time(); orc_rate = save('oracle', 'K%d' % args.cost_k, oracle)[0]; orc_t = time.time() - t0
         result['cost'] = {
             'n_sources': sub.n_sources, 'n_freq': int(args.cost_n_freq),
             'k': int(args.cost_k), 'oracle_n_tau': int(args.oracle_n_tau),
@@ -272,33 +320,67 @@ def run_seed(templates, args, seed, log):
 
 
 # ----------------------------------------------------------------------
-# Aggregation across seeds
+# Aggregation across seeds.  Recovery curves get pooled Wilson 95% CIs (the
+# sources are the independent trials; seeds only relabel them -- pool the counts,
+# never average per-seed intervals or quote a +/-std of 2-3 seed means).  Only
+# the timing ratio, which is not a proportion, keeps mean/std.
 # ----------------------------------------------------------------------
 def _stack_stat(per_seed_lists):
     a = np.asarray(per_seed_lists, dtype=float)
     return {'mean': a.mean(axis=0).tolist(), 'std': a.std(axis=0).tolist()}
 
 
-def aggregate(seed_results):
+def _pooled_wilson(per_seed_rates, n_per_seed):
+    """Pool per-seed recovery rates back into counts; Wilson 95% CI per point.
+
+    ``per_seed_rates`` is (n_seeds, n_points); each seed's rate was an exact
+    count/n, so ``rint(rate*n)`` recovers the integer successes losslessly."""
+    a = np.atleast_2d(np.asarray(per_seed_rates, dtype=float))
+    n = np.asarray(n_per_seed, dtype=float)
+    k = np.rint(a * n[:, None]).sum(axis=0)
+    n_tot = float(n.sum())
+    lo, hi = wilson_interval(k, n_tot)
+    return {'mean': (k / n_tot).tolist(), 'lo': np.atleast_1d(lo).tolist(),
+            'hi': np.atleast_1d(hi).tolist(), 'n_pooled': int(n_tot)}
+
+
+def _block_n(seed_results, key, n_sources):
+    """Per-seed source counts for one result block (with legacy-json fallback)."""
+    ns = [r[key].get('n_sources', n_sources) for r in seed_results]
+    if any(v is None for v in ns):
+        raise ValueError("legacy per-seed results lack %r n_sources; pass "
+                         "aggregate(..., n_sources=<count>)" % key)
+    return ns
+
+
+def aggregate(seed_results, n_sources=None):
     agg = {}
     for regime in ('sparse', 'dense'):
         key = 'k_sweep_%s' % regime
+        ns_seed = _block_n(seed_results, key, n_sources)
         agg[key] = {
             'k_values': seed_results[0][key]['k_values'],
-            'ftp_pam': _stack_stat([r[key]['ftp_pam'] for r in seed_results]),
-            'ftp_greedy': _stack_stat([r[key]['ftp_greedy'] for r in seed_results]),
-            'baselines': {b: _stack_stat([[r[key]['baselines'][b]] for r in seed_results])
+            'ftp_pam': _pooled_wilson([r[key]['ftp_pam'] for r in seed_results],
+                                      ns_seed),
+            'ftp_greedy': _pooled_wilson([r[key]['ftp_greedy'] for r in seed_results],
+                                         ns_seed),
+            'baselines': {b: _pooled_wilson([[r[key]['baselines'][b]]
+                                             for r in seed_results], ns_seed)
                           for b in seed_results[0][key]['baselines']}}
     ns = 'n_epochs_sweep'
+    ns_seed = _block_n(seed_results, ns, n_sources)
     agg[ns] = {'n_epochs_values': seed_results[0][ns]['n_epochs_values'],
                'k_per_seed': [r['fixed_k'] for r in seed_results]}
     for curve in ('ftp_pam', 'ftp_greedy', 'gls', 'mhls', 'mbls'):
-        agg[ns][curve] = _stack_stat([r[ns][curve] for r in seed_results])
+        agg[ns][curve] = _pooled_wilson([r[ns][curve] for r in seed_results], ns_seed)
     if 'cost' in seed_results[0]:
+        nc = [r['cost']['n_sources'] for r in seed_results]
         agg['cost'] = {
             'speedup': _stack_stat([[r['cost']['speedup']] for r in seed_results]),
-            'ftp_recovery': _stack_stat([[r['cost']['ftp_recovery']] for r in seed_results]),
-            'oracle_recovery': _stack_stat([[r['cost']['oracle_recovery']] for r in seed_results])}
+            'ftp_recovery': _pooled_wilson(
+                [[r['cost']['ftp_recovery']] for r in seed_results], nc),
+            'oracle_recovery': _pooled_wilson(
+                [[r['cost']['oracle_recovery']] for r in seed_results], nc)}
     return agg
 
 

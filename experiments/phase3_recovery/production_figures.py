@@ -1,11 +1,12 @@
 """Paper-quality figures for the Phase 3.2 production recovery matrix.
 
 Consumes the ``results`` dict written by ``run_production_matrix.py`` (its
-``aggregate`` block: per-curve mean/std across seeds) and renders the three
-deliverable figures:
+``aggregate`` block: per-curve pooled rate + Wilson 95% CI across the pooled
+sources of all seeds) and renders the three deliverable figures:
 
   (i)   recovery-vs-K, sparse + dense -- FTP(PAM) and FTP(greedy) curves with
-        seed-spread bands, the GLS / MHLS / multiband-LS baselines as reference lines;
+        Wilson 95% CI bands, the GLS / MHLS / multiband-LS baselines as reference
+        lines (with CI spans);
   (ii)  recovery-vs-N_epochs at the knee K -- all five methods as curves;
   (iii) cost-vs-accuracy -- FTP vs the Sesar oracle: equal recovery, log wall-time.
 
@@ -22,12 +23,12 @@ _BASE_STYLE = {
 
 
 def _band(ax, x, stat, **kw):
-    """Plot a mean line with a +/-std seed-spread band."""
+    """Plot the pooled-rate line with its Wilson 95% CI band."""
     import numpy as np
     m = np.asarray(stat['mean'], float)
-    sd = np.asarray(stat['std'], float)
     line, = ax.plot(x, m, **kw)
-    ax.fill_between(x, m - sd, m + sd, color=line.get_color(), alpha=0.15)
+    ax.fill_between(x, np.asarray(stat['lo'], float), np.asarray(stat['hi'], float),
+                    color=line.get_color(), alpha=0.15)
     return line
 
 
@@ -42,6 +43,8 @@ def _k_panel(ax, k, title):
         b = k['baselines'][name]
         ax.axhline(float(np.asarray(b['mean'])[0]), color=st['color'], ls=st['ls'],
                    label=st['label'], lw=1.4)
+        ax.axhspan(float(np.asarray(b['lo'])[0]), float(np.asarray(b['hi'])[0]),
+                   color=st['color'], alpha=0.08, lw=0)
     ax.set_xlabel('vocabulary size $K$')
     ax.set_ylabel('period recovery rate')
     ax.set_ylim(0, 1.02)

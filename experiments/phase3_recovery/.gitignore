@@ -11,3 +11,5 @@ _runpod_probe/
 _baseline_build/
 orchestrate_runpod.py
 fleet_*.log
+output_b1_smoke/
+output_prod_preview/

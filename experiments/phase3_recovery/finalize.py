@@ -46,8 +46,9 @@ def finalize(universe):
     if not seeds:
         raise SystemExit("no seed results for %s" % universe)
     print("aggregating %d seed(s) for %s" % (len(seeds), universe))
-    agg = rpm.aggregate(seeds)
     cfg = _sweep_config()
+    # n_sources backstops legacy per-seed jsons that predate per-block counts
+    agg = rpm.aggregate(seeds, n_sources=cfg["n_sources"])
     cfg.update({"universe": universe, "n_seeds": len(seeds),
                 "seeds": [s["seed"] for s in seeds]})
     results = {"config": cfg, "per_seed": seeds, "aggregate": agg}
@@ -64,7 +65,8 @@ def finalize(universe):
         % (universe, cfg["nharmonics"], cfg["n_sources"], nseed,
            "s" if nseed != 1 else ""),
         "",
-        "RunPod fleet result (%d seed%s, mean across seeds). Figures in this dir."
+        "RunPod fleet result (%d seed%s, counts pooled across seeds; Wilson 95%% CIs"
+        " in results.json and the figure bands). Figures in this dir."
         % (nseed, "s" if nseed != 1 else ""),
         "",
         "## Recovery vs N_epochs @ knee K=%s (the headline)" % n["k_per_seed"],
