@@ -2,6 +2,18 @@
 
 Escalation artifact required by `EXECUTION_PLAN.md` WP B8 ("ESCALATE first with a cost
 estimate"; budget cap ~$60). Prepared before any pod is launched.
+**Approved by John 2026-06-11** (full batch incl. arm f, canary-first).
+
+**Post-approval amendment (same day): grid guard forces 10k freqs.** The headline 8k
+grid fails WP B7's own hard guard at T=3yr (df=5.0e-4 > 0.5/T=4.56e-4; 1.83 grid
+points per Rayleigh width — the rerun would SystemExit at startup). Production arms
+therefore run `--n-freq 10000` (2.28 pts/Rayleigh; hard tier passes, warn tier fires
+honestly) and the convergence arm (c) runs 20000 to keep the intended 2× ratio
+(spec said 16000 against an 8k production grid). FTP/baseline cost is ~grid-linear:
+arms (a)/(b)/(d) ×1.25, (c) ×2.5 vs the table below. Amended bottom line, per the
+`fleet_b8.py` job table: **(a)–(e) 910 core-hr ≈ $37; with (f) 1098 ≈ $45**; +10%
+overhead ≈ **$41–50 all-in** — still under the $60 cap, (f) still gated at $45
+projected.
 
 ## Measured anchors (2026-06-02 production fleet — not guesses)
 
