@@ -31,6 +31,11 @@ import numpy as np
 
 DEFAULT_CACHE_DIR = os.path.join(os.path.expanduser("~"), ".ftperiodogram_data",
                                  "ztf_cadence_sample")
+# Committed binned-median curve (see --write-json): the raw npz cache lives only on
+# the dev machine, so headless runs (RunPod pods) fall back to this artifact instead
+# of silently degrading to the synthetic model.
+CURVE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "ztf_error_curve.json")
 
 
 def load_mag_magerr(cache_dir=DEFAULT_CACHE_DIR, catflags_max=0):
@@ -78,7 +83,8 @@ def binned_median_curve(mag, magerr, n_bins=24, mag_range=None, min_per_bin=10):
 
 def make_empirical_error_model(cache_dir=DEFAULT_CACHE_DIR, *, n_bins=24,
                                catflags_max=0, sigma_floor=0.0,
-                               mag_range=None, min_per_bin=10):
+                               mag_range=None, min_per_bin=10,
+                               curve_json=CURVE_JSON):
     """Build a ``mag -> sigma`` callable from the cached real magerr-vs-mag scatter.
 
     Matches the :func:`ftperiodogram.simulate.exp_mag_error` interface (vectorized,
@@ -93,9 +99,22 @@ def make_empirical_error_model(cache_dir=DEFAULT_CACHE_DIR, *, n_bins=24,
     Also returns the ``(centers, medians)`` curve for inspection/plotting as the
     callable's ``.curve`` attribute.
     """
-    mag, magerr, _ = load_mag_magerr(cache_dir, catflags_max=catflags_max)
-    centers, meds = binned_median_curve(mag, magerr, n_bins=n_bins,
-                                        mag_range=mag_range, min_per_bin=min_per_bin)
+    try:
+        mag, magerr, _ = load_mag_magerr(cache_dir, catflags_max=catflags_max)
+        centers, meds = binned_median_curve(mag, magerr, n_bins=n_bins,
+                                            mag_range=mag_range,
+                                            min_per_bin=min_per_bin)
+        source = "cache(%s)" % cache_dir
+    except FileNotFoundError:
+        # Headless fallback: the committed curve (built with the defaults above;
+        # n_bins/catflags_max/mag_range arguments do NOT apply to it).
+        if not (curve_json and os.path.exists(curve_json)):
+            raise
+        with open(curve_json) as fh:
+            d = json.load(fh)
+        centers = np.asarray(d["mag_centers"], dtype=float)
+        meds = np.asarray(d["sigma_medians"], dtype=float)
+        source = "committed-json(%s)" % os.path.basename(curve_json)
     lo_sigma, hi_sigma = float(meds[0]), float(meds[-1])
     floor = float(sigma_floor)
 
@@ -107,7 +126,30 @@ def make_empirical_error_model(cache_dir=DEFAULT_CACHE_DIR, *, n_bins=24,
     _sigma.curve = (centers, meds)
     _sigma.faint_sigma = hi_sigma
     _sigma.bright_sigma = lo_sigma
+    _sigma.source = source
     return _sigma
+
+
+def write_curve_json(path=CURVE_JSON, cache_dir=DEFAULT_CACHE_DIR, *, n_bins=24,
+                     catflags_max=0, mag_range=None, min_per_bin=10):
+    """Serialize the binned-median curve (built from the RAW cache) to ``path``."""
+    mag, magerr, _ = load_mag_magerr(cache_dir, catflags_max=catflags_max)
+    centers, meds = binned_median_curve(mag, magerr, n_bins=n_bins,
+                                        mag_range=mag_range,
+                                        min_per_bin=min_per_bin)
+    payload = {
+        "comment": "binned-median ZTF magerr-vs-mag curve; fallback for "
+                   "make_empirical_error_model when the raw npz cache is absent "
+                   "(e.g. RunPod pods). Rebuild: python ztf_error_model.py "
+                   "--write-json",
+        "n_bins": int(n_bins), "catflags_max": int(catflags_max),
+        "n_epochs_pooled": int(mag.size),
+        "mag_centers": [round(float(c), 6) for c in centers],
+        "sigma_medians": [round(float(m), 6) for m in meds],
+    }
+    with open(path, "w") as fh:
+        json.dump(payload, fh, indent=1)
+    return path
 
 
 def compare_to_exp_mag_error(emp, exp, mags=None):
@@ -132,7 +174,16 @@ def main(argv=None):
     p.add_argument('--cache-dir', default=DEFAULT_CACHE_DIR)
     p.add_argument('--n-bins', type=int, default=24)
     p.add_argument('--catflags-max', type=int, default=0)
+    p.add_argument('--write-json', action='store_true',
+                   help="write the committed fallback curve to %s and exit"
+                        % os.path.basename(CURVE_JSON))
     args = p.parse_args(argv)
+
+    if args.write_json:
+        path = write_curve_json(cache_dir=args.cache_dir, n_bins=args.n_bins,
+                                catflags_max=args.catflags_max)
+        print("wrote %s" % path)
+        return 0
 
     mag, magerr, band = load_mag_magerr(args.cache_dir, catflags_max=args.catflags_max)
     print("pooled %d clean epochs over %d unique band labels"
