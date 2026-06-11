@@ -16,7 +16,7 @@ estimator           shape degrees of freedom                     role
 ==================  ===========================================  =================
 ``GLSEstimator``    H=1 sinusoid, shared + per-band offset       sinusoidal LOWER bound
 ``FTPEstimator``    fixed K-template bank (3 dof / template)      the method
-``MHLSEstimator``   free shared Fourier order H (2H coeffs)       free-shape UPPER bound
+``MHLSEstimator``   free shared Fourier order H (2H coeffs)       free-shape reference (H capped vs n_obs)
 ``MultibandLS``     free per-band Fourier order H, shared period  fair sparse-multiband LS
 ``SesarOracle``     same templates, slow non-linear fit          GOLD standard (<1e-6 oracle)
 ==================  ===========================================  =================
@@ -174,12 +174,18 @@ class GLSEstimator(_LinearLSEstimator):
 
 class MHLSEstimator(_LinearLSEstimator):
     """Multiharmonic Lomb-Scargle (Schwarzenberg-Czerny 1996): the free-shape
-    upper bound.
+    reference.
 
     A free shared Fourier series of order ``n_harmonics`` (``2H`` coefficients,
-    one shape across bands) plus a per-band floating offset.  With ``2H`` free
-    shape parameters it overfits sparse data -- the headline foil FTP's learned
-    shape prior should beat, especially at low ``N_epochs``.
+    one shape across bands) plus a per-band floating offset.  The requested
+    order is capped per light curve so ``n_bands + 2H <= n_obs/2`` (at 4
+    epochs/band the cap makes MHLS identical to GLS): below the cap the design
+    is *rank-deficient* -- with ``p >= n_obs`` columns it interpolates every
+    point exactly, power is identically 1, and the argmax is meaningless.
+    That is degeneracy, not "overfitting"; genuine overfitting (chasing noise
+    with positive residual dof) is what the capped estimator exhibits at
+    moderate N (~12+ epochs/band), and is the failure mode FTP's learned shape
+    prior should beat at low ``N_epochs``.
     """
 
     def __init__(self, n_harmonics=8):
@@ -187,9 +193,15 @@ class MHLSEstimator(_LinearLSEstimator):
             raise ValueError("n_harmonics must be >= 1")
         self.n_harmonics = int(n_harmonics)
 
+    def _capped_order(self, n_obs, n_bands):
+        """Largest order with ``n_bands + 2H <= n_obs/2``, clamped to
+        ``[1, n_harmonics]`` (H=1 -- the GLS design -- is the floor)."""
+        return max(1, min(self.n_harmonics,
+                          (int(n_obs) - 2 * int(n_bands)) // 4))
+
     def _design(self, t, twopift, codes, n_bands):
         cols = [_offset_columns(codes, n_bands)]
-        for j in range(1, self.n_harmonics + 1):
+        for j in range(1, self._capped_order(len(t), n_bands) + 1):
             cols.append(np.cos(j * twopift))
             cols.append(np.sin(j * twopift))
         return np.column_stack(cols)

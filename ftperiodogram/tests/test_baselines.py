@@ -161,6 +161,57 @@ def test_powers_in_unit_interval():
 
 
 # ----------------------------------------------------------------------
+# MHLS order cap: identifiability at sparse N (WP B2) --------------------
+# ----------------------------------------------------------------------
+class _UncappedMHLS(MHLSEstimator):
+    """The pre-cap behavior (full requested order regardless of n_obs), kept
+    in-test only to pin WHY the cap exists."""
+
+    def _capped_order(self, n_obs, n_bands):
+        return self.n_harmonics
+
+
+@pytest.mark.parametrize("n_epochs", [4, 6, 8])
+def test_mhls_order_cap_identifiable_at_sparse_n(n_epochs):
+    lc, _ = _injection(n_epochs=n_epochs)
+    freqs = _grid()
+    n_obs, n_bands = lc.t.size, 2
+    est = MHLSEstimator(8)
+    h_eff = est._capped_order(n_obs, n_bands)
+    assert 1 <= h_eff < 8
+    assert n_bands + 2 * h_eff <= n_obs / 2            # the cap's contract
+
+    # identifiable: residual dof remain, so power cannot saturate at 1
+    p = est.power_spectrum(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    assert p.max() < 1.0 - 1e-8
+    assert np.ptp(p) > 0.0                              # not a constant spectrum
+
+    # the OLD degenerate behavior, pinned as the rationale: with p >= n_obs
+    # (2 + 16 columns vs 8/12/16 points) the design interpolates every point
+    # exactly, power == 1 at EVERY frequency, and the argmax is meaningless.
+    # This is rank-deficiency, not "overfitting".
+    old = _UncappedMHLS(8).power_spectrum(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    np.testing.assert_allclose(old, 1.0, atol=1e-9)
+
+
+def test_mhls_cap_reduces_to_gls_at_4_per_band():
+    lc, _ = _injection(n_epochs=4)
+    freqs = _grid()
+    capped = MHLSEstimator(8).power_spectrum(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    gls = GLSEstimator().power_spectrum(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    np.testing.assert_allclose(capped, gls, atol=1e-12, rtol=0)
+
+
+def test_mhls_cap_inactive_on_dense_data():
+    lc, _ = _injection(n_epochs=40)                     # 80 obs: cap above H=8
+    assert MHLSEstimator(8)._capped_order(lc.t.size, 2) == 8
+    freqs = _grid()
+    got = MHLSEstimator(8).power_spectrum(lc.t, lc.y, lc.bands, lc.dy, freqs)
+    ref = _ref_power_shared(lc.t, lc.y, lc.bands, lc.dy, freqs, 8)
+    np.testing.assert_allclose(got, ref, atol=1e-9, rtol=0)
+
+
+# ----------------------------------------------------------------------
 # Sesar oracle reproduces FTP (gold-standard equivalence) ---------------
 # ----------------------------------------------------------------------
 def test_sesar_oracle_matches_ftp_power():

@@ -18,7 +18,8 @@ import os
 _BASE_STYLE = {
     'gls':  dict(color='0.45', ls='--', marker='s', label='GLS (sinusoid LB)'),
     'mbls': dict(color='tab:green', ls='-.', marker='^', label='multiband LS (VdP&I)'),
-    'mhls': dict(color='tab:red', ls=':', marker='v', label='MHLS (free-shape UB)'),
+    'mhls': dict(color='tab:red', ls=':', marker='v',
+                 label='MHLS (free shape, capped $H$)'),
 }
 
 

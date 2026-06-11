@@ -12,7 +12,7 @@ unit and flags the dependency decision — it does **not** implement anything.
 |---|---|---|---|
 | **GLS** (Zechmeister & Kürster 2009) | H=1 sinusoid + floating mean | sinusoidal **lower bound** | ✅ have — `Template([1.0],[0.0])` via the FTP path |
 | **FTP (K templates)** (this work) | 3 (phase, amp, offset)/template | the method | ✅ have — `RecoveryScorer` |
-| **MHLS / multiharmonic LS** (Schwarzenberg-Czerny 1996) | 2H free amps+phases | free-shape **upper bound** (overfits sparse data) | ❌ new |
+| **MHLS / multiharmonic LS** (Schwarzenberg-Czerny 1996) | 2H free amps+phases | free-shape **reference**, order-capped to `n_bands + 2H ≤ n_obs/2` (below the cap the design is *rank-deficient* — p ≥ n, power ≡ 1 — at N≤8/band; genuine overfitting only at N≳12) | ❌ new |
 | **Multiband LS** (VanderPlas & Ivezić 2015) | per-band Fourier, shared period | the *fair* sparse-multiband LS **competitor** | ❌ new |
 | **Sesar-style non-linear fit** (Sesar 2017; Stringer & Long 2019) | same templates, slow optimizer | **gold standard** (the <1e-6 brute-force oracle) | ❌ new |
 | **BLS** (Kovács et al. 2002) | boxcar | off-Fourier-axis control / EB flag | ❌ new (optional / deferrable) |
@@ -62,7 +62,8 @@ Cost/value notes:
   ~2.5× in-harness at oracle n_tau=128, ~5× at the documented n_tau=256; the ratio is
   grid-stable and grows with N_obs — never quote ~10³× as a measured result). Keep it
   brute-force; never loosen its tolerance.
-- **MHLS** is the headline foil: FTP's learned shape prior should beat free-shape MHLS
-  *especially at low N_epochs* (the recovery-vs-N_epochs panel).
+- **MHLS** is the headline foil: FTP's learned shape prior should beat the free-shape
+  (order-capped) MHLS *especially at low N_epochs* (the recovery-vs-N_epochs panel).
+  At N=4/band the cap makes MHLS ≡ GLS — the correct identifiable model, not a bug.
 - **BLS** is a contaminant/EB control, not central to recovery-vs-K — safe to defer to
   the variable-TYPE confusion-matrix unit.
