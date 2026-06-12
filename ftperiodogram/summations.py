@@ -247,6 +247,15 @@ def stack_summations(sums_list):
                         for field in Summations._fields))
 
 
+def _validate_chunk_size(chunk_size):
+    """Reject chunk sizes that would silently empty the chunk loop
+    (``range(0, nf, chunk_size)`` yields nothing for negative steps)."""
+    if isinstance(chunk_size, bool) or not isinstance(chunk_size, (int, np.integer)) \
+            or chunk_size < 1:
+        raise ValueError("chunk_size must be a positive integer; "
+                         "got {0!r}".format(chunk_size))
+
+
 def _batched_sums_from_nfft(f_hat_u, f_hat_w, nh, dnf, i0, i1):
     """Extract the stacked ``Summations`` for grid frequencies ``[i0, i1)``
     from the adjoint-NFFT coefficient arrays in one fancy-index operation.
@@ -294,10 +303,15 @@ def fast_summations_batched(t, y, w, freqs, nh, chunk_size=4096, sigma=2,
     of at most ``chunk_size`` frequencies. Chunking bounds the memory of the
     ``(nf, H, H)`` covariance stacks.
     """
+    _validate_chunk_size(chunk_size)
+
     f_hat_u, f_hat_w, nf, dnf = _nfft_grid_coefficients(
         t, y, w, freqs, nh, sigma=sigma, tol=tol, m=m, kernel=kernel,
         use_fft=use_fft, truncated=truncated)
 
-    for i0 in range(0, nf, chunk_size):
-        yield _batched_sums_from_nfft(f_hat_u, f_hat_w, nh, dnf,
-                                      i0, min(i0 + chunk_size, nf))
+    def _chunks():
+        for i0 in range(0, nf, chunk_size):
+            yield _batched_sums_from_nfft(f_hat_u, f_hat_w, nh, dnf,
+                                          i0, min(i0 + chunk_size, nf))
+
+    return _chunks()

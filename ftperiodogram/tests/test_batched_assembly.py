@@ -11,10 +11,12 @@ import pytest
 
 from ..core import (YM_MM_from_sums, batched_YM_MM_from_sums,
                     batched_stationarity_coefs, template_periodogram)
-from ..modeler import FastTemplatePeriodogram, FastMultiTemplatePeriodogram
-from ..summations import direct_summations, stack_summations
+from ..modeler import (FastTemplatePeriodogram, FastMultiTemplatePeriodogram,
+                       TemplateModel)
+from ..summations import (direct_summations, fast_summations,
+                          fast_summations_batched, stack_summations)
 from ..template import Template
-from ..utils import weights
+from ..utils import Summations, weights
 
 GATE_TOL = 1e-13
 GATE_HARMONICS = [1, 2, 3, 5, 8, 10]
@@ -122,7 +124,7 @@ def test_batched_coefficients_match_per_frequency_assembly():
 
         # pad both stationarity forms to the nominal length 6H and compare;
         # the per-frequency form may retain the analytically-zero (residue)
-        # top coefficient that the batched form never builds
+        # top coefficient that the batched form builds and slices off
         p_ref = 2 * MM * YM.deriv() - MM.deriv() * YM
         ref = np.zeros(6 * H, dtype=np.complex128)
         ref[:len(p_ref.coef)] = p_ref.coef
@@ -156,3 +158,97 @@ def test_multi_template_autopower_batched_matches():
     f_bat, p_bat = ftp.autopower(method='batched', **kw)
     assert np.array_equal(f_ref, f_bat)
     assert float(np.max(np.abs(p_ref - p_bat))) <= GATE_TOL
+
+
+@pytest.mark.parametrize('H', [2, 3, 5, 8])
+def test_batched_params_match_eigvals(H):
+    """best_fit_params agree between methods (the power gate alone is blind
+    to the C/S -> AC -> theta_3 reconstruction). H = 1 is excluded: its
+    exactly-tied +/-phi root pair is a parametrization gauge, covered by the
+    fitted-curve test below."""
+    t, y, dy, template, freqs = _simulate(H, 30, 5)
+    _, prm_ref = template_periodogram(t, y, dy, template.c_n, template.s_n,
+                                      freqs)
+    _, prm_bat = template_periodogram(t, y, dy, template.c_n, template.s_n,
+                                      freqs, method='batched')
+    ref = np.array([[p.a, p.b, p.c, p.sgn] for p in prm_ref])
+    bat = np.array([[p.a, p.b, p.c, p.sgn] for p in prm_bat])
+    assert float(np.max(np.abs(ref - bat))) <= 1e-9
+
+
+def test_batched_h1_fitted_curves_match():
+    """H = 1: tied phi / -phi power maxima mean (a, b, sgn) may flip between
+    methods (same curve, same power); assert gauge-invariant equivalence of
+    the fitted models themselves."""
+    t, y, dy, template, freqs = _simulate(1, 30, 5)
+    _, prm_ref = template_periodogram(t, y, dy, template.c_n, template.s_n,
+                                      freqs)
+    _, prm_bat = template_periodogram(t, y, dy, template.c_n, template.s_n,
+                                      freqs, method='batched')
+    t_dense = np.linspace(t.min(), t.max(), 500)
+    for freq, p_r, p_b in zip(freqs, prm_ref, prm_bat):
+        y_r = TemplateModel(template, frequency=freq, parameters=p_r)(t_dense)
+        y_b = TemplateModel(template, frequency=freq, parameters=p_b)(t_dense)
+        assert float(np.max(np.abs(y_r - y_b))) <= 1e-9
+
+
+def test_nfft_batched_summations_bitwise_match_per_frequency():
+    """Every field of fast_summations_batched (including C/S, which feed only
+    the offset reconstruction and are invisible to the power gates) is
+    bitwise equal to the stacked per-frequency fast_summations."""
+    H = 5
+    t, y, dy, template, freqs = _simulate(H, 100, 9, nf=300)
+    w = weights(dy)
+    ref = stack_summations(fast_summations(t, y, w, freqs, H))
+    chunks = list(fast_summations_batched(t, y, w, freqs, H, chunk_size=128))
+    for field in Summations._fields:
+        bat = np.concatenate([getattr(c, field) for c in chunks], axis=0)
+        assert np.array_equal(getattr(ref, field), bat), field
+
+
+@pytest.mark.parametrize('bad', [-5, 0, 2.5, True])
+def test_invalid_chunk_size_raises(bad):
+    """A negative chunk_size once emptied the chunk loop and silently
+    returned a zero-length periodogram; all invalid values now raise."""
+    t, y, dy, template, freqs = _simulate(2, 30, 0)
+    with pytest.raises(ValueError):
+        template_periodogram(t, y, dy, template.c_n, template.s_n, freqs,
+                             method='batched', chunk_size=bad)
+    w = weights(dy)
+    with pytest.raises(ValueError):
+        fast_summations_batched(t, y, w, freqs, len(template.c_n),
+                                chunk_size=bad)
+
+
+def test_batched_summations_length_mismatch_raises():
+    """len(summations) != len(freqs) once truncated the output at a chunk
+    boundary, silently and chunk_size-dependently; it now raises."""
+    t, y, dy, template, freqs = _simulate(3, 30, 4)
+    w = weights(dy)
+    sums = direct_summations(t, y, w, freqs, len(template.c_n))
+    for bad in (list(sums)[:-3], list(sums) + [sums[-1]]):
+        with pytest.raises(ValueError):
+            template_periodogram(t, y, dy, template.c_n, template.s_n, freqs,
+                                 summations=bad, method='batched',
+                                 chunk_size=16)
+
+
+def test_chunk_size_bitwise_invariant_large_chunks():
+    """Chunks past the ufunc-layout crossover (~1024 rows) once drifted by
+    1 ulp via np.trace's layout-dependent reduction order; the stacks are now
+    materialized C-contiguous, so any chunk size is bitwise identical."""
+    t, y, dy, template, freqs = _simulate(5, 100, 9, nf=1999)
+    ps = [template_periodogram(t, y, dy, template.c_n, template.s_n, freqs,
+                               method='batched', chunk_size=cs)[0]
+          for cs in (1, 256, 1365, 1999, 4096)]
+    for p in ps[1:]:
+        assert np.array_equal(ps[0], p)
+
+
+def test_batched_empty_freqs_returns_empty():
+    """Pinned: the batched path returns an empty periodogram for an empty
+    grid (the per-frequency path raises on this out-of-contract input)."""
+    t, y, dy, template, _ = _simulate(2, 30, 0)
+    p, prm = template_periodogram(t, y, dy, template.c_n, template.s_n,
+                                  np.array([]), fast=False, method='batched')
+    assert len(p) == 0 and prm == []

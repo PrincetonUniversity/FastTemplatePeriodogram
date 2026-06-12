@@ -10,7 +10,8 @@ import numpy as np
 import numpy.polynomial as pol
 
 from .summations import (fast_summations, direct_summations,
-                         fast_summations_batched, stack_summations)
+                         fast_summations_batched, stack_summations,
+                         _validate_chunk_size)
 
 from .utils import ModelFitParams, weights
 
@@ -132,9 +133,12 @@ def batched_YM_MM_from_sums(cn, sn, sums):
     CS = (UU + np.conj(VV)) * np.outer(alpha, np.conj(alpha))
     SS = np.conj(CC)
 
-    CC = CC[:, ::-1, :]
-    CS = np.swapaxes(CS, 1, 2)
-    SS = SS[:, :, ::-1]
+    # materialize the reversed/transposed views with a fixed (C-contiguous)
+    # layout: np.trace's reduction order -- and hence the last-ulp rounding
+    # of the diagonal sums -- must not depend on how large the chunk is
+    CC = np.ascontiguousarray(CC[:, ::-1, :])
+    CS = np.ascontiguousarray(np.swapaxes(CS, 1, 2))
+    SS = np.ascontiguousarray(SS[:, :, ::-1])
 
     # diagonal sums (get_diags) for the whole stack at once
     offsets = np.arange(-H + 1, H)
@@ -250,8 +254,10 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False,
     stationarity : numpy.polynomial.Polynomial, optional
         Precomputed stationarity polynomial ``2 MM YM' - MM' YM`` (e.g. one
         row of :func:`batched_stationarity_coefs`); when given, the
-        per-frequency polynomial arithmetic is skipped. The conditional
-        leading-coefficient trim is still applied.
+        per-frequency polynomial arithmetic is skipped. It must already have
+        the analytically-zero degree-``(6H - 1)`` coefficient dropped (as
+        :func:`batched_stationarity_coefs` does) -- no conditional trim is
+        applied to it here.
 
     Returns
     -------
@@ -266,10 +272,13 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False,
     """
     # Polynomial math + root finding!
     if stationarity is None:
-        stationarity = 2 * MM * YM.deriv() - MM.deriv() * YM
-
-    # true degree <= 6H-2; the nominal leading coefficient is FP residue
-    p = trim_zero_leading_coef(stationarity)
+        # true degree <= 6H-2; the nominal leading coefficient is FP residue
+        p = trim_zero_leading_coef(2 * MM * YM.deriv() - MM.deriv() * YM)
+    else:
+        # precomputed polynomials arrive with the analytically-zero top
+        # coefficient already dropped (batched_stationarity_coefs); a second
+        # conditional trim could eat the genuine degree-(6H-2) coefficient
+        p = stationarity
 
     roots = p.roots()
 
@@ -432,6 +441,14 @@ def _template_periodogram_batched(t, y, w, cn, sn, freqs, ybar, YY,
     reuse :func:`roots_from_YM_MM` per frequency on the precomputed
     coefficients, so the behavior matches the per-frequency path.
     """
+    _validate_chunk_size(chunk_size)
+    if summations is not None and len(summations) != len(freqs):
+        # the chunk loop slices `summations` by frequency index, so a length
+        # mismatch would silently truncate at a chunk boundary; fail loudly
+        # (the per-frequency path silently iterates whatever it is given)
+        raise ValueError("summations must have one entry per frequency; "
+                         "got {0} for {1} frequencies".format(
+                             len(summations), len(freqs)))
     H = len(cn)
     powers = []
     best_fit_params = []
@@ -474,7 +491,8 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         Precomputed summations (C, S, CC, CS, SS, YC, YS) at each frequency
         in freqs. Default is None, which means the sums are computed via
         direct summations (if `fast=False`) or via fast summations (NFFT, if
-        `fast=True`)
+        `fast=True`). The batched path requires exactly one entry per
+        frequency and raises ``ValueError`` otherwise.
     sigma : float, optional (default 2)
         NFFT oversampling factor; forwarded to `fast_summations` (only used
         when `fast=True` and `summations` is None).
@@ -491,7 +509,8 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
     chunk_size : int, optional (default 4096)
         Number of frequencies per assembly chunk on the batched path (bounds
         the memory of the ``(nf, H, H)`` covariance stacks); only used when
-        `method='batched'`.
+        `method='batched'`. Must be a positive integer; the powers are
+        bitwise independent of its value.
 
     Returns
     -------
