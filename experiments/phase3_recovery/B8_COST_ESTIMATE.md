@@ -63,6 +63,42 @@ $60 cap. Wall-clock with sharded jobs across ~12–14 pods: ~3–4 h compute; ov
   (needed for Wilson/McNemar + B5 alias re-scoring) must come back too — post a tar.gz
   of the npz dir (KB-scale, fine for webhook.site).
 
+## Mid-run decision log (2026-06-11/12, during the live run)
+
+1. **Canary gate, applied per family.** Production canary a-sesar-0: 100.8 core-hr vs 63
+   est = **1.6×** → gate passed → arms (a)–(d) released (8 pods, 19:03 UTC). Joint/EM
+   canary e-canary: 134.6 core-hr vs 25 est = **5.4×** → gate breached → the four
+   remaining e-pods were **never launched**. This is a deliberate per-family reading of
+   the "within ~2× or stop and re-estimate" protocol: the production estimate was
+   validated, the joint estimate was not.
+2. **Arm (e) DEFERRED to post-C2.** Remainder = 11 (scenario, seed) runs ≈ 1,481 core-hr
+   ≈ **$61 at current code** — alone over the cap. Mechanical decomposition of the 5.4×
+   (audit finding B8E-2): 2.62× uncounted full-grid passes (B6 val-margin pass per EM
+   iteration + 2× assignment_accuracy) × ~2× from assignment_accuracy being a SERIAL
+   per-source loop billing 32 idle vCPUs (~87 % of wall). Post-C2 projection $4–6 at the
+   ≥15× C2 gate, **IF** it transfers to this eval shape (NFFT sums are not accelerated —
+   Amdahl risk). Pre-relaunch de-risks: (i) parallelize or eliminate the
+   assignment_accuracy recompute (alone → ~$9.7 even pre-C2); (ii) re-grid the
+   non-lowsnr scenarios (e.g. N ∈ {4,5,6,8,12}) — the canary shows 4/5 cells saturated
+   (gap ≡ 0 by construction) and EM-accepted iterations only on saturated cells, so the
+   current grid cannot falsify the MRA-gap hypothesis outside e-lowsnr (finding B8E-1).
+3. **Arm (f) CUT** (BV seeds 1–2): the $45 gate is unreachable after the e-canary spend.
+4. **--fixed-k 2 pinned** in all N-sweep arms (vs per-seed knee derivation): keeps
+   shards/arms K-comparable. Side effect: seed-0's sparse PAM curve now peaks at K=1
+   (knee_k → 1 vs headline 2; paired K1−K2 contrast +0.023 ± 0.019, NOT significant —
+   curve is flat in K within noise). Formal knee re-derivation happens at the pooled
+   3-seed finalize with an SE-aware rule. Exception: d-empirical was launched WITHOUT
+   the pin (oversight, finding B8F-6) — its N-sweep K is its own derived knee; check
+   comparability when it lands.
+5. **Acceptance-gate escalation (>1 SE) WILL FIRE at finalize** (finding B8V-1): every
+   unsaturated FTP cell moved UP 1.3–5.1 SE vs headline, MHLS up 10–17 SE (the B2 cap
+   fix), ftp_greedy N=4 down ~2 SE (B4 disjoint-selection fix), GLS/MBLS static (<1.6 SE).
+   Mechanism: the headline 8k grid was below B7's own hard guard — H=8 methods were
+   grid-limited, H=1 baselines were not. Disposition: supersede headline numbers with
+   the rerun; arm (c) 20k-vs-10k is the convergence closure check.
+6. CE baseline folded into ALL production arms (spec had it under optional (f)) — cost
+   ≈ 0; delivers the (f) CE curve early.
+
 ## Ordering note (decision surfaced, not made here)
 
 `EXECUTION_PLAN.md:41` nominal chain runs C1–C4 (scan+polish, measured 24–43×) BEFORE
