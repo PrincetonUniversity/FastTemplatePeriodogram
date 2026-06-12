@@ -138,16 +138,21 @@ def direct_summations(t, y, w, freqs, nh):
 
 
 
-def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None, 
-                        kernel='gaussian', use_fft=True, truncated=True):
-    """
-    Computes C, S, YC, YS, CC, CS, SS using
-    nfft Python implementation by Jake Vanderplas
+def _nfft_grid_coefficients(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
+                            kernel='gaussian', use_fft=True, truncated=True):
+    """Compute the adjoint-NFFT Fourier coefficient arrays shared by the
+    per-frequency (:func:`fast_summations`) and batched
+    (:func:`fast_summations_batched`) summation paths.
+
+    Returns ``(f_hat_u, f_hat_w, nf, dnf)`` where ``f_hat_u[k]``/``f_hat_w[k]``
+    hold the data/weight transforms at frequency ``k * df`` (phase-corrected
+    back to the original time origin), ``nf`` is the number of requested grid
+    frequencies and ``dnf`` the index of ``freqs[0]`` on the ``df`` grid.
     """
     _warn_if_concentrated_weights(w)
 
     nfft_kwargs = dict(sigma=sigma, tol=tol, m=m,
-                        kernel=kernel, use_fft=use_fft, 
+                        kernel=kernel, use_fft=use_fft,
                         truncated=truncated)
 
     nf, df, dnf = inspect_freqs(freqs)
@@ -172,7 +177,7 @@ def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
     ybar = np.dot(w, y)
     u = np.multiply(w, y - ybar)
 
-    
+
     n_w0 = int(floor(nf_nfft_w/2))
     n_u0 = int(floor(nf_nfft_u/2))
     f_hat_u = nfft_adjoint(tshift, u, nf_nfft_u, **nfft_kwargs )[n_u0:]
@@ -184,6 +189,20 @@ def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
     twiddles = np.exp(- I * 2 * np.pi * np.arange(0, n_w0) * beta)
     f_hat_u *= twiddles[:len(f_hat_u)]
     f_hat_w *= twiddles[:len(f_hat_w)]
+
+    return f_hat_u, f_hat_w, nf, dnf
+
+
+def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
+                        kernel='gaussian', use_fft=True, truncated=True):
+    """
+    Computes C, S, YC, YS, CC, CS, SS using
+    nfft Python implementation by Jake Vanderplas
+    """
+    f_hat_u, f_hat_w, nf, dnf = _nfft_grid_coefficients(
+        t, y, w, freqs, nh, sigma=sigma, tol=tol, m=m, kernel=kernel,
+        use_fft=use_fft, truncated=truncated)
+
     all_computed_sums = []
 
     # Now compute the summation values at each frequency
@@ -218,3 +237,67 @@ def fast_summations(t, y, w, freqs, nh, sigma=2, tol=1E-7, m=None,
                                             CC=CC, CS=CS, SS=SS))
 
     return all_computed_sums
+
+
+def stack_summations(sums_list):
+    """Stack per-frequency ``Summations`` into a single stacked ``Summations``
+    whose fields carry a leading frequency axis (``C``/``S``/``YC``/``YS`` of
+    shape ``(nf, H)``; ``CC``/``CS``/``SS`` of shape ``(nf, H, H)``)."""
+    return Summations(*(np.stack([getattr(s, field) for s in sums_list])
+                        for field in Summations._fields))
+
+
+def _batched_sums_from_nfft(f_hat_u, f_hat_w, nh, dnf, i0, i1):
+    """Extract the stacked ``Summations`` for grid frequencies ``[i0, i1)``
+    from the adjoint-NFFT coefficient arrays in one fancy-index operation.
+
+    Elementwise identical to the per-frequency loop in
+    :func:`fast_summations`, with a leading frequency axis of length
+    ``m = i1 - i0`` on every field.
+    """
+    idx = np.outer(np.arange(i0, i1) + dnf, np.arange(1, 2 * nh + 1))
+    C = f_hat_w[idx].real                                       # (m, 2H)
+    S = f_hat_w[idx].imag
+    YC = f_hat_u[idx[:, :nh]].real                              # (m, H)
+    YS = f_hat_u[idx[:, :nh]].imag
+
+    k = np.arange(nh)
+    j = k[:, np.newaxis]
+    diag = np.arange(nh)
+
+    Sn = np.sign(k - j) * S[:, np.abs(k - j) - 1]               # (m, H, H)
+    Sn[:, diag, diag] = 0
+    Cn = C[:, np.abs(k - j) - 1]
+    Cn[:, diag, diag] = 1
+
+    Sp = S[:, j + k + 1]
+    Cp = C[:, j + k + 1]
+
+    Cj, Ck = C[:, :nh, np.newaxis], C[:, np.newaxis, :nh]
+    Sj, Sk = S[:, :nh, np.newaxis], S[:, np.newaxis, :nh]
+
+    CC = 0.5 * (Cn + Cp) - Cj * Ck
+    CS = 0.5 * (Sn + Sp) - Cj * Sk
+    SS = 0.5 * (Cn - Cp) - Sj * Sk
+
+    return Summations(C=C[:, :nh], S=S[:, :nh], YC=YC, YS=YS,
+                      CC=CC, CS=CS, SS=SS)
+
+
+def fast_summations_batched(t, y, w, freqs, nh, chunk_size=4096, sigma=2,
+                            tol=1E-7, m=None, kernel='gaussian', use_fft=True,
+                            truncated=True):
+    """Batched (stacked-array) equivalent of :func:`fast_summations`.
+
+    Computes the adjoint NFFT once over the full grid, then yields one
+    stacked ``Summations`` (leading frequency axis on every field) per chunk
+    of at most ``chunk_size`` frequencies. Chunking bounds the memory of the
+    ``(nf, H, H)`` covariance stacks.
+    """
+    f_hat_u, f_hat_w, nf, dnf = _nfft_grid_coefficients(
+        t, y, w, freqs, nh, sigma=sigma, tol=tol, m=m, kernel=kernel,
+        use_fft=use_fft, truncated=truncated)
+
+    for i0 in range(0, nf, chunk_size):
+        yield _batched_sums_from_nfft(f_hat_u, f_hat_w, nh, dnf,
+                                      i0, min(i0 + chunk_size, nf))

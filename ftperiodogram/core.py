@@ -9,7 +9,8 @@ from __future__ import print_function
 import numpy as np
 import numpy.polynomial as pol
 
-from .summations import fast_summations, direct_summations
+from .summations import (fast_summations, direct_summations,
+                         fast_summations_batched, stack_summations)
 
 from .utils import ModelFitParams, weights
 
@@ -88,6 +89,104 @@ def YM_MM_from_sums(cn, sn, sums):
     return YM, MM, AC
 
 
+def batched_YM_MM_from_sums(cn, sn, sums):
+    r"""Vectorized :func:`YM_MM_from_sums` over a stacked ``Summations``.
+
+    Parameters
+    ----------
+    cn : array_like
+        Fourier (cosine) coefficients of the template
+    sn : array_like
+        Fourier (sine) coefficients of the template
+    sums : Summations
+        Stacked summations with a leading frequency axis (``C``/``S``/``YC``/
+        ``YS`` of shape ``(nf, H)``; ``CC``/``CS``/``SS`` of ``(nf, H, H)``),
+        e.g. one chunk from
+        :func:`ftperiodogram.summations.fast_summations_batched`.
+
+    Returns
+    -------
+    YM_coefs : ndarray, shape (nf, 2H+1)
+        Stacked coefficients of the per-frequency ``YM`` polynomials.
+    MM_coefs : ndarray, shape (nf, 4H+1)
+        Stacked coefficients of the per-frequency ``MM`` polynomials.
+    AC : ndarray, shape (nf, H)
+        Per-frequency mean-template coefficients ``alpha * (C - i S)``.
+    """
+    H = len(cn)
+
+    alpha = 0.5 * (np.asarray(cn) + 1j * np.asarray(sn))
+
+    # compute YM
+    aYC = alpha * (sums.YC - 1j * sums.YS)                      # (nf, H)
+    nf = aYC.shape[0]
+    YM_coefs = np.concatenate((np.conj(aYC)[:, ::-1],
+                               np.zeros((nf, 1), dtype=np.complex128),
+                               aYC), axis=1).astype(np.complex128)
+
+    # compute MM
+    UU = sums.CC + 1j * sums.CS                                 # (nf, H, H)
+    VV = sums.SS + 1j * np.swapaxes(sums.CS, 1, 2)
+
+    CC = (np.conj(UU) - VV) * np.outer(alpha, alpha)
+    CS = (UU + np.conj(VV)) * np.outer(alpha, np.conj(alpha))
+    SS = np.conj(CC)
+
+    CC = CC[:, ::-1, :]
+    CS = np.swapaxes(CS, 1, 2)
+    SS = SS[:, :, ::-1]
+
+    # diagonal sums (get_diags) for the whole stack at once
+    offsets = np.arange(-H + 1, H)
+    CC_diags = np.stack([np.trace(CC, offset=o, axis1=1, axis2=2)
+                         for o in offsets], axis=1)
+    CS_diags = np.stack([np.trace(CS, offset=o, axis1=1, axis2=2)
+                         for o in offsets], axis=1)
+    SS_diags = np.stack([np.trace(SS, offset=o, axis1=1, axis2=2)
+                         for o in offsets], axis=1)
+
+    MM_coefs = np.zeros((nf, 4 * H + 1), dtype=np.complex128)
+
+    inds = np.arange(2 * H - 1)
+
+    MM_coefs[:, inds] += SS_diags
+    MM_coefs[:, inds + H + 1] += 2 * CS_diags
+    MM_coefs[:, inds + 2 * H + 2] += CC_diags
+
+    # mean-template coefficients (for offset reconstruction)
+    AC = alpha * (sums.C - 1j * sums.S)
+
+    return YM_coefs, MM_coefs, AC
+
+
+def batched_stationarity_coefs(YM_coefs, MM_coefs):
+    r"""Stacked coefficients of the stationarity polynomial
+    ``p = 2 MM YM' - MM' YM`` at fixed length ``6H - 1``.
+
+    The two convolutions are evaluated as a vectorized shift-and-add over the
+    (short) coefficient axis, so the work is ``O(H)`` array operations on the
+    whole frequency stack at once. The nominal degree-``(6H - 1)`` leading
+    coefficient cancels analytically (see :func:`trim_zero_leading_coef`); it
+    is dropped here, consistent with the conditional trim on the
+    per-frequency path, so the returned stack has ``6H - 1`` columns (degree
+    at most ``6H - 2``).
+    """
+    nf, n_ym = YM_coefs.shape
+    H = (n_ym - 1) // 2
+    n_mm = MM_coefs.shape[1]
+
+    dYM = YM_coefs[:, 1:] * np.arange(1, n_ym)      # YM' coefficients (nf, 2H)
+    dMM = MM_coefs[:, 1:] * np.arange(1, n_mm)      # MM' coefficients (nf, 4H)
+
+    p = np.zeros((nf, 6 * H), dtype=np.complex128)
+    for s in range(n_ym - 1):                       # 2 * MM * YM'
+        p[:, s:s + n_mm] += (2 * dYM[:, s:s + 1]) * MM_coefs
+    for s in range(n_ym):                           # ... - MM' * YM
+        p[:, s:s + n_mm - 1] -= YM_coefs[:, s:s + 1] * dMM
+
+    return p[:, :6 * H - 1]
+
+
 def trim_zero_leading_coef(p):
     r"""Drop the analytically-zero leading coefficient of a stationarity
     polynomial of the form ``2 MM YM' - MM' YM``.
@@ -114,7 +213,8 @@ def trim_zero_leading_coef(p):
     return p
 
 
-def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
+def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False,
+                     stationarity=None):
     r"""
     Find the optimal phase root of the ``YM``/``MM`` polynomials and reconstruct
     the best-fit template parameters and periodogram power.
@@ -147,6 +247,11 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
         negative ``theta_1`` is still possible in that degenerate case. The
         default (False) leaves the single-band behavior unchanged: the global
         power-maximizing root is returned regardless of the sign of ``theta_1``.
+    stationarity : numpy.polynomial.Polynomial, optional
+        Precomputed stationarity polynomial ``2 MM YM' - MM' YM`` (e.g. one
+        row of :func:`batched_stationarity_coefs`); when given, the
+        per-frequency polynomial arithmetic is skipped. The conditional
+        leading-coefficient trim is still applied.
 
     Returns
     -------
@@ -160,10 +265,11 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
         solver can reconstruct per-band offsets).
     """
     # Polynomial math + root finding!
-    p = 2 * MM * YM.deriv() - MM.deriv() * YM
+    if stationarity is None:
+        stationarity = 2 * MM * YM.deriv() - MM.deriv() * YM
 
     # true degree <= 6H-2; the nominal leading coefficient is FP residue
-    p = trim_zero_leading_coef(p)
+    p = trim_zero_leading_coef(stationarity)
 
     roots = p.roots()
 
@@ -296,8 +402,57 @@ def fit_template(t, y, dy, cn, sn, freq, sums=None,
 
 
 
+def _iter_stacked_summations(t, y, w, freqs, nh, summations, fast, sigma, tol,
+                             chunk_size):
+    """Yield stacked ``Summations`` chunks for the batched assembly path,
+    from precomputed per-frequency summations if given, else via the batched
+    NFFT (`fast=True`) or stacked direct summations (`fast=False`)."""
+    nf = len(freqs)
+    if summations is not None:
+        for i0 in range(0, nf, chunk_size):
+            yield stack_summations(summations[i0:i0 + chunk_size])
+    elif fast:
+        for stacked in fast_summations_batched(t, y, w, freqs, nh,
+                                               chunk_size=chunk_size,
+                                               sigma=sigma, tol=tol):
+            yield stacked
+    else:
+        for i0 in range(0, nf, chunk_size):
+            yield stack_summations(
+                direct_summations(t, y, w, freqs[i0:i0 + chunk_size], nh))
+
+
+def _template_periodogram_batched(t, y, w, cn, sn, freqs, ybar, YY,
+                                  summations=None, fast=True, sigma=2,
+                                  tol=1E-7, chunk_size=4096):
+    """Batched-assembly template periodogram (``method='batched'``).
+
+    Coefficient assembly (sums -> YM/MM -> stationarity polynomial) is
+    vectorized over frequency chunks; root-finding and root selection then
+    reuse :func:`roots_from_YM_MM` per frequency on the precomputed
+    coefficients, so the behavior matches the per-frequency path.
+    """
+    H = len(cn)
+    powers = []
+    best_fit_params = []
+    for sums in _iter_stacked_summations(t, y, w, freqs, H, summations, fast,
+                                         sigma, tol, chunk_size):
+        YM_coefs, MM_coefs, AC = batched_YM_MM_from_sums(cn, sn, sums)
+        p_coefs = batched_stationarity_coefs(YM_coefs, MM_coefs)
+        for i in range(YM_coefs.shape[0]):
+            params, power, _ = roots_from_YM_MM(
+                pol.Polynomial(YM_coefs[i]), pol.Polynomial(MM_coefs[i]),
+                AC[i], H, ybar, YY,
+                stationarity=pol.Polynomial(p_coefs[i]))
+            powers.append(power)
+            best_fit_params.append(params)
+
+    return np.array(powers), best_fit_params
+
+
 def template_periodogram(t, y, dy, cn, sn, freqs,
-                        summations=None, fast=True, sigma=2, tol=1E-7):
+                        summations=None, fast=True, sigma=2, tol=1E-7,
+                        method='eigvals', chunk_size=4096):
     r"""
     Produces a template periodogram using a single template
 
@@ -326,6 +481,17 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
     tol : float, optional (default 1e-7)
         NFFT kernel truncation tolerance; forwarded to `fast_summations`
         (only used when `fast=True` and `summations` is None).
+    method : str, optional (default 'eigvals')
+        'eigvals' is the reference per-frequency path (polynomial objects
+        assembled and rooted one frequency at a time). 'batched' assembles
+        the YM/MM/stationarity coefficients for whole chunks of frequencies
+        as stacked arrays (vectorized over frequency) and then runs the same
+        per-frequency root selection on the precomputed coefficients; it is
+        numerically equivalent (powers agree to ~1e-15).
+    chunk_size : int, optional (default 4096)
+        Number of frequencies per assembly chunk on the batched path (bounds
+        the memory of the ``(nf, H, H)`` covariance stacks); only used when
+        `method='batched'`.
 
     Returns
     -------
@@ -341,7 +507,15 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
 
     ybar = np.dot(w, y)
     YY = np.dot(w, np.power(y - ybar, 2))
-    
+
+    if method == 'batched':
+        return _template_periodogram_batched(
+            t, y, w, cn, sn, freqs, ybar, YY, summations=summations,
+            fast=fast, sigma=sigma, tol=tol, chunk_size=chunk_size)
+    if method != 'eigvals':
+        raise ValueError("Unknown method {0!r}; must be 'eigvals' or "
+                         "'batched'".format(method))
+
     if summations is None:
         # compute sums using NFFT
         if fast:
