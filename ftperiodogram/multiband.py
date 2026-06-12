@@ -50,6 +50,21 @@ from . import core as pdg
 MODES = ('independent', 'shared_phase', 'floating_offsets', 'sesar')
 DEFAULT_MODE = 'floating_offsets'
 
+# Phase-maximizer methods. 'eigvals' is the reference root-finding path;
+# 'scan' is the scan+polish maximizer (WP C2): floating_offsets / sesar /
+# independent flow through core.scan_polish_YM_MM on the (band-combined)
+# YM/MM polynomials, and shared_phase scans the total power
+# F(phi) = sum_k W_k Re(YM_k^2 / MM_k) directly on max(128, 32 H K)
+# circle angles -- the degree-8HK polynomial G is never formed.
+METHODS = ('eigvals', 'scan')
+DEFAULT_METHOD = 'eigvals'
+
+
+def _validate_method(method):
+    if method not in METHODS:
+        raise ValueError("Unknown method {0!r}; must be one of {1}"
+                         "".format(method, METHODS))
+
 
 # ----------------------------------------------------------------------
 # Parameter / model containers (multiband analogs of ModelFitParams /
@@ -354,14 +369,19 @@ def _is_flat(YY, ref):
 
 
 def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
-                                     relative_offsets=None):
+                                     relative_offsets=None,
+                                     method=DEFAULT_METHOD):
     """Solve the multiband template fit at one frequency from precomputed sums.
 
     Returns ``(MultibandModelFitParams, power)``. For every mode except
     ``shared_phase`` the better-fitting ``theta_1 >= 0`` solution is returned
     when one exists (paper item K.18); ``shared_phase`` shares the phase across
-    bands and so reports per-band amplitudes as fitted.
+    bands and so reports per-band amplitudes as fitted. ``method`` selects the
+    phase maximizer (see :data:`METHODS`); both are numerically equivalent.
     """
+    _validate_method(method)
+    solver = (pdg.scan_polish_YM_MM if method == 'scan'
+              else pdg.roots_from_YM_MM)
     H = stats.H
     bands = stats.bands
 
@@ -373,7 +393,7 @@ def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
         per_band_YM_MM = _per_band_YM_MM(template_dict, per_band_sums, bands)
         YM, MM, AC = combine_band_summations(per_band_YM_MM, stats.W, stats.ybar,
                                              stats.ybar_global, mode)
-        shared, power, best_phi = pdg.roots_from_YM_MM(
+        shared, power, best_phi = solver(
             YM, MM, AC, H, stats.ybar_global, YY, positive_amplitude=True)
 
         params_by_band = {}
@@ -405,7 +425,7 @@ def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
                                                        c=stats.ybar[band], sgn=1.0)
                 continue
             YM_k, MM_k, AC_k = per_band_YM_MM[band]
-            params_k, power_k, _ = pdg.roots_from_YM_MM(
+            params_k, power_k, _ = solver(
                 YM_k, MM_k, AC_k, H, stats.ybar[band], stats.YY_per_band[band],
                 positive_amplitude=True)
             params_by_band[band] = params_k
@@ -418,6 +438,8 @@ def multiband_template_fit_from_sums(template_dict, per_band_sums, stats, mode,
         return MultibandModelFitParams(params_by_band, mode), float(power)
 
     if mode == 'shared_phase':
+        if method == 'scan':
+            return _shared_phase_scan_fit(template_dict, per_band_sums, stats)
         return _shared_phase_fit(template_dict, per_band_sums, stats)
 
     raise ValueError("Unknown mode {0!r}; must be one of {1}".format(mode, MODES))
@@ -508,6 +530,126 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
     return MultibandModelFitParams(params_by_band, 'shared_phase'), float(power)
 
 
+def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
+    r"""Scan+polish solve of model B (shared phase) at one frequency.
+
+    Maximizes the total power
+
+        F(phi) = sum_k W_k Re(P_YM^(k)(phi)^2 / P_MM^(k)(phi))
+
+    directly on ``M = max(128, 32 H K)`` uniform circle angles (the per-band
+    polynomials evaluated by zero-padded inverse FFT), then polishes every
+    bracketed circular local maximum with Newton steps on ``dF/dtheta``
+    using the analytic per-band derivatives of
+    :func:`ftperiodogram.core.scan_polish_from_coefs`, summed over bands
+    with weights ``W_k``. The degree-``8HK`` stationarity polynomial ``G``
+    of :func:`_shared_phase_fit` is never formed, so the ``(HK)^3``
+    per-frequency root-finding cost is avoided entirely.
+
+    Parameter reconstruction (per-band ``theta_1``, offsets) is identical
+    to :func:`_shared_phase_fit`.
+    """
+    H = stats.H
+    bands = stats.bands
+    K = len(bands)
+
+    if _is_flat(stats.YY_combined, stats.ybar_global):   # flat: nothing to detect
+        return _flat_model(stats, 'shared_phase')
+
+    per_band = _per_band_YM_MM(template_dict, per_band_sums, bands)
+
+    Yco = np.array([per_band[k][0].coef for k in bands])     # (K, 2H+1)
+    Mco = np.array([per_band[k][1].coef for k in bands])     # (K, 4H+1)
+    Wv = np.array([stats.W[k] for k in bands])
+
+    M_ang = max(pdg._SCAN_MIN_ANGLES, pdg._SCAN_ANGLES_PER_H * H * K)
+
+    # grid scan of F(theta)
+    Yg = pdg._eval_polys_on_circle(Yco, M_ang)               # (K, M)
+    Mg = pdg._eval_polys_on_circle(Mco, M_ang)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        Fg = np.dot(Wv, np.real(Yg * Yg / Mg))               # (M,)
+    Fg[~np.isfinite(Fg)] = -np.inf
+
+    ismax = ((Fg >= np.roll(Fg, 1)) & (Fg >= np.roll(Fg, -1)) &
+             (Fg > -np.inf))
+    if not np.any(ismax):                 # no finite total power anywhere
+        return _flat_model(stats, 'shared_phase')
+    kcap = pdg._SCAN_MAX_CANDIDATES_PER_H * H * K
+    cols = np.where(ismax)[0]
+    if len(cols) > kcap:                  # degenerate plateau: trim
+        cols = cols[np.argsort(Fg[cols])[-kcap:]]
+
+    theta0 = (2 * np.pi / M_ang) * cols
+    F0 = Fg[cols]
+
+    # Newton polish on dF/dtheta (per-band derivative coefficient rows)
+    kY = np.arange(Yco.shape[1])
+    kM = np.arange(Mco.shape[1])
+    half_window = 2 * np.pi / M_ang
+    theta = theta0.copy()
+
+    def _F_derivs(phi):
+        """(dF/dtheta, d2F/dtheta2) at unit-circle points ``phi``."""
+        dF = np.zeros(phi.shape)
+        d2F = np.zeros(phi.shape)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            for kb in range(K):
+                Y = pdg._horner_eval(Yco[kb], phi)
+                Y1 = pdg._horner_eval(Yco[kb] * kY, phi)
+                Y2 = pdg._horner_eval(Yco[kb] * kY * kY, phi)
+                Mm = pdg._horner_eval(Mco[kb], phi)
+                M1 = pdg._horner_eval(Mco[kb] * kM, phi)
+                M2 = pdg._horner_eval(Mco[kb] * kM * kM, phi)
+                B = 2.0 * Y * Y1 * Mm - Y * Y * M1
+                dF = dF + Wv[kb] * np.real(1j * B / (Mm * Mm))
+                d2F = d2F + Wv[kb] * np.real(
+                    (-2.0 * (Y1 * Y1 + Y * Y2) * Mm + Y * Y * M2)
+                    / (Mm * Mm) + 2.0 * B * M1 / (Mm * Mm * Mm))
+        return dF, d2F
+
+    def _F_at(phi):
+        """Total power F at unit-circle points ``phi``."""
+        F = np.zeros(phi.shape)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            for kb in range(K):
+                Y = pdg._horner_eval(Yco[kb], phi)
+                Mm = pdg._horner_eval(Mco[kb], phi)
+                F = F + Wv[kb] * np.real(Y * Y / Mm)
+        return F
+
+    for _ in range(pdg._SCAN_NEWTON_STEPS):
+        dF, d2F = _F_derivs(np.exp(1j * theta))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            step = dF / d2F
+        step[~np.isfinite(step)] = 0.0
+        theta = np.clip(theta - step,
+                        theta0 - half_window, theta0 + half_window)
+
+    Fp = _F_at(np.exp(1j * theta))
+    use_grid = ~np.isfinite(Fp) | (Fp < F0)
+    theta = np.where(use_grid, theta0, theta)
+    Fc = np.where(use_grid, F0, Fp)
+
+    i = int(np.argmax(Fc))
+    best_phi = np.exp(1j * theta[i])
+    power = Fc[i] / stats.YY_combined
+
+    # reconstruction identical to _shared_phase_fit
+    theta_2 = np.imag(np.log(best_phi)) % (2 * np.pi)
+    b = np.cos(theta_2)
+    sgn = np.sign(np.sin(theta_2))
+
+    params_by_band = {}
+    for k in bands:
+        P_YM, P_MM, AC_k = per_band[k]
+        theta_1_k = np.real(np.power(best_phi, H) * P_YM(best_phi) / P_MM(best_phi))
+        c_k = stats.ybar[k] - theta_1_k * _mbar_at(AC_k, best_phi)
+        params_by_band[k] = ModelFitParams(a=theta_1_k, b=b, c=c_k, sgn=sgn)
+
+    return MultibandModelFitParams(params_by_band, 'shared_phase'), float(power)
+
+
 def compute_band_summations(t, y, bands, freqs, H, dy=None, mode=DEFAULT_MODE,
                             relative_offsets=None, fast=True):
     """Compute the per-band NFFT summations and per-band statistics.
@@ -532,7 +674,8 @@ def compute_band_summations(t, y, bands, freqs, H, dy=None, mode=DEFAULT_MODE,
 
 
 def solve_over_frequencies(template_dict, per_band_sumlists, stats, nfreq,
-                           mode=DEFAULT_MODE, relative_offsets=None):
+                           mode=DEFAULT_MODE, relative_offsets=None,
+                           method=DEFAULT_METHOD):
     """Run the per-frequency multiband solve given precomputed per-band sums.
 
     Pairs with :func:`compute_band_summations`; the template-dependent half of
@@ -544,7 +687,8 @@ def solve_over_frequencies(template_dict, per_band_sumlists, stats, nfreq,
     for i in range(nfreq):
         per_band_sums = {band: per_band_sumlists[band][i] for band in bands}
         mb_params, power = multiband_template_fit_from_sums(
-            template_dict, per_band_sums, stats, mode, relative_offsets)
+            template_dict, per_band_sums, stats, mode, relative_offsets,
+            method=method)
         powers[i] = power
         params_list.append(mb_params)
 
@@ -553,7 +697,7 @@ def solve_over_frequencies(template_dict, per_band_sumlists, stats, nfreq,
 
 def multiband_template_periodogram(t, y, bands, template_dict, freqs, dy=None,
                                    mode=DEFAULT_MODE, relative_offsets=None,
-                                   fast=True):
+                                   fast=True, method=DEFAULT_METHOD):
     """Multiband template periodogram over flat data; analog of
     :func:`core.template_periodogram`.
 
@@ -571,7 +715,8 @@ def multiband_template_periodogram(t, y, bands, template_dict, freqs, dy=None,
         t, y, bands, freqs, H, dy=dy, mode=mode,
         relative_offsets=relative_offsets, fast=fast)
     return solve_over_frequencies(template_dict, per_band_sumlists, stats,
-                                  len(freqs), mode, relative_offsets)
+                                  len(freqs), mode, relative_offsets,
+                                  method=method)
 
 
 # ----------------------------------------------------------------------
@@ -713,7 +858,7 @@ class FastMultibandTemplatePeriodogram(object):
 
         return df * (nf0 + np.arange(Nf))
 
-    def _run(self, freqs, fast):
+    def _run(self, freqs, fast, method=DEFAULT_METHOD):
         """Compute powers + best params over a frequency array, handling both a
         single template-set and a catalog (per-frequency max over sets).
 
@@ -721,6 +866,7 @@ class FastMultibandTemplatePeriodogram(object):
         an int array of winning set indices for a catalog, else ``None``.
         """
         self._validate_mode()
+        _validate_method(method)
         self._validate_templates()
         self._validate_data()
 
@@ -728,7 +874,8 @@ class FastMultibandTemplatePeriodogram(object):
             powers, params = multiband_template_periodogram(
                 self.t, self.y, self.bands, self._template_dict, freqs,
                 dy=self.dy, mode=self.mode,
-                relative_offsets=self.relative_offsets, fast=fast)
+                relative_offsets=self.relative_offsets, fast=fast,
+                method=method)
             return np.asarray(powers), params, None
 
         # Catalog: the per-band NFFT summations are template-independent, so
@@ -744,7 +891,7 @@ class FastMultibandTemplatePeriodogram(object):
         for template_dict in self._template_sets:
             pw, pl = solve_over_frequencies(
                 template_dict, per_band_sumlists, stats, nfreq,
-                self.mode, self.relative_offsets)
+                self.mode, self.relative_offsets, method=method)
             stack.append(np.asarray(pw))
             param_sets.append(pl)
         stack = np.array(stack)                       # (nsets, nfreq)
@@ -767,13 +914,17 @@ class FastMultibandTemplatePeriodogram(object):
         powers, params, win = self._run([float(freq)], fast=False)
         return self._make_model(freq, params[0], None if win is None else win[0])
 
-    def autopower(self, save_best_model=True, fast=True, **kwargs):
+    def autopower(self, save_best_model=True, fast=True,
+                  method=DEFAULT_METHOD, **kwargs):
         """Compute the multiband periodogram on the auto-determined grid.
+
+        ``method`` selects the phase maximizer ('eigvals' root-finding
+        reference, or the numerically-equivalent 'scan' scan+polish path).
 
         Returns ``(frequency, power)``.
         """
         frequency = self.autofrequency(**kwargs)
-        powers, params, win = self._run(frequency, fast)
+        powers, params, win = self._run(frequency, fast, method=method)
 
         if save_best_model:
             i = int(np.argmax(powers))
@@ -782,15 +933,17 @@ class FastMultibandTemplatePeriodogram(object):
 
         return frequency, powers
 
-    def power(self, frequency, save_best_model=True, fast=False):
+    def power(self, frequency, save_best_model=True, fast=False,
+              method=DEFAULT_METHOD):
         """Compute multiband power at arbitrary (not necessarily gridded)
-        frequencies. Output is reshaped to match the input.
+        frequencies. Output is reshaped to match the input. ``method``
+        selects the phase maximizer (see :data:`METHODS`).
         """
         frequency = np.asarray(frequency, dtype=float)
         shape = frequency.shape
         frequency = np.atleast_1d(frequency.ravel())
 
-        powers, params, win = self._run(frequency, fast)
+        powers, params, win = self._run(frequency, fast, method=method)
 
         if save_best_model:
             i = int(np.argmax(powers))

@@ -262,9 +262,9 @@ class FastTemplatePeriodogram(object):
         tol : optional, float (default = 1e-7)
             NFFT kernel truncation tolerance (only used when `fast=True`)
         method : optional, str (default = 'eigvals')
-            'eigvals' (reference per-frequency path) or 'batched' (vectorized
-            coefficient assembly; numerically equivalent). See
-            `core.template_periodogram`.
+            'eigvals' (reference per-frequency path), 'batched' (vectorized
+            coefficient assembly), or 'scan' (scan+polish maximizer; fastest).
+            All numerically equivalent. See `core.template_periodogram`.
         **kwargs : optional, dict
             Passed to `autofrequency`
 
@@ -415,9 +415,9 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         tol : optional, float (default = 1e-7)
             NFFT kernel truncation tolerance (only used when `fast=True`)
         method : optional, str (default = 'eigvals')
-            'eigvals' (reference per-frequency path) or 'batched' (vectorized
-            coefficient assembly; numerically equivalent). See
-            `core.template_periodogram`.
+            'eigvals' (reference per-frequency path), 'batched' (vectorized
+            coefficient assembly), or 'scan' (scan+polish maximizer; fastest).
+            All numerically equivalent. See `core.template_periodogram`.
         **kwargs : optional, dict
             Passed to `autofrequency`
 
@@ -465,9 +465,9 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         tol : optional, float (default = 1e-7)
             NFFT kernel truncation tolerance (only used when `fast=True`)
         method : optional, str (default = 'eigvals')
-            'eigvals' (reference per-frequency path) or 'batched' (vectorized
-            coefficient assembly; numerically equivalent). See
-            `core.template_periodogram`.
+            'eigvals' (reference per-frequency path), 'batched' (vectorized
+            coefficient assembly), or 'scan' (scan+polish maximizer; fastest).
+            All numerically equivalent. See `core.template_periodogram`.
         **kwargs : optional, dict
             Passed to `autofrequency`
 
@@ -513,9 +513,9 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         tol : optional, float (default = 1e-7)
             NFFT kernel truncation tolerance (only used when `fast=True`)
         method : optional, str (default = 'eigvals')
-            'eigvals' (reference per-frequency path) or 'batched' (vectorized
-            coefficient assembly; numerically equivalent). See
-            `core.template_periodogram`.
+            'eigvals' (reference per-frequency path), 'batched' (vectorized
+            coefficient assembly), or 'scan' (scan+polish maximizer; fastest).
+            All numerically equivalent. See `core.template_periodogram`.
         **kwargs : optional, dict
             Passed to `autofrequency`
 

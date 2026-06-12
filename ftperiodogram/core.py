@@ -334,6 +334,272 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False,
     return best_params, pdg_phi[i], best_phi
 
 
+# ----------------------------------------------------------------------
+# Scan+polish maximizer (WP C2). Instead of finding all roots of the
+# stationarity polynomial (a dense companion-matrix eigenproblem per
+# frequency), evaluate the periodogram on a uniform circle grid for ALL
+# frequencies at once (zero-padded inverse FFT on the stacked coefficient
+# arrays), bracket every circular local maximum, and polish each with
+# Newton steps on dP/dtheta using analytic first and second derivatives.
+# ----------------------------------------------------------------------
+
+# M = max(128, 32 H) uniform angles: the periodogram is a ratio of
+# trigonometric polynomials of degree <= 2H, with at most 3H - 1 local
+# maxima on the circle, so ~10 grid points per stationary-point spacing.
+_SCAN_MIN_ANGLES = 128
+_SCAN_ANGLES_PER_H = 32
+# >= 6 Newton steps per the WP C2 spec; 8 gives margin at no real cost.
+_SCAN_NEWTON_STEPS = 8
+# keep at most 4H bracketed maxima per frequency (> 3H - 1, the analytic
+# bound, so genuine maxima are never dropped; only degenerate plateaus --
+# e.g. an exactly constant periodogram -- are trimmed)
+_SCAN_MAX_CANDIDATES_PER_H = 4
+
+
+def _eval_polys_on_circle(coefs, n_angles):
+    r"""Evaluate stacked polynomials at the uniform circle grid
+    ``phi_m = exp(2 pi i m / n_angles)``, ``m = 0 .. n_angles - 1``.
+
+    For ``p(phi) = sum_k c_k phi^k``, ``p(phi_m) = n_angles *
+    ifft(c, n=n_angles)[m]`` (the zero-padded inverse FFT), evaluated here
+    for every row of ``coefs`` at once.
+
+    Parameters
+    ----------
+    coefs : ndarray, shape (nf, ncoef)
+        Stacked polynomial coefficients (one polynomial per row).
+    n_angles : int
+        Number of uniform circle angles; must be >= ncoef (``np.fft.ifft``
+        silently crops longer inputs).
+
+    Returns
+    -------
+    values : ndarray, shape (nf, n_angles)
+        ``p_i(phi_m)`` for every row ``i`` and angle ``m``.
+    """
+    if coefs.shape[1] > n_angles:
+        raise ValueError("n_angles ({0}) must be >= the number of polynomial "
+                         "coefficients ({1})".format(n_angles, coefs.shape[1]))
+    return n_angles * np.fft.ifft(coefs, n=n_angles, axis=1)
+
+
+def _horner_eval(coefs, phi):
+    """Horner evaluation of polynomials at per-candidate points.
+
+    ``coefs`` is either ``(nc, ncoef)`` (one coefficient row per candidate)
+    or ``(ncoef,)`` (one polynomial shared by all candidates); ``phi`` is
+    the ``(nc,)`` complex evaluation points.
+    """
+    out = np.zeros(phi.shape, dtype=np.complex128)
+    for j in range(coefs.shape[-1] - 1, -1, -1):
+        out *= phi
+        out += coefs[..., j]
+    return out
+
+
+def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
+                           positive_amplitude=False, n_angles=None,
+                           n_newton=_SCAN_NEWTON_STEPS):
+    r"""Maximize the periodogram over phase by circle scan + Newton polish,
+    vectorized over a stack of frequencies.
+
+    The drop-in scan+polish replacement for the root-finding step
+    (:func:`roots_from_YM_MM`) on stacked coefficients (e.g. one chunk from
+    :func:`batched_YM_MM_from_sums`):
+
+    1. evaluate ``YM``/``MM`` at ``M = max(128, 32 H)`` uniform circle
+       angles for all frequencies at once (zero-padded inverse FFT);
+    2. ``P = Re(YM^2 / MM) / YY`` with non-finite values (``|MM| ~ 0``,
+       ``YY = 0``) mapped to ``-inf``;
+    3. bracket every circular local maximum (no top-3 cap; degenerate
+       plateaus are trimmed at ``4H`` candidates per frequency);
+    4. polish each candidate with ``n_newton`` Newton steps on
+       ``dP/dtheta`` using analytic first and second derivatives (Horner
+       on the k- and k^2-weighted coefficient rows), each iterate clamped
+       to the bracketing interval ``theta_0 +/- 2 pi / M``;
+    5. evaluate the true ``P`` at the polished angles (falling back to the
+       grid angle if polishing did not improve) and take the argmax,
+       applying the same positive-amplitude filter and the same
+       ``theta_1``/``theta_2``/``theta_3`` reconstruction formulas as
+       :func:`roots_from_YM_MM`.
+
+    Derivatives: with ``Y(theta) = YM(e^{i theta})``, ``Y1 = sum_k k y_k
+    phi^k`` and ``Y2 = sum_k k^2 y_k phi^k`` (same for ``MM``),
+
+        ``dP/dtheta   = Re(i B / MM^2) / YY``,  ``B = 2 Y Y1 MM - Y^2 M1``
+        ``d2P/dtheta2 = Re((-2 (Y1^2 + Y Y2) MM + Y^2 M2) / MM^2
+                          + 2 B M1 / MM^3) / YY``.
+
+    Parameters
+    ----------
+    YM_coefs : ndarray, shape (nf, 2H+1)
+        Stacked ``YM`` polynomial coefficients.
+    MM_coefs : ndarray, shape (nf, 4H+1)
+        Stacked ``MM`` polynomial coefficients.
+    AC : ndarray, shape (nf, H)
+        Per-frequency mean-template coefficients (offset reconstruction).
+    H, ybar, YY, positive_amplitude
+        As in :func:`roots_from_YM_MM`.
+    n_angles : int, optional
+        Override the scan grid size ``M`` (default ``max(128, 32 H)``).
+    n_newton : int, optional
+        Newton polish steps (default 8; the spec floor is 6).
+
+    Returns
+    -------
+    params_list : list of ModelFitParams, length nf
+    powers : ndarray, shape (nf,)
+    best_phis : ndarray of complex, shape (nf,)
+    """
+    YM_coefs = np.atleast_2d(np.asarray(YM_coefs, dtype=np.complex128))
+    MM_coefs = np.atleast_2d(np.asarray(MM_coefs, dtype=np.complex128))
+    AC = np.atleast_2d(np.asarray(AC))
+    nf = YM_coefs.shape[0]
+
+    if n_angles is None:
+        n_angles = max(_SCAN_MIN_ANGLES, _SCAN_ANGLES_PER_H * H)
+    M = int(n_angles)
+
+    flat_params = ModelFitParams(a=0.0, b=1.0, c=ybar, sgn=1.0)
+    if nf == 0:
+        return [], np.zeros(0), np.zeros(0, dtype=np.complex128)
+
+    # -- 1-2: grid scan ------------------------------------------------
+    Yv = _eval_polys_on_circle(YM_coefs, M)                 # (nf, M)
+    Mv = _eval_polys_on_circle(MM_coefs, M)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        Pg = np.real(Yv * Yv / Mv) / YY
+    Pg[~np.isfinite(Pg)] = -np.inf
+
+    # -- 3: bracket all circular local maxima --------------------------
+    ismax = ((Pg >= np.roll(Pg, 1, axis=1)) &
+             (Pg >= np.roll(Pg, -1, axis=1)) & (Pg > -np.inf))
+    kcap = _SCAN_MAX_CANDIDATES_PER_H * H
+    counts = ismax.sum(axis=1)
+    for row in np.where(counts > kcap)[0]:
+        cols = np.where(ismax[row])[0]
+        keep = cols[np.argsort(Pg[row, cols])[-kcap:]]
+        ismax[row] = False
+        ismax[row, keep] = True
+
+    fidx, gidx = np.where(ismax)            # row-major: fidx nondecreasing
+    if len(fidx) == 0:
+        return ([flat_params] * nf, np.zeros(nf),
+                np.full(nf, 1.0 + 0.0j))
+
+    theta0 = (2 * np.pi / M) * gidx
+    P0 = Pg[fidx, gidx]
+
+    # -- 4: Newton polish on dP/dtheta ---------------------------------
+    YMc = YM_coefs[fidx]                                    # (nc, 2H+1)
+    MMc = MM_coefs[fidx]                                    # (nc, 4H+1)
+    kY = np.arange(YM_coefs.shape[1])
+    kM = np.arange(MM_coefs.shape[1])
+    dY1c, dY2c = YMc * kY, YMc * (kY * kY)
+    dM1c, dM2c = MMc * kM, MMc * (kM * kM)
+
+    half_window = 2 * np.pi / M
+    theta = theta0.copy()
+    for _ in range(n_newton):
+        phi = np.exp(1j * theta)
+        Y = _horner_eval(YMc, phi)
+        Y1 = _horner_eval(dY1c, phi)
+        Y2 = _horner_eval(dY2c, phi)
+        Mm = _horner_eval(MMc, phi)
+        M1 = _horner_eval(dM1c, phi)
+        M2 = _horner_eval(dM2c, phi)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            B = 2.0 * Y * Y1 * Mm - Y * Y * M1
+            dP = np.real(1j * B / (Mm * Mm))
+            d2P = np.real((-2.0 * (Y1 * Y1 + Y * Y2) * Mm + Y * Y * M2)
+                          / (Mm * Mm) + 2.0 * B * M1 / (Mm * Mm * Mm))
+            step = dP / d2P
+        step[~np.isfinite(step)] = 0.0
+        theta = np.clip(theta - step,
+                        theta0 - half_window, theta0 + half_window)
+
+    # -- 5: evaluate true P at polished angles, grid fallback ----------
+    phi = np.exp(1j * theta)
+    Yp = _horner_eval(YMc, phi)
+    Mp = _horner_eval(MMc, phi)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        Pp = np.real(Yp * Yp / Mp) / YY
+    use_grid = ~np.isfinite(Pp) | (Pp < P0)
+    theta = np.where(use_grid, theta0, theta)
+    phi = np.where(use_grid, np.exp(1j * theta0), phi)
+    Yc = np.where(use_grid, Yv[fidx, gidx], Yp)
+    Mc = np.where(use_grid, Mv[fidx, gidx], Mp)
+    Pc = np.where(use_grid, P0, Pp)
+
+    # theta_1 at every candidate (same formula as the root path)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        th1 = np.real(phi ** H * Yc / Mc)
+
+    Peff = Pc
+    if positive_amplitude:
+        # K.18: among candidates, keep only those with theta_1 >= 0 and
+        # pick the best-fitting one; if no candidate is non-negative,
+        # fall back to the global power maximizer (as roots_from_YM_MM).
+        pos = th1 >= 0
+        anyp = np.zeros(nf, dtype=bool)
+        np.logical_or.at(anyp, fidx, pos)
+        Peff = np.where(pos | ~anyp[fidx], Pc, -np.inf)
+
+    best = np.full(nf, -np.inf)
+    np.maximum.at(best, fidx, Peff)
+
+    winner = np.full(nf, -1, dtype=np.int64)
+    hit = np.where(Peff == best[fidx])[0]
+    rows, first = np.unique(fidx[hit], return_index=True)
+    winner[rows] = hit[first]
+
+    # -- parameter reconstruction (core formulas, vectorized) ----------
+    ok_rows = np.where(winner >= 0)[0]
+    w_idx = winner[ok_rows]
+    bphi = phi[w_idx]
+    theta_2 = np.imag(np.log(bphi)) % (2 * np.pi)
+    # mbar = 2 Re(alpha_phi(best_phi)), alpha_phi = Polynomial([0, AC...])
+    mb = np.zeros(len(ok_rows), dtype=np.complex128)
+    ACw = AC[ok_rows]
+    for j in range(AC.shape[1] - 1, -1, -1):
+        mb = (mb + ACw[:, j]) * bphi
+    mbar = 2 * np.real(mb)
+    theta_1 = th1[w_idx]
+    theta_3 = ybar - mbar * theta_1
+    b_arr = np.cos(theta_2)
+    sgn_arr = np.sign(np.sin(theta_2))
+
+    powers = np.zeros(nf)
+    best_phis = np.full(nf, 1.0 + 0.0j)
+    powers[ok_rows] = Pc[w_idx]
+    best_phis[ok_rows] = bphi
+
+    params_list = [flat_params] * nf
+    for k, i in enumerate(ok_rows):
+        params_list[i] = ModelFitParams(a=theta_1[k], b=b_arr[k],
+                                        c=theta_3[k], sgn=sgn_arr[k])
+
+    return params_list, powers, best_phis
+
+
+def scan_polish_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
+    r"""Per-frequency scan+polish maximizer with the same signature and
+    return contract as :func:`roots_from_YM_MM` (minus the precomputed
+    ``stationarity``, which the scan never needs).
+
+    This is the seam the multiband solver flows through: the band-combined
+    ``YM'``/``MM'`` polynomials have the same circle structure as the
+    single-band ones, so the scan applies verbatim.
+
+    Returns ``(params, power, best_phi)``.
+    """
+    params_list, powers, best_phis = scan_polish_from_coefs(
+        YM.coef[np.newaxis, :], MM.coef[np.newaxis, :],
+        np.asarray(AC)[np.newaxis, :], H, ybar, YY,
+        positive_amplitude=positive_amplitude)
+    return params_list[0], float(powers[0]), best_phis[0]
+
+
 def template_fit_from_sums(cn, sn, sums, ybar, YY):
     r"""
     Finds optimal parameters given precomputed sums
@@ -433,13 +699,19 @@ def _iter_stacked_summations(t, y, w, freqs, nh, summations, fast, sigma, tol,
 
 def _template_periodogram_batched(t, y, w, cn, sn, freqs, ybar, YY,
                                   summations=None, fast=True, sigma=2,
-                                  tol=1E-7, chunk_size=4096):
-    """Batched-assembly template periodogram (``method='batched'``).
+                                  tol=1E-7, chunk_size=4096,
+                                  maximizer='roots'):
+    """Batched-assembly template periodogram (``method='batched'`` /
+    ``method='scan'``).
 
-    Coefficient assembly (sums -> YM/MM -> stationarity polynomial) is
-    vectorized over frequency chunks; root-finding and root selection then
-    reuse :func:`roots_from_YM_MM` per frequency on the precomputed
-    coefficients, so the behavior matches the per-frequency path.
+    Coefficient assembly (sums -> YM/MM) is vectorized over frequency
+    chunks. With ``maximizer='roots'`` (``method='batched'``) the
+    stationarity polynomial is also assembled and root-finding/selection
+    reuses :func:`roots_from_YM_MM` per frequency, so the behavior matches
+    the per-frequency path. With ``maximizer='scan'`` (``method='scan'``)
+    the whole chunk is maximized at once by
+    :func:`scan_polish_from_coefs` (circle scan + Newton polish; no
+    stationarity polynomial, no root-finding).
     """
     _validate_chunk_size(chunk_size)
     if summations is not None and len(summations) != len(freqs):
@@ -455,6 +727,12 @@ def _template_periodogram_batched(t, y, w, cn, sn, freqs, ybar, YY,
     for sums in _iter_stacked_summations(t, y, w, freqs, H, summations, fast,
                                          sigma, tol, chunk_size):
         YM_coefs, MM_coefs, AC = batched_YM_MM_from_sums(cn, sn, sums)
+        if maximizer == 'scan':
+            plist, pw, _ = scan_polish_from_coefs(YM_coefs, MM_coefs, AC,
+                                                  H, ybar, YY)
+            powers.extend(pw)
+            best_fit_params.extend(plist)
+            continue
         p_coefs = batched_stationarity_coefs(YM_coefs, MM_coefs)
         for i in range(YM_coefs.shape[0]):
             params, power, _ = roots_from_YM_MM(
@@ -505,12 +783,17 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         the YM/MM/stationarity coefficients for whole chunks of frequencies
         as stacked arrays (vectorized over frequency) and then runs the same
         per-frequency root selection on the precomputed coefficients; it is
-        numerically equivalent (powers agree to ~1e-15).
+        numerically equivalent (powers agree to ~1e-15). 'scan' uses the
+        same batched assembly but replaces root-finding entirely with the
+        scan+polish maximizer (:func:`scan_polish_from_coefs`): an FFT
+        circle scan over ``max(128, 32 H)`` angles plus Newton polish of
+        every bracketed maximum -- numerically equivalent (powers agree to
+        ~1e-13 of the root path) and much faster at high ``H``.
     chunk_size : int, optional (default 4096)
-        Number of frequencies per assembly chunk on the batched path (bounds
-        the memory of the ``(nf, H, H)`` covariance stacks); only used when
-        `method='batched'`. Must be a positive integer; the powers are
-        bitwise independent of its value.
+        Number of frequencies per assembly chunk on the batched/scan paths
+        (bounds the memory of the ``(nf, H, H)`` covariance stacks); only
+        used when `method` is 'batched' or 'scan'. Must be a positive
+        integer; the powers are bitwise independent of its value.
 
     Returns
     -------
@@ -527,13 +810,14 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
     ybar = np.dot(w, y)
     YY = np.dot(w, np.power(y - ybar, 2))
 
-    if method == 'batched':
+    if method in ('batched', 'scan'):
         return _template_periodogram_batched(
             t, y, w, cn, sn, freqs, ybar, YY, summations=summations,
-            fast=fast, sigma=sigma, tol=tol, chunk_size=chunk_size)
+            fast=fast, sigma=sigma, tol=tol, chunk_size=chunk_size,
+            maximizer='scan' if method == 'scan' else 'roots')
     if method != 'eigvals':
-        raise ValueError("Unknown method {0!r}; must be 'eigvals' or "
-                         "'batched'".format(method))
+        raise ValueError("Unknown method {0!r}; must be 'eigvals', "
+                         "'batched', or 'scan'".format(method))
 
     if summations is None:
         # compute sums using NFFT
