@@ -76,6 +76,9 @@ epochs**: with fewer points than ~histogram cells (10×5 default) the occupancy
 histogram is mostly empty and the conditional entropy is dominated by quantization,
 so recovery falls to near-chance regardless of signal strength. This is expected
 sparse-end behavior of ALL binned folding methods — the informative result is the
-**crossover vs the Fourier-based methods near N ~ 40 merged points** (CE competitive
-dense, collapsing sparse), not the collapse itself. Do not "fix" it by shrinking the
+**crossover vs the Fourier-based methods** (CE competitive dense, collapsing
+sparse), not the collapse itself. Measured in the B8 rerun (sesar, 2 bands):
+CE catches GLS near **N ~ 16/band (~32 merged points)** and saturates by
+N=24/band — slightly earlier than the ~40-merged-point rule of thumb quoted
+when this section was first written. Do not "fix" it by shrinking the
 bins: that just moves the collapse point while degrading the dense-end statistic.

@@ -100,8 +100,9 @@ def _build_err_model(args, log):
 
     ``synthetic`` (default) returns ``None`` so the cadence uses ``exp_mag_error``;
     ``empirical`` loads the binned-median ZTF error-vs-mag curve from the cached
-    real cadence sample (1.6-3.5x larger than the synthetic default), falling back
-    to synthetic with a warning if the cache is absent."""
+    real cadence sample (1.6-3.5x larger than the synthetic default) or the
+    committed ``ztf_error_curve.json``, and HARD-FAILS if neither is available
+    (an empirical arm must never silently run synthetic)."""
     if getattr(args, 'err_model', 'synthetic') != 'empirical':
         return None, 'synthetic(exp_mag_error)'
     try:
@@ -110,9 +111,11 @@ def _build_err_model(args, log):
             % (len(emp.curve[0]), emp.faint_sigma, getattr(emp, 'source', '?')))
         return emp, 'empirical_ztf(binned-median;%s)' % getattr(emp, 'source', '?')
     except (FileNotFoundError, ValueError) as exc:
-        log("  WARNING empirical error model unavailable (%s); using synthetic"
-            % str(exc)[:80])
-        return None, 'synthetic(exp_mag_error)[fallback]'
+        # asked-for empirical must never silently degrade (a pod would otherwise
+        # run the wrong arm with exit status 0)
+        raise SystemExit("--err-model empirical requested but unavailable: %s "
+                         "(need the raw cache or the committed "
+                         "ztf_error_curve.json)" % str(exc)[:120])
 
 
 def grid_guard(f_min, f_max, n_freq, baseline_days, log):
@@ -330,7 +333,10 @@ def run_seed(templates, truth_pool, args, seed, log):
     stages = _stages(args)
     k_values = _ints(args.k_values)
     n_epochs_values = _ints(args.n_epochs_values)
-    max_k = max(k_values)
+    # greedy orders must cover a pinned --fixed-k even when it exceeds the K-sweep
+    # range, else greedy_dense[:fixed_k] silently truncates while PAM runs at the
+    # full pinned K (mislabeled PAM-vs-greedy comparison)
+    max_k = max(max(k_values), int(args.fixed_k or 0))
 
     truth, library, arms = split_truth_library(templates, truth_pool, args, seed)
     band_amps = band_amplitude_dict(obs_bands, args.band_amp_ratio)
@@ -426,6 +432,10 @@ def run_seed(templates, truth_pool, args, seed, log):
     # regime story. No per-N re-selection: the SAME vocab is scored at each N.
     if 'n_sweep' in stages:
         pam_vocab = pam_vocabs[fixed_k]
+        if len(greedy_dense) < fixed_k:
+            raise SystemExit("greedy order has %d entries < fixed_k=%d (library "
+                             "too small?) -- N-sweep PAM/greedy comparison would "
+                             "be mislabeled" % (len(greedy_dense), fixed_k))
         greedy_vocab = [library[i] for i in greedy_dense[:fixed_k]]
         t0 = time.time()
         n_curves = {m: [] for m in ('ftp_pam', 'ftp_greedy', *baselines)}

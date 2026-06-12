@@ -113,6 +113,10 @@ JOBS = [
      "driver": _joint("lowsnr", [0, 1, 2], "--amplitude 0.1")},
 ]
 CANARY_TAGS = ("a-sesar-0", "e-canary")
+# DEFERRED-(e) RELAUNCH (post-C2) PRECONDITIONS: mint a FRESH webhook token (free
+# tokens age out ~7 days / ~100 stored requests), re-grid N to {4,5,6,8,12} (the
+# canary's {4,8,12,20,40} saturates 4/5 cells), and fix the serial
+# assignment_accuracy loop first (87% of the canary bill). See EXECUTION_PLAN B8 row.
 # arm (f), appended by `addf` ONLY if projected spend stays <= ~$45
 JOBS_F = [
     {"tag": "f-bv-1", "est": 94, "driver": _prod("bv", 1, ARM_A)},
