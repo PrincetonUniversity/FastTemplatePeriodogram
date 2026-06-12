@@ -1,0 +1,408 @@
+{
+  "seed": 0,
+  "err_model": "empirical_ztf(binned-median;committed-json(ztf_error_curve.json))",
+  "arms": {
+    "truth_universe": null,
+    "library_holdout_frac": 0.0,
+    "band_amp_ratio": 1.0,
+    "n_truth": 98,
+    "n_library": 98,
+    "band_amplitudes": null
+  },
+  "stages": [
+    "cost",
+    "k_dense",
+    "k_sparse",
+    "n_sweep"
+  ],
+  "k_sweep_sparse": {
+    "n_epochs": 6,
+    "n_sources": 256,
+    "k_values": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "ftp_pam": [
+      0.71484375,
+      0.69921875,
+      0.7421875,
+      0.7265625
+    ],
+    "ftp_greedy": [
+      0.64453125,
+      0.69140625,
+      0.7265625,
+      0.73828125
+    ],
+    "greedy_order": [
+      82,
+      63,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "baselines": {
+      "gls": 0.15625,
+      "mhls": 0.16015625,
+      "mbls": 0.05078125,
+      "ce": 0.01171875
+    }
+  },
+  "k_sweep_dense": {
+    "n_epochs": 60,
+    "n_sources": 256,
+    "k_values": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "ftp_pam": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "ftp_greedy": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "greedy_order": [
+      0,
+      6,
+      23,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "baselines": {
+      "gls": 1.0,
+      "mhls": 0.84375,
+      "mbls": 1.0,
+      "ce": 1.0
+    }
+  },
+  "fixed_k": 4,
+  "n_epochs_sweep": {
+    "n_epochs_values": [
+      4,
+      8,
+      12,
+      16,
+      24,
+      40
+    ],
+    "k": 4,
+    "n_sources": 256,
+    "mcnemar_vs_ftp_pam": [
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 28,
+        "b_only": 12,
+        "p": 0.01658900337497471
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 51,
+        "b_only": 7,
+        "p": 2.402164578363397e-09
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 51,
+        "b_only": 7,
+        "p": 2.402164578363397e-09
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 52,
+        "b_only": 4,
+        "p": 1.1008055578187737e-11
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 54,
+        "b_only": 0,
+        "p": 1.1102230246251565e-16
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 2,
+        "b_only": 2,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 139,
+        "b_only": 1,
+        "p": 2.023250774730744e-40
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 103,
+        "b_only": 0,
+        "p": 1.9721522630525295e-31
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 176,
+        "b_only": 1,
+        "p": 1.8584067124859798e-51
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 222,
+        "b_only": 0,
+        "p": 2.967364920549937e-67
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 33,
+        "b_only": 0,
+        "p": 2.3283064365386963e-10
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 59,
+        "b_only": 0,
+        "p": 3.469446951953614e-18
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 79,
+        "b_only": 1,
+        "p": 1.3400325923359048e-22
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 130,
+        "b_only": 0,
+        "p": 1.4693679385278594e-39
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 2,
+        "b_only": 0,
+        "p": 0.5
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 57,
+        "b_only": 0,
+        "p": 1.3877787807814457e-17
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 11,
+        "b_only": 0,
+        "p": 0.0009765625
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 40,
+        "b_only": 0,
+        "p": 1.8189894035458565e-12
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 36,
+        "b_only": 0,
+        "p": 2.9103830456733704e-11
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 5,
+        "b_only": 0,
+        "p": 0.0625
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 38,
+        "b_only": 0,
+        "p": 7.275957614183426e-12
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      }
+    ],
+    "ftp_pam": [
+      0.21484375,
+      0.91796875,
+      0.98828125,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "ftp_greedy": [
+      0.15234375,
+      0.91796875,
+      0.98828125,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "gls": [
+      0.04296875,
+      0.37890625,
+      0.859375,
+      0.9921875,
+      1.0,
+      1.0
+    ],
+    "mhls": [
+      0.04296875,
+      0.515625,
+      0.7578125,
+      0.77734375,
+      0.859375,
+      0.8515625
+    ],
+    "mbls": [
+      0.02734375,
+      0.234375,
+      0.68359375,
+      0.95703125,
+      1.0,
+      1.0
+    ],
+    "ce": [
+      0.00390625,
+      0.05078125,
+      0.48046875,
+      0.84375,
+      0.98046875,
+      1.0
+    ]
+  },
+  "cost": {
+    "n_sources": 32,
+    "n_freq": 1500,
+    "k": 2,
+    "oracle_n_tau": 128,
+    "ftp_seconds": 23.539817571640015,
+    "oracle_seconds": 56.246445178985596,
+    "speedup": 2.3894172080054448,
+    "ftp_recovery": 0.34375,
+    "oracle_recovery": 0.34375
+  }
+}
