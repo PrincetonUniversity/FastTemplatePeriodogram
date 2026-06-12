@@ -82,3 +82,5 @@ work/
 *.gif
 *.mp4
 work/
+experiments/phase3_recovery/_fleet/
+experiments/phase3_recovery/_fleet_b8/

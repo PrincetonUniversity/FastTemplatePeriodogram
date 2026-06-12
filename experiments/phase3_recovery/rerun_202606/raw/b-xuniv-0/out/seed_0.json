@@ -1,0 +1,357 @@
+{
+  "seed": 0,
+  "err_model": "synthetic(exp_mag_error)",
+  "arms": {
+    "truth_universe": "bv",
+    "library_holdout_frac": 0.0,
+    "band_amp_ratio": 1.0,
+    "n_truth": 560,
+    "n_library": 98,
+    "band_amplitudes": null
+  },
+  "stages": [
+    "k_sparse",
+    "n_sweep"
+  ],
+  "k_sweep_sparse": {
+    "n_epochs": 6,
+    "n_sources": 256,
+    "k_values": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "ftp_pam": [
+      0.4296875,
+      0.43359375,
+      0.6953125,
+      0.68359375
+    ],
+    "ftp_greedy": [
+      0.5078125,
+      0.68359375,
+      0.66015625,
+      0.6875
+    ],
+    "greedy_order": [
+      0,
+      29,
+      95,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "baselines": {
+      "gls": 0.421875,
+      "mhls": 0.36328125,
+      "mbls": 0.25390625,
+      "ce": 0.0234375
+    }
+  },
+  "fixed_k": 2,
+  "n_epochs_sweep": {
+    "n_epochs_values": [
+      4,
+      8,
+      12,
+      16,
+      24,
+      40
+    ],
+    "k": 2,
+    "n_sources": 256,
+    "mcnemar_vs_ftp_pam": [
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 20,
+        "b_only": 22,
+        "p": 0.8776143287523155
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 24,
+        "b_only": 20,
+        "p": 0.651587827208914
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 24,
+        "b_only": 20,
+        "p": 0.651587827208914
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 26,
+        "b_only": 9,
+        "p": 0.0059881205670535564
+      },
+      {
+        "n_epochs": 4,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 26,
+        "b_only": 0,
+        "p": 2.9802322387695312e-08
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 6,
+        "b_only": 55,
+        "p": 5.380614009897755e-11
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 66,
+        "b_only": 60,
+        "p": 0.6561782216034294
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 59,
+        "b_only": 31,
+        "p": 0.004165114015824446
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 83,
+        "b_only": 56,
+        "p": 0.027073529093989804
+      },
+      {
+        "n_epochs": 8,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 151,
+        "b_only": 8,
+        "p": 2.446328083596189e-35
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 1,
+        "b_only": 5,
+        "p": 0.21875
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 18,
+        "b_only": 6,
+        "p": 0.022655844688415527
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 64,
+        "b_only": 3,
+        "p": 6.801200228001569e-16
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 38,
+        "b_only": 4,
+        "p": 5.65314621780999e-08
+      },
+      {
+        "n_epochs": 12,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 123,
+        "b_only": 0,
+        "p": 1.88079096131566e-37
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 0,
+        "b_only": 1,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 0,
+        "b_only": 1,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 58,
+        "b_only": 1,
+        "p": 2.0816681711721685e-16
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 6,
+        "b_only": 1,
+        "p": 0.125
+      },
+      {
+        "n_epochs": 16,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 40,
+        "b_only": 0,
+        "p": 1.8189894035458565e-12
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 49,
+        "b_only": 0,
+        "p": 3.552713678800501e-15
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 24,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 4,
+        "b_only": 0,
+        "p": 0.125
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "ftp_greedy",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "gls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "mhls",
+        "a_only": 46,
+        "b_only": 0,
+        "p": 2.842170943040401e-14
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "mbls",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      },
+      {
+        "n_epochs": 40,
+        "a": "ftp_pam",
+        "b": "ce",
+        "a_only": 0,
+        "b_only": 0,
+        "p": 1.0
+      }
+    ],
+    "ftp_pam": [
+      0.1015625,
+      0.6953125,
+      0.97265625,
+      0.99609375,
+      1.0,
+      1.0
+    ],
+    "ftp_greedy": [
+      0.109375,
+      0.88671875,
+      0.98828125,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "gls": [
+      0.0859375,
+      0.671875,
+      0.92578125,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mhls": [
+      0.0859375,
+      0.5859375,
+      0.734375,
+      0.7734375,
+      0.80859375,
+      0.8203125
+    ],
+    "mbls": [
+      0.03515625,
+      0.58984375,
+      0.83984375,
+      0.9765625,
+      1.0,
+      1.0
+    ],
+    "ce": [
+      0.0,
+      0.13671875,
+      0.4921875,
+      0.83984375,
+      0.984375,
+      1.0
+    ]
+  }
+}

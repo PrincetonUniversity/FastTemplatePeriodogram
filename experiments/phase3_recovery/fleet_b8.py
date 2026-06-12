@@ -264,10 +264,13 @@ def canary():
 
 
 def release():
-    """Launch every job that has no pod yet (post-canary, or capacity retry)."""
+    """Launch every job that has no pod yet (post-canary, or capacity retry).
+
+    Jobs with ``held: true`` in state.json are NEVER launched (arm-e deferral);
+    clear the flag deliberately to re-enable them."""
     st = _load_state()
     for j in st["jobs"]:
-        if j.get("pod") or j["received"]:
+        if j.get("pod") or j["received"] or j.get("held"):
             continue
         pid, info = _create(j["tag"], j["driver"], st["token"])
         j["pod"], j["info"] = pid, info
@@ -317,10 +320,16 @@ def _extract(tag, raw):
 def collect():
     st = _load_state()
     posts = {}
+    # first SUCCESS wins: a crashed pod restart-loops the driver, so a later
+    # beacon can be a re-run's failure — never let it shadow a good result
     for r in _requests(st["token"]):
         job = _headers(r).get("x-job", "")
-        if job:
-            posts[job] = r                          # latest wins
+        if not job:
+            continue
+        prev = posts.get(job)
+        if prev is None or (_headers(prev).get("x-status") != "0"
+                            and _headers(r).get("x-status") == "0"):
+            posts[job] = r
     os.makedirs(RAW, exist_ok=True)
     for j in st["jobs"]:
         if posts.get(j["tag"] + "-START"):

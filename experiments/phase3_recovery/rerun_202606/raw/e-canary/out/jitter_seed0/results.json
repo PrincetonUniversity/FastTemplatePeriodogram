@@ -1,0 +1,202 @@
+{
+  "universe": "sesar",
+  "bands": [
+    "g",
+    "r"
+  ],
+  "k": 2,
+  "n_sources": 256,
+  "n_harmonics": 8,
+  "freq_grid": [
+    1.4,
+    3.6,
+    2000
+  ],
+  "baseline_days": 60.0,
+  "intrinsic_jitter": 0.15,
+  "mean_mag": 19.0,
+  "amplitude": 0.5,
+  "library_holdout_frac": 0.0,
+  "err_model": "synthetic",
+  "grid_points_per_rayleigh": 15.144,
+  "max_iter": 8,
+  "seed": 0,
+  "rows": [
+    {
+      "n_epochs": 4,
+      "pipeline": 0.671875,
+      "joint": 0.671875,
+      "gls": 0.20703125,
+      "gap": 0.0,
+      "pipeline_assign": 0.7209302325581395,
+      "joint_assign": 0.7209302325581395,
+      "mechanism_gap": 0.0,
+      "pipeline_assign_n": 172,
+      "pipeline_assign_null": 0.6104651162790697,
+      "joint_assign_n": 172,
+      "joint_assign_null": 0.6104651162790697,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop",
+      "em_val_signal": "power_margin",
+      "em_val_hist": [
+        -0.017160509638587604,
+        -0.0174093623287695,
+        -0.017654833532564015,
+        -0.01784560568524589
+      ],
+      "em_n_gated": [
+        128,
+        128,
+        128
+      ],
+      "em_n_reverted": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "n_epochs": 8,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 0.86328125,
+      "gap": 0.0,
+      "pipeline_assign": 0.85546875,
+      "joint_assign": 0.85546875,
+      "mechanism_gap": 0.0,
+      "pipeline_assign_n": 256,
+      "pipeline_assign_null": 0.61328125,
+      "joint_assign_n": 256,
+      "joint_assign_null": 0.61328125,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop",
+      "em_val_signal": "power_margin",
+      "em_val_hist": [
+        -0.002388350655910292,
+        -0.0024006597318717363,
+        -0.002435155361620128,
+        -0.0024430897081634904
+      ],
+      "em_n_gated": [
+        128,
+        128,
+        128
+      ],
+      "em_n_reverted": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "n_epochs": 12,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 0.98828125,
+      "gap": 0.0,
+      "pipeline_assign": 0.91796875,
+      "joint_assign": 0.92578125,
+      "mechanism_gap": 0.0078125,
+      "pipeline_assign_n": 256,
+      "pipeline_assign_null": 0.61328125,
+      "joint_assign_n": 256,
+      "joint_assign_null": 0.59765625,
+      "em_best_iter": 1,
+      "em_n_iter": 4,
+      "em_stop": "early_stop",
+      "em_val_signal": "power_margin",
+      "em_val_hist": [
+        -0.0017772836762213746,
+        -0.0017475096660397697,
+        -0.0018264959118139915,
+        -0.0019026893462822532,
+        -0.0019277701601040603
+      ],
+      "em_n_gated": [
+        128,
+        128,
+        128,
+        128
+      ],
+      "em_n_reverted": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "n_epochs": 20,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 1.0,
+      "gap": 0.0,
+      "pipeline_assign": 0.94140625,
+      "joint_assign": 0.94140625,
+      "mechanism_gap": 0.0,
+      "pipeline_assign_n": 256,
+      "pipeline_assign_null": 0.61328125,
+      "joint_assign_n": 256,
+      "joint_assign_null": 0.61328125,
+      "em_best_iter": 0,
+      "em_n_iter": 3,
+      "em_stop": "early_stop",
+      "em_val_signal": "power_margin",
+      "em_val_hist": [
+        -0.0008620761547710556,
+        -0.0008831248157691127,
+        -0.0009199097367606768,
+        -0.0009251063029571843
+      ],
+      "em_n_gated": [
+        128,
+        128,
+        128
+      ],
+      "em_n_reverted": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "n_epochs": 40,
+      "pipeline": 1.0,
+      "joint": 1.0,
+      "gls": 1.0,
+      "gap": 0.0,
+      "pipeline_assign": 0.9609375,
+      "joint_assign": 0.97265625,
+      "mechanism_gap": 0.01171875,
+      "pipeline_assign_n": 256,
+      "pipeline_assign_null": 0.61328125,
+      "joint_assign_n": 256,
+      "joint_assign_null": 0.60546875,
+      "em_best_iter": 1,
+      "em_n_iter": 4,
+      "em_stop": "early_stop",
+      "em_val_signal": "power_margin",
+      "em_val_hist": [
+        -0.0003967090521514883,
+        -0.00037258727233319567,
+        -0.0003870427663814897,
+        -0.0003910770893992932,
+        -0.00038490881929130385
+      ],
+      "em_n_gated": [
+        128,
+        128,
+        128,
+        128
+      ],
+      "em_n_reverted": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}
