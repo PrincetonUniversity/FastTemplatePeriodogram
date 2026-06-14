@@ -539,12 +539,16 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
 
     directly on ``M = max(128, 32 H K)`` uniform circle angles (the per-band
     polynomials evaluated by zero-padded inverse FFT), then polishes every
-    bracketed circular local maximum with Newton steps on ``dF/dtheta``
-    using the analytic per-band derivatives of
-    :func:`ftperiodogram.core.scan_polish_from_coefs`, summed over bands
-    with weights ``W_k``. The degree-``8HK`` stationarity polynomial ``G``
-    of :func:`_shared_phase_fit` is never formed, so the ``(HK)^3``
-    per-frequency root-finding cost is avoided entirely.
+    bracketed circular local maximum -- plus every deep dip of any band's
+    ``|MM_k|``, refined to the ``|MM_k|^2`` minimum -- with Newton steps on
+    ``dF/dtheta`` using the analytic per-band derivatives of
+    :func:`ftperiodogram.core._scan_dP_d2P`, summed over bands with weights
+    ``W_k``. Frequencies where any band's ``|MM_k|`` nearly vanishes on the
+    circle (see :data:`ftperiodogram.core._SCAN_EXACT_RTOL`) are handed to
+    the exact :func:`_shared_phase_fit` root path, where narrow spikes of
+    ``F`` defeat any grid scan. On the scan path the degree-``8HK``
+    stationarity polynomial ``G`` is never formed, so the ``(HK)^3``
+    per-frequency root-finding cost is avoided.
 
     Parameter reconstruction (per-band ``theta_1``, offsets) is identical
     to :func:`_shared_phase_fit`.
@@ -562,19 +566,36 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
     Mco = np.array([per_band[k][1].coef for k in bands])     # (K, 4H+1)
     Wv = np.array([stats.W[k] for k in bands])
 
+    # garbage in must fail loudly (parity with the root path's LinAlgError)
+    if not (np.all(np.isfinite(Yco)) and np.all(np.isfinite(Mco))):
+        raise ValueError("non-finite per-band YM/MM polynomial coefficients "
+                         "(NaN/inf in t, y, dy, or the weights?)")
+
     M_ang = max(pdg._SCAN_MIN_ANGLES, pdg._SCAN_ANGLES_PER_H * H * K)
 
     # grid scan of F(theta)
     Yg = pdg._eval_polys_on_circle(Yco, M_ang)               # (K, M)
     Mg = pdg._eval_polys_on_circle(Mco, M_ang)
+
+    # exact fallback: when ANY band's |MM_k| dips deep on the circle, F can
+    # carry a spike the grid scan + seeded polish has no convergence
+    # guarantee for (see core._SCAN_EXACT_RTOL); hand the whole frequency
+    # to the exact G-polynomial root path.
+    absMg = np.abs(Mg)
+    if np.any(np.min(absMg, axis=1) <
+              pdg._SCAN_EXACT_RTOL * np.max(absMg, axis=1)):
+        return _shared_phase_fit(template_dict, per_band_sums, stats)
+
     with np.errstate(divide='ignore', invalid='ignore'):
         Fg = np.dot(Wv, np.real(Yg * Yg / Mg))               # (M,)
     Fg[~np.isfinite(Fg)] = -np.inf
 
+    kY = np.arange(Yco.shape[1])
+    kM = np.arange(Mco.shape[1])
+    half_window = 2 * np.pi / M_ang
+
     ismax = ((Fg >= np.roll(Fg, 1)) & (Fg >= np.roll(Fg, -1)) &
              (Fg > -np.inf))
-    if not np.any(ismax):                 # no finite total power anywhere
-        return _flat_model(stats, 'shared_phase')
     kcap = pdg._SCAN_MAX_CANDIDATES_PER_H * H * K
     cols = np.where(ismax)[0]
     if len(cols) > kcap:                  # degenerate plateau: trim
@@ -583,14 +604,46 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
     theta0 = (2 * np.pi / M_ang) * cols
     F0 = Fg[cols]
 
-    # Newton polish on dF/dtheta (per-band derivative coefficient rows)
-    kY = np.arange(Yco.shape[1])
-    kM = np.arange(Mco.shape[1])
-    half_window = 2 * np.pi / M_ang
-    theta = theta0.copy()
+    # Dip candidates: a narrow spike of F arises when ANY band's |MM_k|
+    # nearly vanishes on the circle (rank-deficient or phase-clustered
+    # sampling in that band); the F grid scan cannot bracket sub-grid-width
+    # spikes (same mechanism as the single-band scan, see
+    # core._SCAN_DIP_RTOL). Refine each deep circular local minimum of
+    # |MM_k| to the true |MM_k|^2 minimum by clamped Newton, then polish F
+    # from there alongside the grid maxima.
+    dip_seeds = []
+    kcap_band = pdg._SCAN_MAX_CANDIDATES_PER_H * H
+    for kb in range(K):
+        rowM = np.abs(Mg[kb])
+        ismin = ((rowM <= np.roll(rowM, 1)) & (rowM <= np.roll(rowM, -1)) &
+                 (rowM < pdg._SCAN_DIP_RTOL * rowM.max()))
+        dcols = np.where(ismin)[0]
+        if len(dcols) == 0:
+            continue
+        if len(dcols) > kcap_band:
+            dcols = dcols[np.argsort(rowM[dcols])[:kcap_band]]
+        dth0 = (2 * np.pi / M_ang) * dcols
+        th = dth0.copy()
+        dM1 = Mco[kb] * kM
+        dM2 = Mco[kb] * kM * kM
+        for _ in range(pdg._SCAN_NEWTON_STEPS):
+            ph = np.exp(1j * th)
+            Mm = pdg._horner_eval(Mco[kb], ph)
+            M1 = pdg._horner_eval(dM1, ph)
+            M2 = pdg._horner_eval(dM2, ph)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                q1 = 2.0 * np.real(1j * M1 * np.conj(Mm))
+                q2 = 2.0 * (np.abs(M1) ** 2 - np.real(np.conj(Mm) * M2))
+                step = q1 / q2
+            step[~np.isfinite(step)] = 0.0
+            th = np.clip(th - step, dth0 - half_window, dth0 + half_window)
+        dip_seeds.append(th)
 
     def _F_derivs(phi):
-        """(dF/dtheta, d2F/dtheta2) at unit-circle points ``phi``."""
+        """(dF/dtheta, d2F/dtheta2) at unit-circle points ``phi``; the
+        per-band terms come from :func:`ftperiodogram.core._scan_dP_d2P`
+        (the single source of truth for the scan derivatives), summed with
+        weights ``W_k``."""
         dF = np.zeros(phi.shape)
         d2F = np.zeros(phi.shape)
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -601,11 +654,9 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
                 Mm = pdg._horner_eval(Mco[kb], phi)
                 M1 = pdg._horner_eval(Mco[kb] * kM, phi)
                 M2 = pdg._horner_eval(Mco[kb] * kM * kM, phi)
-                B = 2.0 * Y * Y1 * Mm - Y * Y * M1
-                dF = dF + Wv[kb] * np.real(1j * B / (Mm * Mm))
-                d2F = d2F + Wv[kb] * np.real(
-                    (-2.0 * (Y1 * Y1 + Y * Y2) * Mm + Y * Y * M2)
-                    / (Mm * Mm) + 2.0 * B * M1 / (Mm * Mm * Mm))
+                dPk, d2Pk = pdg._scan_dP_d2P(Y, Y1, Y2, Mm, M1, M2)
+                dF = dF + Wv[kb] * dPk
+                d2F = d2F + Wv[kb] * d2Pk
         return dF, d2F
 
     def _F_at(phi):
@@ -618,6 +669,18 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
                 F = F + Wv[kb] * np.real(Y * Y / Mm)
         return F
 
+    if dip_seeds:
+        dip_theta = np.concatenate(dip_seeds)
+        F_dip = _F_at(np.exp(1j * dip_theta))
+        F_dip[~np.isfinite(F_dip)] = -np.inf
+        theta0 = np.concatenate([theta0, dip_theta])
+        F0 = np.concatenate([F0, F_dip])
+
+    if len(theta0) == 0 or not np.any(F0 > -np.inf):
+        # no candidate with finite total power anywhere: degenerate
+        return _flat_model(stats, 'shared_phase')
+
+    theta = theta0.copy()
     for _ in range(pdg._SCAN_NEWTON_STEPS):
         dF, d2F = _F_derivs(np.exp(1j * theta))
         with np.errstate(divide='ignore', invalid='ignore'):

@@ -354,6 +354,51 @@ _SCAN_NEWTON_STEPS = 8
 # bound, so genuine maxima are never dropped; only degenerate plateaus --
 # e.g. an exactly constant periodogram -- are trimmed)
 _SCAN_MAX_CANDIDATES_PER_H = 4
+# P(theta) = ym^2/mm with ym, mm trig polynomials of degree <= H, 2H: away
+# from near-zeros of mm, Bernstein's inequality bounds P's feature scale
+# below by ~1/(2H) of the circle (>> the 2pi/(32H) grid step), so a spike
+# narrower than the grid REQUIRES a deep dip of |MM| on the circle
+# (rank-deficient or phase-clustered sampling): a sub-grid-width spike needs
+# mm_min <~ mm_max * ((2H) * (2pi/M))^2 / 2 ~ 0.08 mm_max at M = 32H.
+# Every circular local minimum of |MM| below this fraction of the row max
+# becomes an extra polish candidate; 0.5 keeps a ~6x safety margin.
+# NB (C2 adversarial verification): real sub-grid P spikes were never observed
+# above conditioning ~0.003 mm_max -- i.e. always inside the _SCAN_EXACT_RTOL
+# (=0.15) fallback zone -- so the dip candidates in the (0.15, 0.5) band are a
+# deliberate conservative hedge, not load-bearing on any tested valid input;
+# the exact-root fallback below 0.15 is the actual correctness net.
+_SCAN_DIP_RTOL = 0.5
+# Below this depth the dip can host structures the clamped Newton polish is
+# NOT guaranteed to resolve (e.g. a zero of ym inside the dip displaces the
+# spike away from the |MM| minimum and breaks the seeded-Newton geometry);
+# such frequencies are handed to the exact root path (roots_from_YM_MM)
+# verbatim. A sub-grid-width spike needs mm_min <~ (pi^2/512) mm_max
+# ~ 0.02 mm_max at M = 32H (Bernstein curvature bound), and the observed
+# polish-failure modes sit below ~0.1 mm_max; 0.15 adds margin while
+# keeping the fallback rare on well-conditioned data.
+_SCAN_EXACT_RTOL = 0.15
+
+
+def _scan_dP_d2P(Y, Y1, Y2, Mm, M1, M2):
+    r"""Analytic first and second theta-derivatives of ``YY * P`` =
+    ``Re(Y^2 / Mm)`` at unit-circle points, from the polynomial values and
+    their k- and k^2-weighted sums (``Y1 = sum_k k y_k phi^k`` etc.).
+
+    With ``Y(theta) = YM(e^{i theta})``: ``dY/dtheta = i Y1``,
+    ``d2Y/dtheta2 = -Y2`` (same for ``Mm``), giving
+
+        ``dP   = Re(i B / Mm^2)``,  ``B = 2 Y Y1 Mm - Y^2 M1``
+        ``d2P  = Re((-2 (Y1^2 + Y Y2) Mm + Y^2 M2) / Mm^2 + 2 B M1 / Mm^3)``.
+
+    The ``1/YY`` factor is omitted consistently from both, so it cancels in
+    the Newton ratio ``dP / d2P``. This is the single source of truth for
+    the Newton polish (single-band and per-band shared-phase).
+    """
+    B = 2.0 * Y * Y1 * Mm - Y * Y * M1
+    dP = np.real(1j * B / (Mm * Mm))
+    d2P = np.real((-2.0 * (Y1 * Y1 + Y * Y2) * Mm + Y * Y * M2)
+                  / (Mm * Mm) + 2.0 * B * M1 / (Mm * Mm * Mm))
+    return dP, d2P
 
 
 def _eval_polys_on_circle(coefs, n_angles):
@@ -397,6 +442,19 @@ def _horner_eval(coefs, phi):
     return out
 
 
+def _exact_root_fallback(rows, YM_coefs, MM_coefs, AC, H, ybar, YY,
+                         positive_amplitude, params_list, powers, best_phis):
+    """Overwrite the flagged rows (deep-|MM|-dip frequencies, see
+    :data:`_SCAN_EXACT_RTOL`) with the exact root-path solution, in place.
+    This is verbatim :func:`roots_from_YM_MM` -- the reference 'eigvals'
+    treatment -- so the scan is guaranteed-equal to the reference exactly
+    where the grid scan has no bracketing guarantee."""
+    for i in rows:
+        params_list[i], powers[i], best_phis[i] = roots_from_YM_MM(
+            pol.Polynomial(YM_coefs[i]), pol.Polynomial(MM_coefs[i]),
+            AC[i], H, ybar, YY, positive_amplitude=positive_amplitude)
+
+
 def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
                            positive_amplitude=False, n_angles=None,
                            n_newton=_SCAN_NEWTON_STEPS):
@@ -412,13 +470,19 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     2. ``P = Re(YM^2 / MM) / YY`` with non-finite values (``|MM| ~ 0``,
        ``YY = 0``) mapped to ``-inf``;
     3. bracket every circular local maximum (no top-3 cap; degenerate
-       plateaus are trimmed at ``4H`` candidates per frequency);
+       plateaus are trimmed at ``4H`` candidates per frequency), PLUS one
+       candidate per deep circular local minimum of ``|MM|`` -- refined to
+       the true ``|MM|^2`` minimum by clamped Newton -- because narrow
+       peaks of ``P`` hide inside deep ``|MM|`` dips (rank-deficient or
+       phase-clustered sampling) where the uniform grid cannot bracket
+       them (see :data:`_SCAN_DIP_RTOL`);
     4. polish each candidate with ``n_newton`` Newton steps on
        ``dP/dtheta`` using analytic first and second derivatives (Horner
-       on the k- and k^2-weighted coefficient rows), each iterate clamped
-       to the bracketing interval ``theta_0 +/- 2 pi / M``;
+       on the k- and k^2-weighted coefficient rows; see
+       :func:`_scan_dP_d2P`), each iterate clamped to ``+/- 2 pi / M``
+       around its seed;
     5. evaluate the true ``P`` at the polished angles (falling back to the
-       grid angle if polishing did not improve) and take the argmax,
+       seed angle if polishing did not improve) and take the argmax,
        applying the same positive-amplitude filter and the same
        ``theta_1``/``theta_2``/``theta_3`` reconstruction formulas as
        :func:`roots_from_YM_MM`.
@@ -456,9 +520,19 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     AC = np.atleast_2d(np.asarray(AC))
     nf = YM_coefs.shape[0]
 
-    if n_angles is None:
-        n_angles = max(_SCAN_MIN_ANGLES, _SCAN_ANGLES_PER_H * H)
-    M = int(n_angles)
+    # garbage in (NaN/inf observations, zero dy) must fail loudly, as the
+    # root path does (np.roots raises LinAlgError on non-finite input); a
+    # silent all-zero periodogram would corrupt downstream statistics
+    if not (np.all(np.isfinite(YM_coefs)) and np.all(np.isfinite(MM_coefs))):
+        raise ValueError("non-finite YM/MM polynomial coefficients (NaN/inf "
+                         "in t, y, dy, or the weights?)")
+
+    # the scan needs at least max(128, 32H) angles to bracket every circular
+    # local maximum of P; an override below that floor undersamples the circle
+    # and can silently miss a peak even on well-conditioned data, so clamp up
+    # rather than honor an unsafe smaller value (resolution may only increase).
+    floor = max(_SCAN_MIN_ANGLES, _SCAN_ANGLES_PER_H * H)
+    M = floor if n_angles is None else max(int(n_angles), floor)
 
     flat_params = ModelFitParams(a=0.0, b=1.0, c=ybar, sgn=1.0)
     if nf == 0:
@@ -471,34 +545,105 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         Pg = np.real(Yv * Yv / Mv) / YY
     Pg[~np.isfinite(Pg)] = -np.inf
 
-    # -- 3: bracket all circular local maxima --------------------------
+    kcap = _SCAN_MAX_CANDIDATES_PER_H * H
+
+    # -- 3a: bracket all circular local maxima of P --------------------
     ismax = ((Pg >= np.roll(Pg, 1, axis=1)) &
              (Pg >= np.roll(Pg, -1, axis=1)) & (Pg > -np.inf))
-    kcap = _SCAN_MAX_CANDIDATES_PER_H * H
     counts = ismax.sum(axis=1)
     for row in np.where(counts > kcap)[0]:
         cols = np.where(ismax[row])[0]
         keep = cols[np.argsort(Pg[row, cols])[-kcap:]]
         ismax[row] = False
         ismax[row, keep] = True
+    max_f, max_g = np.where(ismax)
 
-    fidx, gidx = np.where(ismax)            # row-major: fidx nondecreasing
+    # -- 3b: dip candidates at deep circular local minima of |MM| ------
+    # Narrow peaks of P hide inside deep dips of |MM| (rank-deficient or
+    # phase-clustered sampling drives MM toward zero on the circle); the P
+    # grid scan cannot bracket a spike narrower than the grid step, and a
+    # bracketed near-pole spike can defeat the clamped Newton polish (C2
+    # adversarial verification, probe:sweep/probe:oracle). Each deep dip is
+    # refined to the true |MM|^2 minimum by clamped Newton and polished
+    # from there. Frequencies whose dip is so deep that even the seeded
+    # polish has no convergence guarantee are recorded now and handed to
+    # the exact root path at the end (see _SCAN_EXACT_RTOL).
+    absM = np.abs(Mv)
+    exact_rows = np.where(np.min(absM, axis=1) <
+                          _SCAN_EXACT_RTOL * np.max(absM, axis=1))[0]
+    ismin = ((absM <= np.roll(absM, 1, axis=1)) &
+             (absM <= np.roll(absM, -1, axis=1)) &
+             (absM < _SCAN_DIP_RTOL * np.max(absM, axis=1, keepdims=True)))
+    counts = ismin.sum(axis=1)
+    for row in np.where(counts > kcap)[0]:
+        cols = np.where(ismin[row])[0]
+        keep = cols[np.argsort(absM[row, cols])[:kcap]]
+        ismin[row] = False
+        ismin[row, keep] = True
+    dip_f, dip_g = np.where(ismin)
+
+    half_window = 2 * np.pi / M
+    kY = np.arange(YM_coefs.shape[1])
+    kM = np.arange(MM_coefs.shape[1])
+
+    if len(dip_f):
+        # refine each dip: Newton on d|MM|^2/dtheta = 2 Re(i M1 conj(MM)),
+        # with d2|MM|^2/dtheta2 = 2 (|M1|^2 - Re(conj(MM) M2))
+        dip_theta0 = (2 * np.pi / M) * dip_g
+        MMd = MM_coefs[dip_f]
+        dM1d, dM2d = MMd * kM, MMd * (kM * kM)
+        th = dip_theta0.copy()
+        for _ in range(n_newton):
+            ph = np.exp(1j * th)
+            Mm = _horner_eval(MMd, ph)
+            M1 = _horner_eval(dM1d, ph)
+            M2 = _horner_eval(dM2d, ph)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                q1 = 2.0 * np.real(1j * M1 * np.conj(Mm))
+                q2 = 2.0 * (np.abs(M1) ** 2 - np.real(np.conj(Mm) * M2))
+                step = q1 / q2
+            step[~np.isfinite(step)] = 0.0
+            th = np.clip(th - step,
+                         dip_theta0 - half_window, dip_theta0 + half_window)
+        dip_phi = np.exp(1j * th)
+        Y_dip = _horner_eval(YM_coefs[dip_f], dip_phi)
+        M_dip = _horner_eval(MMd, dip_phi)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            P_dip = np.real(Y_dip * Y_dip / M_dip) / YY
+        P_dip[~np.isfinite(P_dip)] = -np.inf
+
+        # combined candidate set; restore row-major (fidx-sorted) order for
+        # the per-frequency winner extraction below
+        fidx = np.concatenate([max_f, dip_f])
+        theta0 = np.concatenate([(2 * np.pi / M) * max_g, th])
+        P0 = np.concatenate([Pg[max_f, max_g], P_dip])
+        Yfb = np.concatenate([Yv[max_f, max_g], Y_dip])
+        Mfb = np.concatenate([Mv[max_f, max_g], M_dip])
+        order = np.argsort(fidx, kind='stable')
+        fidx, theta0, P0 = fidx[order], theta0[order], P0[order]
+        Yfb, Mfb = Yfb[order], Mfb[order]
+    else:
+        fidx = max_f
+        theta0 = (2 * np.pi / M) * max_g
+        P0 = Pg[max_f, max_g]
+        Yfb = Yv[max_f, max_g]
+        Mfb = Mv[max_f, max_g]
+
     if len(fidx) == 0:
-        return ([flat_params] * nf, np.zeros(nf),
-                np.full(nf, 1.0 + 0.0j))
-
-    theta0 = (2 * np.pi / M) * gidx
-    P0 = Pg[fidx, gidx]
+        params_list = [flat_params] * nf
+        powers = np.zeros(nf)
+        best_phis = np.full(nf, 1.0 + 0.0j)
+        _exact_root_fallback(exact_rows, YM_coefs, MM_coefs, AC, H, ybar, YY,
+                             positive_amplitude, params_list, powers,
+                             best_phis)
+        return params_list, powers, best_phis
 
     # -- 4: Newton polish on dP/dtheta ---------------------------------
     YMc = YM_coefs[fidx]                                    # (nc, 2H+1)
     MMc = MM_coefs[fidx]                                    # (nc, 4H+1)
-    kY = np.arange(YM_coefs.shape[1])
-    kM = np.arange(MM_coefs.shape[1])
     dY1c, dY2c = YMc * kY, YMc * (kY * kY)
     dM1c, dM2c = MMc * kM, MMc * (kM * kM)
 
-    half_window = 2 * np.pi / M
     theta = theta0.copy()
     for _ in range(n_newton):
         phi = np.exp(1j * theta)
@@ -509,16 +654,13 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         M1 = _horner_eval(dM1c, phi)
         M2 = _horner_eval(dM2c, phi)
         with np.errstate(divide='ignore', invalid='ignore'):
-            B = 2.0 * Y * Y1 * Mm - Y * Y * M1
-            dP = np.real(1j * B / (Mm * Mm))
-            d2P = np.real((-2.0 * (Y1 * Y1 + Y * Y2) * Mm + Y * Y * M2)
-                          / (Mm * Mm) + 2.0 * B * M1 / (Mm * Mm * Mm))
+            dP, d2P = _scan_dP_d2P(Y, Y1, Y2, Mm, M1, M2)
             step = dP / d2P
         step[~np.isfinite(step)] = 0.0
         theta = np.clip(theta - step,
                         theta0 - half_window, theta0 + half_window)
 
-    # -- 5: evaluate true P at polished angles, grid fallback ----------
+    # -- 5: evaluate true P at polished angles, seed fallback ----------
     phi = np.exp(1j * theta)
     Yp = _horner_eval(YMc, phi)
     Mp = _horner_eval(MMc, phi)
@@ -527,8 +669,8 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     use_grid = ~np.isfinite(Pp) | (Pp < P0)
     theta = np.where(use_grid, theta0, theta)
     phi = np.where(use_grid, np.exp(1j * theta0), phi)
-    Yc = np.where(use_grid, Yv[fidx, gidx], Yp)
-    Mc = np.where(use_grid, Mv[fidx, gidx], Mp)
+    Yc = np.where(use_grid, Yfb, Yp)
+    Mc = np.where(use_grid, Mfb, Mp)
     Pc = np.where(use_grid, P0, Pp)
 
     # theta_1 at every candidate (same formula as the root path)
@@ -548,8 +690,10 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     best = np.full(nf, -np.inf)
     np.maximum.at(best, fidx, Peff)
 
+    # rows whose candidates are all -inf (e.g. YY = 0: dip candidates exist
+    # but no finite power anywhere) fall through to the flat fit
     winner = np.full(nf, -1, dtype=np.int64)
-    hit = np.where(Peff == best[fidx])[0]
+    hit = np.where((Peff == best[fidx]) & (Peff > -np.inf))[0]
     rows, first = np.unique(fidx[hit], return_index=True)
     winner[rows] = hit[first]
 
@@ -578,6 +722,9 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     for k, i in enumerate(ok_rows):
         params_list[i] = ModelFitParams(a=theta_1[k], b=b_arr[k],
                                         c=theta_3[k], sgn=sgn_arr[k])
+
+    _exact_root_fallback(exact_rows, YM_coefs, MM_coefs, AC, H, ybar, YY,
+                         positive_amplitude, params_list, powers, best_phis)
 
     return params_list, powers, best_phis
 
@@ -784,11 +931,15 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         as stacked arrays (vectorized over frequency) and then runs the same
         per-frequency root selection on the precomputed coefficients; it is
         numerically equivalent (powers agree to ~1e-15). 'scan' uses the
-        same batched assembly but replaces root-finding entirely with the
+        same batched assembly but replaces root-finding with the
         scan+polish maximizer (:func:`scan_polish_from_coefs`): an FFT
         circle scan over ``max(128, 32 H)`` angles plus Newton polish of
-        every bracketed maximum -- numerically equivalent (powers agree to
-        ~1e-13 of the root path) and much faster at high ``H``.
+        every bracketed maximum and every deep ``|MM|`` dip; frequencies
+        where ``|MM|`` nearly vanishes on the circle (rank-deficient or
+        phase-clustered sampling) automatically fall back to the exact
+        root path, so the two methods agree to ~1e-12 (limited only by the
+        shared conditioning of the sums in extreme corners) while 'scan'
+        is much faster at high ``H`` on well-conditioned data.
     chunk_size : int, optional (default 4096)
         Number of frequencies per assembly chunk on the batched/scan paths
         (bounds the memory of the ``(nf, H, H)`` covariance stacks); only

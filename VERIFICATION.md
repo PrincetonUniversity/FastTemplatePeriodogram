@@ -84,3 +84,99 @@ call-site sweep, polyroots degenerate-input probe): no defect. Full suite after 
 
 **WP C1 signed off 2026-06-12 (adversarial verification in lieu of human review, per
 delegation). C2 is unblocked.**
+
+## WP C2 — scan+polish maximizer (`a8fd646` + dip/exact-fallback hardening) — VERIFIED 2026-06-13
+
+**Scope**: `method='scan'` (FFT circle-scan + Newton-polish maximizer over phase; default
+`'eigvals'` unchanged), the in-session dip-candidate / exact-root-fallback hardening for narrow
+peaks at deep `|MM|` dips, and the CRIT-1 / MB-2 / TA1 closeouts committed alongside.
+**Protocol** (WP C3 verifier protocol applied as the C2 sign-off, per John's 2026-06-12
+delegation): two adversarial workflows — (1) 9 independent agents = 4 line-level reviewers
+(derivative-math re-derivation, dip/fallback logic + bookkeeping, multiband scan parity,
+test-adequacy/mutation) + 5 fresh-seed empirical probes that wrote their own ≥2^18 brute-force
+circle oracles and never read the WP tests (broad sparse/rank-deficient sweep, threshold-boundary
+adversary, multiband all-modes, production-scale argmax stability, degenerate-weights) + a
+completeness critic; (2) a bounded 3-lens refutation panel (re-derive / reproduce / code-context)
+over every non-info finding + a fix-evaluation critic.
+
+### Core results (all pass)
+
+- **Single-band scan maximizer is correct.** Across ~180k+ independent evaluations (5 probes, own
+  oracles), ZERO maximizer misses (scan < oracle true max − 1e-10) above the 0.15 exact-fallback
+  threshold. The central safety claim — a sub-grid-width P spike *requires* min|MM| < ~0.08·max|MM|
+  (Bernstein), so the 0.15 fallback is safe — is empirically confirmed and shown conservative:
+  the largest conditioning hosting a real sub-grid spike was ~0.003 (H=4) / ~0.0013 (H=8), an
+  order of magnitude inside the fallback zone; count of sub-grid spikes escaping the fallback = 0.
+- **Derivatives correct.** `_scan_dP_d2P` (single source of truth for the Newton polish) and the
+  `|MM|²`-minimum dip-refinement derivatives re-derived from scratch and checked vs
+  Richardson-extrapolated finite differences (H∈{1,2,3,5,8}) and the complex analytic dG/dθ
+  (Romberg, 1.6e-10); the multiband `W_k`-weighted accumulation verified over H×K grids.
+- **Gates 1–5 pass** (test_scan_polish.py): (1) scan≡eigvals max|ΔP| ≤ ~1e-15 over H∈{1..10}×5
+  seeds×N∈{30,300}, identical argmax; (2) Issue-#33 fixtures on the scan path; (3) adversarial
+  rank-deficient vs the 2^16 oracle; (4) weight-conditioning within 2× of eigvals; (5) speedup
+  **26.5× @H=2, 20.2× @H=8 (≥15× required), 22.6× @H=10**, max|ΔP| ~1e-15.
+- **Multiband: all four modes** match eigvals to ≤1.3e-15 (powers + a/b/c/sgn params).
+  shared_phase scan independently verified to attain the true max of its objective
+  F(θ)=Σ_k W_k Re(YM_k²/MM_k) via a brute-force oracle that never calls the eigvals G-polynomial
+  root-finder (new `test_multiband_shared_phase_scan_vs_independent_F_oracle`).
+- **Argmax stable** to ~4 orders of grid margin at nf=30000; chunk_size bitwise-invariant;
+  fast=True/False both match their references.
+- **Degenerate inputs**: NaN/inf/dy=0 fail loudly (ValueError, parity with eigvals LinAlgError);
+  constant y / single obs / empty freqs handled (scan is the more robust path on empty freqs).
+- Full suite at gate: 459 passed / 1 skipped / 2 xfailed / 0 failed.
+
+### Confirmed findings → dispositions
+
+1. **[claimed major → REFUTED] MB-1 / P1-2** "shared_phase fallback under-reports power by ~5e-3
+   at deep `|MM|` dips". The 3-lens panel refuted it: the original probes' "true max" oracle used
+   a *free-per-band-phase* (or differently-normalized) LS, which has strictly more DOF than the
+   shared_phase model permits, so it spuriously "explained more variance". Against a correct
+   oracle matching the shared_phase objective (one common phase, YY_combined normalization,
+   unconstrained amplitudes), the eigvals reference is the exact global maximizer (matches a
+   200k-point brute force to ~1e-11) and the scan matches it bit-for-bit. **No defect.**
+2. **[minor] MB-2** the multiband-scan gate only compared scan-vs-eigvals → couldn't catch a
+   deficit shared by both. → **FIXED**: added an independent brute-force-F-oracle gate for the
+   shared_phase scan (3 seeds) that isolates the maximizer from the eigvals root-finder.
+3. **[minor] TA1** the dip-candidate machinery in the (0.15, 0.5) band is never load-bearing on
+   valid data (real sub-grid spikes only occur below ~0.003, inside the 0.15 exact-fallback zone);
+   disabling it leaves the suite green. → **DOCUMENTED** in core.py as a deliberate conservative
+   hedge (the exact-root fallback below 0.15 is the actual correctness net); the refinement path
+   is exercised by the deep-dip fixtures and now also gated by the MB-2 oracle.
+4. **[minor] CRIT-1** `scan_polish_from_coefs` honored an `n_angles` override below the
+   max(128,32H) floor (internal helper only; no public exposure), which could undersample the
+   circle. → **FIXED**: the override is clamped up to the floor (resolution may only increase);
+   pinned by `test_scan_n_angles_floor_clamps_unsafe_override`.
+5. **[minor] P5-4** empty freqs: eigvals crashes, scan returns empty — a benign reverse-asymmetry
+   (scan is the more robust path), already pinned. No action.
+6. **[minor → refuted] TA2** corner-test docstrings; refuted (rationale adequate). No action.
+
+### Pre-verified OPTIONAL follow-up (NOT adopted in C2 — would change the contract)
+
+The fix-evaluation critic proved that replacing the verbatim exact-root fallback with
+`max(scan_own_best, fallback)` is **strictly safe** (both evaluate the true objective at real
+phases ⇒ both are valid lower bounds ⇒ their max never overshoots; matched an independent refined
+oracle to ~1e-13 across 50+ deep-dip fixtures). It would make scan ≥ eigvals everywhere and remove
+the rare (~2% of fallback fixtures, deficit ≤~1e-2, never argmax-flipping) cases where the
+degree-(8HK−2) G-polynomial root-finder is the weaker maximizer. **Not adopted** because it
+changes the WP's defined scan≡eigvals equivalence contract (and C4's scan≡eigvals pinning);
+recorded as a pre-verified enhancement for a deliberate future decision.
+
+### Verification-process note
+
+The first workflow's refutation phase partially STALLED (several "reproduce" agents ran unbounded
+2^20-point oracle sweeps with no time budget; the runtime retried each 6× over ~18 min before
+dropping it to null). The 9 review+probe reports and the completeness critic completed; the
+refutation was re-run BOUNDED (≤2^16 grids, <30 s scripts) to closure — which is how the
+plausible-but-wrong MB-1/P1-2 "major" findings were caught as oracle artifacts. Lesson for future
+verification workflows: give empirical-probe/refutation agents explicit grid-size and wall-time
+budgets.
+
+### Sign-off
+
+Zero confirmed critical/major defects in the scan maximizer (single-band or multiband); the two
+"major" correctness findings were oracle artifacts refuted by the panel. Two minor findings (MB-2
+test gap, CRIT-1 robustness) fixed; one (TA1) documented as intended conservative behavior. Full
+suite after the closeout: 459 passed / 1 skipped / 2 xfailed / 0 failed.
+
+**WP C2 signed off 2026-06-13 (adversarial verification in lieu of human review, per delegation).
+C3 — the dedicated independent-verifier WP — is unblocked.**

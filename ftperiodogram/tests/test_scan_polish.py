@@ -22,6 +22,7 @@ the WP commit message), not asserted here -- wall-clock asserts are flaky
 under CI load.
 """
 import numpy as np
+import numpy.polynomial as pol
 import pytest
 from numpy.testing import assert_allclose
 from scipy.optimize import minimize_scalar
@@ -127,8 +128,10 @@ def test_gate2_issue33_fixtures_on_scan_path(label, c_n, s_n, period):
 def _circle_oracle_power(YM, MM, YY, n_angles=1 << 16):
     """Brute-force max of Re(YM(phi)^2 / MM(phi)) / YY over the unit circle:
     a dense 2^16-point grid, then bounded scalar refinement of the best
-    bracket (the raw grid max is only ~1e-7-accurate in power; refinement
-    makes the oracle meaningful at the 1e-12 gate)."""
+    bracket AND of every deep local minimum of |MM| (narrow peaks of P hide
+    inside |MM| dips and can be missed by any uniform grid -- the C2
+    adversarial verification caught the original best-bracket-only oracle
+    sharing the scan's blindness)."""
     theta = np.linspace(0, 2 * np.pi, n_angles, endpoint=False)
     phi = np.exp(1j * theta)
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -138,6 +141,11 @@ def _circle_oracle_power(YM, MM, YY, n_angles=1 << 16):
     if not np.isfinite(P[i]):
         return 0.0
 
+    absM = np.abs(MM(phi))
+    ismin = ((absM <= np.roll(absM, 1)) & (absM <= np.roll(absM, -1)) &
+             (absM < 0.5 * absM.max()))
+    brackets = [i] + list(np.where(ismin)[0])
+
     def negP(th):
         ph = np.exp(1j * th)
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -145,9 +153,13 @@ def _circle_oracle_power(YM, MM, YY, n_angles=1 << 16):
         return -val if np.isfinite(val) else np.inf
 
     dth = 2 * np.pi / n_angles
-    res = minimize_scalar(negP, bounds=(theta[i] - dth, theta[i] + dth),
-                          method='bounded', options={'xatol': 1e-14})
-    return max(float(P[i]), float(-res.fun))
+    best = float(P[i])
+    for c in brackets:
+        res = minimize_scalar(negP, bounds=(theta[c] - 2 * dth,
+                                            theta[c] + 2 * dth),
+                              method='bounded', options={'xatol': 1e-15})
+        best = max(best, float(-res.fun))
+    return best
 
 
 def _adversarial_template(kind, H):
@@ -383,9 +395,13 @@ def test_scan_with_user_provided_summations():
 
 
 def test_scan_newton_derivatives_match_finite_differences():
-    """The analytic dP/dtheta and d2P/dtheta2 driving the Newton polish are
-    checked against central finite differences of the directly-evaluated
-    power at generic angles."""
+    """core._scan_dP_d2P -- the PRODUCTION derivative code driving the
+    Newton polish (single-band and per-band shared-phase) -- is checked
+    against central finite differences of the directly-evaluated power at
+    generic angles. (The C2 verification flagged the original version of
+    this test for validating a local reimplementation instead.)"""
+    from ..core import _scan_dP_d2P
+
     H = 4
     t, y, dy, template, freqs = _simulate(H, 30, 13, nf=4)
     w = weights(dy)
@@ -409,10 +425,9 @@ def test_scan_newton_derivatives_match_finite_differences():
         Mm = MM(ph)
         M1 = np.polynomial.polynomial.polyval(ph, kM * MM.coef)
         M2 = np.polynomial.polynomial.polyval(ph, kM * kM * MM.coef)
-        B = 2.0 * Y * Y1 * Mm - Y * Y * M1
-        dP = float(np.real(1j * B / (Mm * Mm))[0]) / YY
-        d2P = float(np.real((-2.0 * (Y1 * Y1 + Y * Y2) * Mm + Y * Y * M2)
-                            / (Mm * Mm) + 2.0 * B * M1 / (Mm * Mm * Mm))[0]) / YY
+        dP_arr, d2P_arr = _scan_dP_d2P(Y, Y1, Y2, Mm, M1, M2)
+        dP = float(dP_arr[0]) / YY
+        d2P = float(d2P_arr[0]) / YY
         fd1 = (P(th + h) - P(th - h)) / (2 * h)
         fd2 = (P(th + h) - 2 * P(th) + P(th - h)) / h ** 2
         assert abs(dP - fd1) <= 1e-6 * max(1.0, abs(fd1))
@@ -448,3 +463,336 @@ def test_scan_positive_amplitude_filter_applies():
     p_pos, _, _ = scan_polish_YM_MM(YM, MM, AC, H, ybar, YY,
                                     positive_amplitude=True)
     assert p_unc.a < 0 <= p_pos.a
+
+
+# ----------------------------------------------------------------------
+# Narrow-peak / near-singular-MM regime (C2 adversarial verification).
+# The original scan missed sub-grid-width peaks of P hiding inside deep
+# dips of |MM| on the circle (rank-deficient or phase-clustered sampling;
+# silent power deficits up to ~0.7 incl. a realistic nightly cadence at
+# alias frequencies). Fixed by dip candidates at deep |MM| minima plus an
+# exact root-path fallback for frequencies below _SCAN_EXACT_RTOL.
+# ----------------------------------------------------------------------
+def _eclipse_template(H, w=0.08):
+    """Box-dip (eclipse-like) template: slow sin(pi n w)/(pi n) decay --
+    the harmonic content that drives MM near-singular at sparse N."""
+    n = np.arange(1, H + 1)
+    return Template(np.sin(np.pi * n * w) / (np.pi * n), np.zeros(H))
+
+
+@pytest.mark.parametrize('H,N', [(8, 8), (8, 15), (10, 8), (8, 30)])
+def test_narrow_peak_eclipse_sparse_matches_eigvals(H, N):
+    """Eclipse template at sparse N: the regime of the verified critical
+    finding (scan silently 0.33 below eigvals pre-fix). Now exact-fallback /
+    dip-candidate territory: parity to 1e-12 with identical argmax."""
+    for seed in range(10000, 10010):
+        rng = np.random.default_rng([seed, H, N])
+        tmpl = _eclipse_template(H)
+        t = np.sort(10.0 * rng.random(N))
+        dy = 0.05 * (1 + rng.random(N))
+        y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(N)
+        freqs = np.linspace(0.2, 3.0, 40)
+        p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False)
+        p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False, method='scan')
+        assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (seed, H, N)
+        assert int(np.argmax(p_e)) == int(np.argmax(p_s))
+
+
+def test_narrow_peak_extreme_corner_conditioning():
+    """H=12, N=6 (dof = 26 >> N): the most extreme rank-deficient corner.
+    Here the power evaluation itself is conditioned at ~1e-10 near small
+    |MM| -- scan, eigvals, AND a refined dense oracle disagree pairwise at
+    that level, in BOTH directions. Pinned: agreement to 5e-10 (was 0.29
+    pre-fix), no argmax flips. Do not tighten to 1e-12: the residual is
+    two-sided evaluation noise shared with the reference, not a miss."""
+    worst = 0.0
+    for seed in range(10000, 10015):
+        rng = np.random.default_rng([seed, 12, 6])
+        tmpl = _eclipse_template(12)
+        t = np.sort(10.0 * rng.random(6))
+        dy = 0.05 * (1 + rng.random(6))
+        y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(6)
+        freqs = np.linspace(0.2, 3.0, 40)
+        p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False)
+        p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False, method='scan')
+        worst = max(worst, float(np.max(np.abs(p_e - p_s))))
+        assert int(np.argmax(p_e)) == int(np.argmax(p_s))
+    assert worst <= 5e-10
+
+
+def test_narrow_peak_clustered_cadence():
+    """Phase-clustered sampling (two tight clumps): pre-fix the scan missed
+    by up to 0.72 here. 5e-12 allows the shared sums-conditioning noise of
+    this regime (verified two-sided vs a refined oracle)."""
+    for seed in range(21000, 21015):
+        rng = np.random.default_rng(seed)
+        N, H = 6, 12
+        t = np.sort(np.concatenate([0.05 * rng.random(3),
+                                    5.0 + 0.05 * rng.random(3)]))
+        n = np.arange(1, H + 1)
+        tmpl = Template(((-1.0) ** n) / np.sqrt(n), 1.0 / np.sqrt(n))
+        dy = 10 ** rng.uniform(-1, 0, N)
+        y = tmpl((t * 0.62) % 1.0) + 0.1 * rng.standard_normal(N)
+        freqs = np.linspace(0.3, 1.5, 30)
+        p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False)
+        p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False, method='scan')
+        assert float(np.max(np.abs(p_e - p_s))) <= 5e-12, seed
+
+
+def test_narrow_peak_nightly_cadence_alias():
+    """Realistic 12-night cadence probed at trial frequencies near 1 c/d,
+    where nightly sampling phase-clusters: the alias frequencies that
+    matter for alias-vs-true discrimination (verified pre-fix deficit up
+    to 0.0077 in 18/20 seeds)."""
+    for seed in range(22000, 22010):
+        rng = np.random.default_rng(seed)
+        H = 6
+        nights = rng.choice(120, 12, replace=False)
+        t = np.sort(np.concatenate(
+            [nn + 0.6 + 0.05 * rng.random(3) for nn in nights[:10]] +
+            [nights[10:] + 0.6 + 0.05 * rng.random(2)]))
+        n = np.arange(1, H + 1)
+        tmpl = Template(1.0 / n, 0.3 / n)
+        dy = np.full(len(t), 0.08)
+        y = tmpl((t / 0.51) % 1.0) + dy * rng.standard_normal(len(t))
+        freqs = np.linspace(0.9995, 1.0005, 21)
+        p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False)
+        p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                      fast=False, method='scan')
+        assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, seed
+
+
+def test_narrow_peak_multiband_clustered():
+    """Two phase-clumped bands at H=8 (the verified multiband miss, 0.174
+    pre-fix on shared_phase): scan == eigvals across modes."""
+    for mode in ('shared_phase', 'independent', 'floating_offsets'):
+        for seed in range(26000, 26008):
+            rng = np.random.default_rng(seed)
+            H = 8
+            t1 = np.concatenate([0.03 * rng.random(4),
+                                 3.0 + 0.03 * rng.random(3)])
+            t2 = np.concatenate([1.5 + 0.03 * rng.random(4),
+                                 4.5 + 0.03 * rng.random(3)])
+            t = np.concatenate([np.sort(t1), np.sort(t2)])
+            bands = np.array(['g'] * 7 + ['r'] * 7)
+            n = np.arange(1, H + 1)
+            tmpl = Template(1.0 / n, 0.2 / n)
+            dy = 0.05 * (1 + rng.random(14))
+            y = tmpl((t * 1.0) % 1.0) + dy * rng.standard_normal(14)
+            m = FastMultibandTemplatePeriodogram(
+                templates=tmpl, mode=mode).fit(t, y, bands, dy)
+            freqs = np.linspace(0.8, 1.2, 25)
+            p_e = m.power(freqs, fast=False, save_best_model=False)
+            p_s = m.power(freqs, fast=False, save_best_model=False,
+                          method='scan')
+            assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (mode, seed)
+
+
+def test_narrow_peak_concentrated_weights_high_H():
+    """Concentrated weights at H=8 (2-3 points carrying ~all weight collapse
+    the effective N): the verified diff-safety regime, beyond gate 4's
+    H=1-only coverage."""
+    for ratio in (1e4, 1e6):
+        for seed in (31, 32, 33):
+            rng = np.random.default_rng(seed)
+            N, H = 40, 8
+            n = np.arange(1, H + 1)
+            tmpl = Template(1.0 / n, 0.3 / n)
+            t = np.sort(10.0 * rng.random(N))
+            dy = np.full(N, 0.05)
+            dy[[10, 25]] = 0.05 / np.sqrt(ratio)
+            y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(N)
+            freqs = np.linspace(0.2, 3.0, 40)
+            p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n,
+                                          freqs, fast=False)
+            p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n,
+                                          freqs, fast=False, method='scan')
+            assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (ratio, seed)
+
+
+def test_scan_dip_machinery_recovers_subgrid_spike():
+    """Mechanism pin: on a narrow-peak fixture the default-M scan must agree
+    with a 2^16-angle scan of the same coefficients (pre-fix the default M
+    missed what the dense scan found, by up to 0.33)."""
+    rng = np.random.default_rng([10009, 8, 8])
+    tmpl = _eclipse_template(8)
+    t = np.sort(10.0 * rng.random(8))
+    dy = 0.05 * (1 + rng.random(8))
+    y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(8)
+    w = weights(dy)
+    ybar = np.dot(w, y)
+    YY = np.dot(w, (y - ybar) ** 2)
+    freqs = np.linspace(0.2, 3.0, 40)
+    sums = direct_summations(t, y, w, freqs, 8)
+    for s in sums[::5]:
+        YM, MM, AC = YM_MM_from_sums(tmpl.c_n, tmpl.s_n, s)
+        _, p_def, _ = scan_polish_YM_MM(YM, MM, AC, 8, ybar, YY)
+        plist, p_dense, _ = scan_polish_from_coefs(
+            YM.coef[np.newaxis], MM.coef[np.newaxis],
+            np.asarray(AC)[np.newaxis], 8, ybar, YY, n_angles=1 << 16)
+        assert abs(p_def - float(p_dense[0])) <= 1e-10
+
+
+# ----------------------------------------------------------------------
+# Hardening items from the C2 verification (exception parity, dead paths)
+# ----------------------------------------------------------------------
+def test_scan_nonfinite_input_raises():
+    """NaN-poisoned input must fail loudly on the scan path (the root path
+    raises LinAlgError from np.roots); pre-fix the scan silently returned
+    an all-zero periodogram."""
+    t, y, dy, template, freqs = _simulate(3, 30, 0)
+    y_bad = y.copy()
+    y_bad[5] = np.nan
+    with pytest.raises(ValueError, match="non-finite"):
+        template_periodogram(t, y_bad, dy, template.c_n, template.s_n,
+                             freqs, fast=False, method='scan')
+    # multiband shared_phase scan: same loud failure
+    bands = np.array(['g'] * 15 + ['r'] * 15)
+    m = FastMultibandTemplatePeriodogram(
+        templates=template, mode='shared_phase').fit(t, y_bad, bands, dy)
+    with pytest.raises(ValueError, match="non-finite"):
+        m.power(freqs[:3], fast=False, method='scan')
+
+
+def test_scan_positive_amplitude_no_positive_fallback():
+    """K.18 all-negative fallback (dead path under the original suite):
+    ym(theta) = -(2 + cos theta) < 0 everywhere, so NO candidate has
+    theta_1 >= 0 and both maximizers must return the global power maximizer
+    with a < 0."""
+    YM = pol.Polynomial(np.array([-0.5, -2.0, -0.5], dtype=complex))
+    MM = pol.Polynomial(np.array([0.0, 0.5, 3.0, 0.5, 0.0], dtype=complex))
+    AC = np.zeros(1)
+    pr, powr, _ = roots_from_YM_MM(YM, MM, AC, 1, 0.0, 1.0,
+                                   positive_amplitude=True)
+    ps, pows, _ = scan_polish_YM_MM(YM, MM, AC, 1, 0.0, 1.0,
+                                    positive_amplitude=True)
+    assert pr.a < 0 and ps.a < 0
+    assert abs(powr - pows) <= GATE_TOL
+
+
+def test_scan_plateau_cap_at_real_kcap():
+    """Zero-YM seam input: P is exactly constant (0) on the circle, every
+    grid angle is a tied local max, and the real 4H candidate cap must fire
+    without disturbing the zero-power result (dead path pre-verification)."""
+    H = 2
+    YM = pol.Polynomial(np.zeros(1, dtype=complex))
+    MM = pol.Polynomial(np.array([0.1, 0.2, 1.0, 0.2, 0.1], dtype=complex))
+    ps, pows, phis = scan_polish_YM_MM(YM, MM, np.zeros(2), H, 5.0, 1.0)
+    assert pows == 0.0
+    assert ps.a == 0.0 and ps.c == 5.0
+
+
+def test_eval_polys_on_circle_guard_and_n_angles_override():
+    """_eval_polys_on_circle must reject n_angles < ncoef (np.fft.ifft
+    silently crops); a legal n_angles override must not change a smooth
+    case beyond the parity bar."""
+    from ..core import _eval_polys_on_circle
+    with pytest.raises(ValueError):
+        _eval_polys_on_circle(np.ones((1, 9), dtype=complex), 8)
+
+    t, y, dy, template, freqs = _simulate(3, 30, 2, nf=16)
+    w = weights(dy)
+    ybar = np.dot(w, y)
+    YY = np.dot(w, (y - ybar) ** 2)
+    for s in direct_summations(t, y, w, freqs, 3)[::4]:
+        YM, MM, AC = YM_MM_from_sums(template.c_n, template.s_n, s)
+        _, p_def, _ = scan_polish_YM_MM(YM, MM, AC, 3, ybar, YY)
+        _, p_ovr, _ = scan_polish_from_coefs(
+            YM.coef[np.newaxis], MM.coef[np.newaxis],
+            np.asarray(AC)[np.newaxis], 3, ybar, YY, n_angles=4096)
+        assert abs(p_def - float(p_ovr[0])) <= GATE_TOL
+
+
+def test_scan_n_angles_floor_clamps_unsafe_override():
+    """CRIT-1: an n_angles override below the max(128, 32H) floor would
+    undersample the circle and could silently underestimate power; the floor
+    clamps it up, so a deliberately tiny override returns the same powers as
+    the default grid (resolution may only increase, never decrease)."""
+    H = 8
+    t, y, dy, template, freqs = _simulate(H, 30, 5, nf=24)
+    w = weights(dy)
+    ybar = np.dot(w, y)
+    YY = np.dot(w, (y - ybar) ** 2)
+    for s in direct_summations(t, y, w, freqs, H)[::4]:
+        YM, MM, AC = YM_MM_from_sums(template.c_n, template.s_n, s)
+        ymc, mmc, acc = (YM.coef[np.newaxis], MM.coef[np.newaxis],
+                         np.asarray(AC)[np.newaxis])
+        _, p_default, _ = scan_polish_from_coefs(ymc, mmc, acc, H, ybar, YY)
+        # 16 << 32*H = 256: must be clamped up to the floor, not honored, so
+        # the result is bitwise identical to the default grid
+        _, p_floored, _ = scan_polish_from_coefs(ymc, mmc, acc, H, ybar, YY,
+                                                 n_angles=16)
+        assert np.array_equal(p_default, p_floored)
+
+
+# ----------------------------------------------------------------------
+# MB-2 closeout (C2 verification): gate the multiband shared_phase scan
+# against an INDEPENDENT brute-force max of F(theta), not just eigvals, so a
+# deficit shared by the scan and the eigvals root-finder could not hide.
+# ----------------------------------------------------------------------
+def _shared_phase_F_oracle_power(template_dict, per_band_sums, stats,
+                                 n_angles=1 << 16):
+    """True max over the unit circle of the shared-phase objective
+    F(theta) = sum_k W_k Re(YM_k(phi)^2 / MM_k(phi)), normalized by
+    YY_combined -- assembled from the SAME per-band YM/MM the code builds
+    (via _per_band_YM_MM) but maximized by brute force + scalar refinement,
+    NOT by the eigvals G-polynomial root-finder. This isolates the maximizer."""
+    from ..multiband import _per_band_YM_MM
+    per_band = _per_band_YM_MM(template_dict, per_band_sums, stats.bands)
+
+    def F_at(ph):
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return sum(stats.W[k] * np.real(per_band[k][0](ph) ** 2
+                                            / per_band[k][1](ph))
+                       for k in stats.bands)
+
+    theta = np.linspace(0, 2 * np.pi, n_angles, endpoint=False)
+    F = F_at(np.exp(1j * theta))
+    F[~np.isfinite(F)] = -np.inf
+    i = int(np.argmax(F))
+    if not np.isfinite(F[i]):
+        return 0.0
+    dth = 2 * np.pi / n_angles
+    res = minimize_scalar(lambda th: (lambda v: -v if np.isfinite(v) else np.inf)
+                          (F_at(np.exp(1j * th))),
+                          bounds=(theta[i] - dth, theta[i] + dth),
+                          method='bounded', options={'xatol': 1e-14})
+    return max(float(F[i]), float(-res.fun)) / stats.YY_combined
+
+
+@pytest.mark.parametrize('seed', [3, 7, 11])
+def test_multiband_shared_phase_scan_vs_independent_F_oracle(seed):
+    """The shared_phase scan must attain the true max of F(theta) (the
+    objective the code optimizes), measured by an oracle that never calls the
+    eigvals root-finder. Closes MB-2: a deficit shared by scan AND eigvals
+    would be invisible to the scan-vs-eigvals gate but not to this one."""
+    from ..multiband import build_template_set, compute_band_summations
+    H = 4
+    t, y, bands, dy, tmpl, freqs, labels = _simulate_multiband(H, 40, seed)
+    bands_ = np.unique(bands)
+    template_dict = build_template_set(tmpl, bands_)
+    per_band_sumlists, stats = compute_band_summations(
+        t, y, bands, freqs, H, dy=dy, mode='shared_phase', fast=False)
+
+    m = FastMultibandTemplatePeriodogram(
+        templates=tmpl, mode='shared_phase').fit(t, y, bands, dy)
+    p_scan = m.power(freqs, fast=False, save_best_model=False, method='scan')
+    p_eig = m.power(freqs, fast=False, save_best_model=False)
+
+    for i in range(0, len(freqs), 4):
+        per_band_sums = {b: per_band_sumlists[b][i] for b in stats.bands}
+        p_oracle = _shared_phase_F_oracle_power(template_dict, per_band_sums,
+                                                stats)
+        # the scan must not silently underestimate the true max of F ...
+        assert p_scan[i] >= p_oracle - 1e-9, (seed, i, p_scan[i], p_oracle)
+        # ... and on these well-conditioned fixtures it attains it
+        assert abs(p_scan[i] - p_oracle) <= 1e-7, (seed, i, p_scan[i], p_oracle)
+    # scan still matches the eigvals reference to the gate
+    assert float(np.max(np.abs(p_scan - p_eig))) <= GATE_TOL
