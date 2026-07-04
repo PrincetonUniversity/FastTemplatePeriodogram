@@ -937,9 +937,15 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         every bracketed maximum and every deep ``|MM|`` dip; frequencies
         where ``|MM|`` nearly vanishes on the circle (rank-deficient or
         phase-clustered sampling) automatically fall back to the exact
-        root path, so the two methods agree to ~1e-12 (limited only by the
-        shared conditioning of the sums in extreme corners) while 'scan'
-        is much faster at high ``H`` on well-conditioned data.
+        root path, so the two methods agree to ~1e-12 on data with circle
+        conditioning ``min|MM|/max|MM|`` above ~1e-6, while 'scan' is much
+        faster at high ``H`` on well-conditioned data. Below that the
+        agreement degrades with conditioning (~3e-11 measured at ~1e-6,
+        up to ~6e-9 at ~1e-9): the fallback guarantees equal *treatment*,
+        not bitwise-equal values, because the scan path assembles
+        coefficients via the batched (``np.trace``) sums whose last-ulp
+        differences from the per-frequency assembly are amplified by the
+        shared sums conditioning (C3 verification, 2026-07-04).
     chunk_size : int, optional (default 4096)
         Number of frequencies per assembly chunk on the batched/scan paths
         (bounds the memory of the ``(nf, H, H)`` covariance stacks); only

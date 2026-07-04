@@ -111,10 +111,15 @@ over every non-info finding + a fix-evaluation critic.
   `|MM|²`-minimum dip-refinement derivatives re-derived from scratch and checked vs
   Richardson-extrapolated finite differences (H∈{1,2,3,5,8}) and the complex analytic dG/dθ
   (Romberg, 1.6e-10); the multiband `W_k`-weighted accumulation verified over H×K grids.
-- **Gates 1–5 pass** (test_scan_polish.py): (1) scan≡eigvals max|ΔP| ≤ ~1e-15 over H∈{1..10}×5
-  seeds×N∈{30,300}, identical argmax; (2) Issue-#33 fixtures on the scan path; (3) adversarial
-  rank-deficient vs the 2^16 oracle; (4) weight-conditioning within 2× of eigvals; (5) speedup
-  **26.5× @H=2, 20.2× @H=8 (≥15× required), 22.6× @H=10**, max|ΔP| ~1e-15.
+- **Gates 1–5 pass**: gates 1–4 are asserted by test_scan_polish.py — (1) scan≡eigvals
+  max|ΔP| ≤ ~1e-15 over H∈{1..10}×5 seeds×N∈{30,300}, identical argmax; (2) Issue-#33 fixtures
+  on the scan path; (3) adversarial rank-deficient vs the 2^16 oracle; (4) weight-conditioning
+  within 2× of eigvals. Gate 5's speedup half — **26.5× @H=2, 20.2× @H=8 (≥15× required),
+  22.6× @H=10**, max|ΔP| ~1e-15 — is measured by
+  `experiments/benchmarks/benchmark_scan_polish.py` (a one-off benchmark script, not collected
+  by pytest; the test-file docstring says so). *[Amended 2026-07-04: the original wording
+  attributed all five gates to test_scan_polish.py — recheck defect 2. The speedup numbers are
+  unregressed one-off measurements.]*
 - **Multiband: all four modes** match eigvals to ≤1.3e-15 (powers + a/b/c/sgn params).
   shared_phase scan independently verified to attain the true max of its objective
   F(θ)=Σ_k W_k Re(YM_k²/MM_k) via a brute-force oracle that never calls the eigvals G-polynomial
@@ -161,6 +166,17 @@ degree-(8HK−2) G-polynomial root-finder is the weaker maximizer. **Not adopted
 changes the WP's defined scan≡eigvals equivalence contract (and C4's scan≡eigvals pinning);
 recorded as a pre-verified enhancement for a deliberate future decision.
 
+*[Amended 2026-07-04: the "~2%, ≤1e-2" characterization was REMEASURED during WP C3 (the
+2026-07-04 recheck had advised retract-or-remeasure after failing to reproduce it). Outcome: the
+underlying defect is real and recipe-conditional — ~2% incidence reproduces on moderate deep-dip
+fixture families, but on every-band-deep recipes the incidence and magnitude are far larger (up
+to 8.4e-2 power / 26.3% raw χ²). See WP C3 finding MB-DIP-1 below; the fix direction sketched
+here (scan-first + max(scan, root path)) was independently validated by the C3 root-cause agent.
+The C2 MB-1 refutation itself REMAINS CORRECT — the original MB-1 probes' oracle had excess
+degrees of freedom exactly as the panel found; surfacing the real defect required raw-data
+oracles on every-band-deep fixtures, which neither the MB-1 probes nor the recheck adjudicator's
+recipe produced.]*
+
 ### Verification-process note
 
 The first workflow's refutation phase partially STALLED (several "reproduce" agents ran unbounded
@@ -180,3 +196,140 @@ suite after the closeout: 459 passed / 1 skipped / 2 xfailed / 0 failed.
 
 **WP C2 signed off 2026-06-13 (adversarial verification in lieu of human review, per delegation).
 C3 — the dedicated independent-verifier WP — is unblocked.**
+
+## WP C3 — dedicated independent verification (`8dad841` + the C3 record commit) — 2026-07-04
+
+**Scope**: the dedicated independent-verifier WP for the scan+polish maximizer. Base records:
+the WP C2 sign-off (above) and `AUDIT_2026-07-04_C2_RECHECK.md`; this record extends both and
+lands the recheck's four deferred fixes (`8dad841`). **Protocol**: 12-agent adversarial workflow
+(`wf_bb84e7c1-b84`, ~1.23M subagent tokens): 8 wave-1 agents (2 single-band probes, 3
+multiband-mode probes with mode-matched oracles, 1 root-cause agent, 1 skeptic tasked with
+refuting the orchestrator's probes, 1 fix-verification agent) + completeness critic + 3
+critic-directed follow-up probes. All probes bounded (≤2^16 circle grids / ≤2^13 raw-data phase
+sweeps, <30 s scripts), fresh seeds, never reading the repo tests (fix-verification agent
+excepted). **New vs C2**: RAW-DATA weighted-LS oracles — dense phase-shift sweep + closed-form
+per-shift LS on the raw photometry, immune to the polynomial-formula `Re(YM²/MM)` conditioning —
+built independently for the single band and each of the four multiband model classes, each
+validated ≤1e-9 against the code on well-conditioned fixtures before use (achieved 8.9e-16 …
+6.3e-15). **Criterion note**: the raw-data oracles gate at `oracle > code + 1e-9` (not the
+brief's 1e-10) because the shared evaluation-noise floor of code-vs-raw-truth is ~3e-10; the
+1e-10 criterion is enforced only in the polynomial-oracle modality (P1).
+
+### Gate result: the scan+polish maximizer itself PASSES everywhere it runs
+
+- **P1 (single band, polynomial oracle w/ dip refinement)**: 104 fixtures (4 template families ×
+  H 1..10 × N {6..300} × hetero/weight-concentrated dy) — 6,272 full-grid scan-vs-eigvals
+  comparisons, 1,093 refined-oracle points: **0 misses** at the 1e-10 bar (worst oracle−scan
+  2.84e-11, at conditioning 9.3e-7, where eigvals sits 3.3e-11 above scan too — shared sums
+  noise), **0 argmax mismatches**. Oracle positive control: dip refinement improved the raw 2^16
+  grid by up to 8.4e-5 at 106 points and the scan matched the refined values.
+- **P2 (single band, raw-data oracle, extreme conditioning)**: 540 rows (H {8,10,12} × N {5,6,8}
+  × clustered/duplicate-times/weight-ratio-to-1e12): **no maximizer deficit** — every flagged row
+  (5/540, worst 2.16e-8, all at circle conditioning ≤1e-7) adjudicated with 50-digit mpmath: the
+  returned phases are within ~1e-11 of the true optimum; the discrepancy is *value* evaluation
+  noise through the ill-conditioned sums (finding 4 below).
+- **M1 (floating_offsets — the production headline mode)**: 746 rows; scan-proper (non-fallback)
+  worst deficit **7.2e-14**; scan-vs-eigvals parity ≤8.9e-16; K.18 positivity verified live
+  (a 9× stronger negative-amplitude root correctly filtered); no overstatement (max +4.6e-11).
+- **F1 (shared_phase scan-proper — critic-directed; zero coverage before)**: 96 verified
+  non-fallback cells (H up to 10): worst oracle deficit **1.9e-15**; argmax 48/48 fixtures.
+- **F3 (H=10 all remaining modes)**: scan-proper worst **6.0e-15**; parity ≤2.5e-16 everywhere.
+- **M2/M3/S1**: scan ≡ eigvals bitwise on 100% of deep-dip fallback rows (the C2 contract).
+
+### CONFIRMED findings — all in the shared reference/exact-root path at deep |MM| dips; none
+### are scan regressions; all pre-date C1/C2
+
+1. **MB-DIP-1 [major] — shared_phase G-root path returns suboptimal phases at every-band-deep
+   dips.** Confirmed by 4 independent chains: orchestrator probes (raw-data oracle validated at
+   1e-14 + explicit-lstsq achievability + normalization-free raw-χ² of the code's own returned
+   fit: 7.946 vs 7.553 = −4.95% at the anchor case), skeptic S1 (every refutation vector failed;
+   model-class bijection s = (−θ₂/2π) mod 1 proven, curves reproduced both directions ≤3.9e-14;
+   the returned phase is not even a stationary point of χ²(s): dχ²/ds = +600.6), independent
+   reproduction M3 (own fixtures, seeds 90000+: worst **8.42e-2 power / 26.3% raw χ²**;
+   incidence >{1e-9,1e-6,1e-4,1e-3,1e-2} = {53.2, 38.5, 24.5, 14.2, 4.0}% of recipe-class cells;
+   no overstatement anywhere), and root-cause R1. **Mechanism (R1)**: when the F-maximizer sits
+   where ALL bands' |MM_k| dip to ≲1e-4..1e-5 of max, the FP-constructed
+   G ~ Π MM_l² · dF (degree 8HK−2) falls 180–1460× BELOW its own coefficient-rounding noise
+   floor at the peak — G is pure noise there, no computed root lands within 6e-3..2.5e-2 rad of
+   the true maximizer. Eigensolver, F-evaluation-at-roots, projection, and the finite-F guard
+   are all exonerated (backward errors at/below the noise floor; the code maximizes faithfully
+   over the roots it gets). **Incidence is recipe-conditional**: ~2% of seed-freq pairs on the
+   original 40000-family (R1 — consistent with the old "~2%" record), 14.2% >1e-3 on M3's
+   deeper every-band recipe; turnoff mapped at dip ratios ≳1e-4 (deficit ≤6.4e-8 at ≥2e-5,
+   ≤5.8e-15 at ≥2.7e-4). **Practical impact nil on realistic cadence**: uniform-random sparse
+   N/band {4..12}: fallback fires on 100% of rows yet zero deficits >1e-6 (worst 2.9e-8);
+   F1's benign arms worst 2.75e-11; requires adversarial phase-clumped geometry. Production
+   experiments use floating_offsets. **The 0.15 exact fallback is causally INVERTED for this
+   mode (R1-F3)**: deep dips are precisely where G is noise-blinded while F itself stays smooth
+   (no sub-grid spike — peak width ~1e-3 cycles) and trivially scannable, yet the fallback hands
+   these rows verbatim to the broken root path. **Fix validated (R1-F4)**: the code's own
+   `_shared_phase_scan_fit` machinery run WITHOUT the fallback branch + `max(scan, root-path)`
+   recovers the true power to <2e-14 on all analyzed cases; merely polishing from the code's
+   chosen root is NOT sufficient. Pinned by
+   `test_multiband_shared_phase_deepdip_{bounded_vs,attains}_F_oracle` (bounded 6e-3 green;
+   tight 1e-9 xfail(strict=False), XPASSes when fixed).
+2. **SESAR-DIP-1 [major] — sesar mode returns WRONG peak power at deep dips, both signs,
+   including overstatement (false-alarm direction).** F3 (mp-verified): errors at the code's own
+   returned phase up to **+1.186e-4 overstatement** and −4.8e-6 understatement; 15/96 deep-dip
+   cells >1e-6; **flat in H** (H=6/8/10 all ~1e-4). Mechanism: the sesar-only global-recentring
+   correction in `combine_band_summations` (MM′ = Σ W_k MM_k + Σ W_k M̄_k² − M̄_comb² terms) has
+   O(0.1) coefficient mass that cancels to ~1e-13 on the circle — MM′ is wrong by −4.8e-4
+   relative at the dip while YM′ stays accurate to 5e-10 and floating_offsets' MM at identical
+   conditioning is accurate to 1.3e-9. Identical in eigvals and scan (all such cells route
+   through the fallback). Only at conditioning ≲1e-7 with phase-clumped ~5-pt/band sampling.
+   The earlier "sesar ceiling 3.7e-11" (M2, H≤8) was fixture-limited, not a real bound.
+3. **FO-TRIM-1 [confirmed defect; magnitude minor (≤3.9e-8), mechanism actionable] —
+   `trim_zero_leading_coef` eats the GENUINE degree-(6H−2) coefficient.** F2 (50-digit mp
+   adjudication of M1's two worst floating_offsets rows): when the analytic degree-(6H−1) zero
+   cancels to EXACT FP zero, numpy's trimseq removes it first, and the conditional trim
+   `|coef[-1]| ≤ 1e-9·scale` then fires on the real c_{6H−2} (genuine at 2.3e5–4.3e6× above
+   construction noise; one case fired at |c|/thresh = 0.95 — a whisker). Root displaced by
+   exactly the predicted |c·r^{6H−2}/G′| (3-digit agreement); deficits 3.4e-8/3.9e-8 are REAL in
+   exact arithmetic. Both proposed mechanisms REFUTED: eigensolver backward-stable (untrimmed FP
+   roots land 2.3e-9 from the oracle phase; deficit collapses to 1.6e-13), construction noise
+   1.3–12× eps·max (37–8700× too small). **Affected surface**: every `stationarity=None` trim —
+   single-band eigvals, multiband eigvals (fo/sesar/independent), and the scan's exact-fallback
+   rows; the batched path is immune (`batched_stationarity_coefs` keeps c_{6H−2}
+   unconditionally). **Fix is a one-line guard** (length-gate the trim: only drop when the
+   polynomial still carries its nominal degree 6H−1). This realizes in practice the "contrived
+   corner" flagged as C1-hardening finding 5. Extended-precision rooting NOT warranted.
+4. **[minor] Value-evaluation noise scope at extreme conditioning (shared by both paths).**
+   (a) P2-F1: at circle conditioning ≤~1e-7 both methods mis-evaluate the power of their own
+   (near-optimal) returned model by up to 2.1e-8 below / 1.0e-9 above raw truth (3/540 rows;
+   exceeds the previously documented ~5e-10 floor, which holds above ~1e-8 conditioning).
+   (b) P2-F2: inside the single-band exact fallback, scan ≠ eigvals bitwise —
+   `batched_YM_MM_from_sums` (np.trace) vs per-frequency `get_diags` differ by 1 ulp in MM,
+   amplified ~6.6e7× at conditioning 7.2e-10 to a 6.04e-9 power difference. The fallback
+   guarantees equal *treatment*, not equal values (multiband fallback re-enters per-frequency
+   assembly and IS bitwise). `template_periodogram`'s docstring re-scoped accordingly (this
+   commit). **C4 design note**: the scan≡eigvals pin must scope conditioning (tolerate ~1e-8
+   below min|MM|/max|MM| ~1e-8, or pin on conditioning-screened fixtures).
+
+### Deferred-fix verification (V1) + record corrections
+
+All `8dad841` numbers reproduce against the actual a8fd646 worktree (bitwise stable across
+processes; mechanism-pin assert margins 2.8–2.9×; a fallback-less mutant fails both pins;
+deep-dip regime guard proven live — de-clustered fixtures fail the trigger assert). V1-1
+(sampled-row provenance of the "3.6e-3" figure) fixed in this commit: row 21 — the
+clump-degenerate f=1.15, adjudicated per-row by S1 — is now sampled, and docstrings state the
+recipe-conditional magnitudes.
+
+### Operational notes (for C4/C5)
+
+- Fallback incidence is high off the well-conditioned regime: 75% of shared_phase cells overall
+  (67% even at uniform 40 pts/band; 100% for eclipse H≥8 K=3), 98% of independent-mode per-band
+  solves at H=10/40-per-band (0% at 100/band), ~80% of the adversarial floating_offsets mix.
+  The scan's speed advantage accrues on well-conditioned data; C5's timing narrative must not
+  assume scan-proper everywhere, and the (HK)³ shared_phase cost saving is rarely realized at
+  H≥8 with N~40/band.
+
+### Sign-off status
+
+**The scan+polish maximizer is verified clean** — the WP C3 gate criterion ("scan < oracle −
+1e-10 or argmax differs from eigvals") produced ZERO confirmed hits across ~7,900 gated
+comparisons in six independent modalities. However, the verification CONFIRMED three unfixed
+defects in the shared reference path (MB-DIP-1, SESAR-DIP-1 major; FO-TRIM-1 minor). Per the WP
+C3 text ("ESCALATE if it finds one") and the 2026-06-12 delegation (ESCALATE on confirmed
+defect), **C3 is NOT signed off; ESCALATED to John 2026-07-04** with a validated fix package
+(scan-first + max(scan, root) for shared_phase; one-line trim length-gate; sesar recentring
+reformulation to be designed). **C4 (default flip) not started** — strict C-track order.
