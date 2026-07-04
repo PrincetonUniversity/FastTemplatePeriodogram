@@ -885,10 +885,11 @@ def test_multiband_shared_phase_scan_vs_independent_F_oracle(seed):
 # as it turned out, the pre-existing deficit of the G-root path itself.
 # ----------------------------------------------------------------------
 def _deepdip_multiband_fixture(seed, H=8, K=3, per_band=5):
-    """Rank-deficient, phase-clustered K-band fixture (the 2026-07-04
-    adjudicator's recipe): every frequency of the test grid trips the
-    shared_phase deep-dip exact fallback (min-band |MM| ratios ~1e-6..1e-4
-    on the scan circle)."""
+    """Rank-deficient (at the committed per_band=5), phase-clustered K-band
+    fixture (the 2026-07-04 adjudicator's recipe): every frequency of the
+    test grid trips the shared_phase deep-dip exact fallback (min-band |MM|
+    ratios ~5e-7..1e-4 on the scan circle; phase clustering, not point
+    count, drives MM near-singular)."""
     rng = np.random.default_rng(seed)
     labels = ['g', 'r', 'i', 'z'][:K]
     n = np.arange(1, H + 1)
@@ -907,9 +908,13 @@ def _deepdip_multiband_fixture(seed, H=8, K=3, per_band=5):
     return t, y, bands, dy, tmpl
 
 
-def _deepdip_oracle_rows(seed, step=8):
+def _deepdip_oracle_rows(seed, rows=(0, 8, 14, 21)):
     """(p_scan, p_eig, [(row, p_oracle), ...]) on a deep-dip fixture, with
-    the fallback trigger asserted for every sampled row (regime guard)."""
+    the fallback trigger asserted for every sampled row (regime guard).
+    Rows 8 and 21 are the known deficit-carrying rows (C3 verification,
+    per-row adjudication on seed 40005: +3.838e-4 at row 8, +3.562e-3 at
+    row 21 = f=1.15, the clump-degenerate frequency); 0 and 14 are clean
+    contrast rows."""
     from ..multiband import (build_template_set, compute_band_summations,
                              _per_band_YM_MM)
     from .. import core
@@ -930,7 +935,7 @@ def _deepdip_oracle_rows(seed, step=8):
     M_ang = max(core._SCAN_MIN_ANGLES,
                 core._SCAN_ANGLES_PER_H * H * len(bands_))
     out = []
-    for i in range(0, len(freqs), step):
+    for i in rows:
         per_band_sums = {b: per_band_sumlists[b][i] for b in stats.bands}
         pb = _per_band_YM_MM(template_dict, per_band_sums, stats.bands)
         Mco = np.array([pb[k][1].coef for k in stats.bands])
@@ -947,10 +952,14 @@ def _deepdip_oracle_rows(seed, step=8):
 def test_multiband_shared_phase_deepdip_bounded_vs_F_oracle(seed):
     """Deep-dip fallback regime, bounded gate: the scan must delegate to
     the eigvals G-root path bitwise (full fallback), and the result must
-    stay within 6e-3 of the independent F-oracle (worst measured deficit
-    3.6e-3, C3 finding MB-DIP-1) -- the catastrophic-regression net for
-    _shared_phase_fit at deep dips, which no scan-vs-eigvals comparison
-    can provide."""
+    stay within 6e-3 of the independent F-oracle -- the
+    catastrophic-regression net for _shared_phase_fit at deep dips, which
+    no scan-vs-eigvals comparison can provide. Worst deficit on THESE
+    committed fixtures: 3.562e-3 (seed 40005, row 21; C3 finding
+    MB-DIP-1). NB the defect is recipe-conditional and grows on deeper
+    every-band-dip fixtures (independent C3 reproduction: up to 8.4e-2
+    power / 26.3% raw chi2) -- this gate bounds only the committed
+    fixtures; see VERIFICATION.md WP C3."""
     p_scan, p_eig, rows = _deepdip_oracle_rows(seed)
     assert np.array_equal(p_scan, p_eig)   # full delegation to the fallback
     for i, p_oracle in rows:
@@ -960,11 +969,14 @@ def test_multiband_shared_phase_deepdip_bounded_vs_F_oracle(seed):
 @pytest.mark.xfail(strict=False, reason=(
     "CONFIRMED C3 finding MB-DIP-1 (2026-07-04): the shared_phase deep-dip "
     "exact fallback (_shared_phase_fit, degree-(8HK-2) G-root path) "
-    "under-attains the true F max by up to ~4e-3 on rank-deficient "
-    "phase-clustered fixtures; confirmed normalization-free by raw-data "
-    "chi2 (explicit per-band lstsq fit beats the returned fit by up to "
-    "4.9% chi2). Shared bitwise by scan and eigvals -- NOT a scan "
-    "regression. See VERIFICATION.md WP C3. XPASSes when fixed."))
+    "under-attains the true F max on rank-deficient phase-clustered "
+    "fixtures -- 3.562e-3 power / 4.95% raw chi2 on these committed "
+    "fixtures (seed 40005 row 21), up to 8.4e-2 power / 26.3% raw chi2 on "
+    "deeper every-band-dip recipes (independent reproduction). Mechanism: "
+    "the FP-constructed G drowns below its coefficient-rounding noise "
+    "floor at the maximizer, so no computed root lands near it. Shared "
+    "bitwise by scan and eigvals -- NOT a scan regression. See "
+    "VERIFICATION.md WP C3. XPASSes when fixed."))
 @pytest.mark.parametrize('seed', [40000, 40005, 40007])
 def test_multiband_shared_phase_deepdip_attains_F_oracle(seed):
     """Tight version of the bounded gate: the fallback should attain the
