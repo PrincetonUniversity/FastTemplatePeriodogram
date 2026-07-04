@@ -191,7 +191,7 @@ def batched_stationarity_coefs(YM_coefs, MM_coefs):
     return p[:, :6 * H - 1]
 
 
-def trim_zero_leading_coef(p):
+def trim_zero_leading_coef(p, nominal_degree=None):
     r"""Drop the analytically-zero leading coefficient of a stationarity
     polynomial of the form ``2 MM YM' - MM' YM``.
 
@@ -206,11 +206,31 @@ def trim_zero_leading_coef(p):
 
     The trim is conditional because the cancellation is often EXACT in
     floating point, in which case numpy's polynomial arithmetic has already
-    trimmed the zero and the stored leading coefficient is genuine: only a
-    residue-scale leading coefficient is dropped.
+    trimmed the zero and the stored leading coefficient is genuine.
+
+    Parameters
+    ----------
+    p : numpy.polynomial.Polynomial
+        The freshly-assembled stationarity polynomial.
+    nominal_degree : int, optional
+        The polynomial's nominal (pre-cancellation) degree: ``6H - 1`` for
+        the single/combined-band stationarity polynomial, ``8HK - 1`` for
+        the multiband shared-phase ``G``. When given, the residue trim is
+        applied ONLY if the polynomial still carries that nominal degree.
+        Without this length gate, a genuine degree-``(6H - 2)`` leading
+        coefficient that happens to sit below the residue threshold (deep
+        ``|MM|`` dips shrink the whole tail) was eaten after numpy's
+        arithmetic had already removed the exactly-cancelled zero,
+        displacing the true stationary root (measured power deficits up to
+        ~4e-8; C3 finding FO-TRIM-1, see VERIFICATION.md). ``None``
+        preserves the legacy length-blind behavior.
     """
     coef = p.coef
     if len(coef) > 1:
+        if nominal_degree is not None and len(coef) != nominal_degree + 1:
+            # the exactly-cancelled analytic zero is already gone: the
+            # stored leading coefficient is genuine, however small
+            return p
         scale = np.max(np.abs(coef))
         if scale > 0 and np.abs(coef[-1]) <= 1e-9 * scale:
             return pol.Polynomial(coef[:-1])
@@ -273,7 +293,10 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False,
     # Polynomial math + root finding!
     if stationarity is None:
         # true degree <= 6H-2; the nominal leading coefficient is FP residue
-        p = trim_zero_leading_coef(2 * MM * YM.deriv() - MM.deriv() * YM)
+        # (the length gate keeps a genuine small c_{6H-2} when numpy already
+        # removed the exactly-cancelled zero -- C3 finding FO-TRIM-1)
+        p = trim_zero_leading_coef(2 * MM * YM.deriv() - MM.deriv() * YM,
+                                   nominal_degree=6 * H - 1)
     else:
         # precomputed polynomials arrive with the analytically-zero top
         # coefficient already dropped (batched_stationarity_coefs); a second
@@ -377,6 +400,14 @@ _SCAN_DIP_RTOL = 0.5
 # polish-failure modes sit below ~0.1 mm_max; 0.15 adds margin while
 # keeping the fallback rare on well-conditioned data.
 _SCAN_EXACT_RTOL = 0.15
+# Cap for the escalated deep-dip scan density of the multiband shared_phase
+# maximizer (C3.5 / MB-DIP-1): at deep-dip frequencies the scan grid is
+# densified until the Bernstein bracketing bound
+# dtheta <= sqrt(2 r_min)/(2H) (r_min = worst band's min|MM|/max|MM| on the
+# circle) is met, so no F spike a dip of that depth can host escapes the
+# grid; the cap bounds the FFT length when r_min is extreme (the exact
+# root path still runs at those rows and the max of both is returned).
+_SCAN_DEEP_MAX_ANGLES = 1 << 17
 
 
 def _scan_dP_d2P(Y, Y1, Y2, Mm, M1, M2):
