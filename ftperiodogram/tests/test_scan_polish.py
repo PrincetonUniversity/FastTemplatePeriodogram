@@ -482,9 +482,13 @@ def _eclipse_template(H, w=0.08):
 
 @pytest.mark.parametrize('H,N', [(8, 8), (8, 15), (10, 8), (8, 30)])
 def test_narrow_peak_eclipse_sparse_matches_eigvals(H, N):
-    """Eclipse template at sparse N: the regime of the verified critical
-    finding (scan silently 0.33 below eigvals pre-fix). Now exact-fallback /
-    dip-candidate territory: parity to 1e-12 with identical argmax."""
+    """Eclipse template at sparse N: exact-fallback / dip-candidate
+    territory, parity to 1e-12 with identical argmax. Honest attribution
+    (re-measured on a8fd646, 2026-07-04 audit): of these parametrizations
+    only (H, N) = (10, 8) contains a genuine pre-fix miss (seed 10007,
+    deficit 0.139 -- the mechanism pin lives in
+    test_scan_dip_candidates_are_load_bearing); the other three pass
+    pre-fix and pin parity in the same regime."""
     for seed in range(10000, 10010):
         rng = np.random.default_rng([seed, H, N])
         tmpl = _eclipse_template(H)
@@ -525,9 +529,12 @@ def test_narrow_peak_extreme_corner_conditioning():
 
 
 def test_narrow_peak_clustered_cadence():
-    """Phase-clustered sampling (two tight clumps): pre-fix the scan missed
-    by up to 0.72 here. 5e-12 allows the shared sums-conditioning noise of
-    this regime (verified two-sided vs a refined oracle)."""
+    """Phase-clustered sampling (two tight clumps): pre-fix (a8fd646) the
+    scan missed on 3/15 of these seeds, by up to 0.13 (seed 21007;
+    re-measured 2026-07-04 -- the C2 verification's ~0.7 deficits were on
+    other clustered draws, not these). 5e-12 allows the shared
+    sums-conditioning noise of this regime (verified two-sided vs a
+    refined oracle)."""
     for seed in range(21000, 21015):
         rng = np.random.default_rng(seed)
         N, H = 6, 12
@@ -548,8 +555,9 @@ def test_narrow_peak_clustered_cadence():
 def test_narrow_peak_nightly_cadence_alias():
     """Realistic 12-night cadence probed at trial frequencies near 1 c/d,
     where nightly sampling phase-clusters: the alias frequencies that
-    matter for alias-vs-true discrimination (verified pre-fix deficit up
-    to 0.0077 in 18/20 seeds)."""
+    matter for alias-vs-true discrimination. Pre-fix (a8fd646) deficit on
+    these committed seeds: 1/10, up to 4.1e-4 (re-measured 2026-07-04; the
+    C2 probes' 0.0077-in-18/20-seeds figure was for other nightly draws)."""
     for seed in range(22000, 22010):
         rng = np.random.default_rng(seed)
         H = 6
@@ -570,8 +578,12 @@ def test_narrow_peak_nightly_cadence_alias():
 
 
 def test_narrow_peak_multiband_clustered():
-    """Two phase-clumped bands at H=8 (the verified multiband miss, 0.174
-    pre-fix on shared_phase): scan == eigvals across modes."""
+    """Two phase-clumped bands at H=8: scan == eigvals across modes.
+    Honest attribution (re-measured on a8fd646, 2026-07-04 audit): on
+    these committed fixtures the genuine pre-fix miss is in `independent`
+    mode (6/8 seeds, up to 0.083 at seed 26002); shared_phase and
+    floating_offsets pass pre-fix here and pin parity (the C2
+    verification's 0.174 shared_phase miss was on other fixtures)."""
     for mode in ('shared_phase', 'independent', 'floating_offsets'):
         for seed in range(26000, 26008):
             rng = np.random.default_rng(seed)
@@ -617,27 +629,77 @@ def test_narrow_peak_concentrated_weights_high_H():
             assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (ratio, seed)
 
 
-def test_scan_dip_machinery_recovers_subgrid_spike():
-    """Mechanism pin: on a narrow-peak fixture the default-M scan must agree
-    with a 2^16-angle scan of the same coefficients (pre-fix the default M
-    missed what the dense scan found, by up to 0.33)."""
-    rng = np.random.default_rng([10009, 8, 8])
-    tmpl = _eclipse_template(8)
+def _corner_fixture(seed):
+    """H=12, N=6 eclipse fixture (the extreme rank-deficient corner)."""
+    rng = np.random.default_rng([seed, 12, 6])
+    tmpl = _eclipse_template(12)
+    t = np.sort(10.0 * rng.random(6))
+    dy = 0.05 * (1 + rng.random(6))
+    y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(6)
+    return t, y, dy, tmpl, np.linspace(0.2, 3.0, 40)
+
+
+def test_scan_exact_fallback_is_load_bearing(monkeypatch):
+    """Mechanism pin for the exact root-path fallback, replacing a
+    tautological predecessor (test_scan_dip_machinery_recovers_subgrid_spike
+    compared the fallback to itself; caught by the 2026-07-04 audit).
+
+    On this fixture (corner seed 10004; pre-fix a8fd646 deficit 0.286,
+    re-measured against the actual commit) disabling ONLY the exact
+    fallback -- dip candidates left active -- loses >= 0.1 of power vs the
+    eigvals reference, so the dip-Newton refinement alone demonstrably
+    cannot resolve this dip and the fallback specifically is the
+    correctness net. Production settings must match eigvals to the corner
+    regime bar. Fails by construction on any mutant that deletes or
+    disables the fallback."""
+    from .. import core
+
+    t, y, dy, tmpl, freqs = _corner_fixture(10004)
+    p_eig, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                    fast=False)
+    p_prod, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                     fast=False, method='scan')
+    assert float(np.max(np.abs(p_eig - p_prod))) <= 5e-10
+    assert int(np.argmax(p_eig)) == int(np.argmax(p_prod))
+
+    monkeypatch.setattr(core, '_SCAN_EXACT_RTOL', 0.0)
+    p_mut, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                    fast=False, method='scan')
+    assert float(np.max(p_eig - p_mut)) >= 0.1
+
+
+def test_scan_dip_candidates_are_load_bearing(monkeypatch):
+    """Mechanism pin for the deep-|MM|-dip candidates: on the eclipse
+    (H=10, N=8) seed-10007 fixture (the one genuine pre-fix miss of that
+    family; a8fd646 deficit 0.139) the grid+polish scan with BOTH the dip
+    candidates and the exact fallback disabled loses >= 0.05 of power,
+    while the dip candidates alone (exact fallback still disabled) fully
+    recover the peak. Fails by construction on any mutant that deletes the
+    dip-candidate machinery."""
+    from .. import core
+
+    rng = np.random.default_rng([10007, 10, 8])
+    tmpl = _eclipse_template(10)
     t = np.sort(10.0 * rng.random(8))
     dy = 0.05 * (1 + rng.random(8))
     y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(8)
-    w = weights(dy)
-    ybar = np.dot(w, y)
-    YY = np.dot(w, (y - ybar) ** 2)
     freqs = np.linspace(0.2, 3.0, 40)
-    sums = direct_summations(t, y, w, freqs, 8)
-    for s in sums[::5]:
-        YM, MM, AC = YM_MM_from_sums(tmpl.c_n, tmpl.s_n, s)
-        _, p_def, _ = scan_polish_YM_MM(YM, MM, AC, 8, ybar, YY)
-        plist, p_dense, _ = scan_polish_from_coefs(
-            YM.coef[np.newaxis], MM.coef[np.newaxis],
-            np.asarray(AC)[np.newaxis], 8, ybar, YY, n_angles=1 << 16)
-        assert abs(p_def - float(p_dense[0])) <= 1e-10
+
+    p_eig, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                    fast=False)
+    p_prod, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                     fast=False, method='scan')
+    assert float(np.max(np.abs(p_eig - p_prod))) <= GATE_TOL
+
+    monkeypatch.setattr(core, '_SCAN_EXACT_RTOL', 0.0)
+    p_dips_only, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n,
+                                          freqs, fast=False, method='scan')
+    assert float(np.max(np.abs(p_eig - p_dips_only))) <= GATE_TOL
+
+    monkeypatch.setattr(core, '_SCAN_DIP_RTOL', 0.0)
+    p_mut, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
+                                    fast=False, method='scan')
+    assert float(np.max(p_eig - p_mut)) >= 0.05
 
 
 # ----------------------------------------------------------------------
@@ -742,8 +804,10 @@ def _shared_phase_F_oracle_power(template_dict, per_band_sums, stats,
     """True max over the unit circle of the shared-phase objective
     F(theta) = sum_k W_k Re(YM_k(phi)^2 / MM_k(phi)), normalized by
     YY_combined -- assembled from the SAME per-band YM/MM the code builds
-    (via _per_band_YM_MM) but maximized by brute force + scalar refinement,
-    NOT by the eigvals G-polynomial root-finder. This isolates the maximizer."""
+    (via _per_band_YM_MM) but maximized by brute force + scalar refinement
+    of the best bracket AND of every deep local minimum of any band's
+    |MM_k| (narrow F spikes hide inside per-band |MM| dips), NOT by the
+    eigvals G-polynomial root-finder. This isolates the maximizer."""
     from ..multiband import _per_band_YM_MM
     per_band = _per_band_YM_MM(template_dict, per_band_sums, stats.bands)
 
@@ -754,17 +818,31 @@ def _shared_phase_F_oracle_power(template_dict, per_band_sums, stats,
                        for k in stats.bands)
 
     theta = np.linspace(0, 2 * np.pi, n_angles, endpoint=False)
-    F = F_at(np.exp(1j * theta))
+    phi = np.exp(1j * theta)
+    F = F_at(phi)
     F[~np.isfinite(F)] = -np.inf
     i = int(np.argmax(F))
     if not np.isfinite(F[i]):
         return 0.0
+    brackets = [i]
+    for k in stats.bands:
+        absM = np.abs(per_band[k][1](phi))
+        ismin = ((absM <= np.roll(absM, 1)) & (absM <= np.roll(absM, -1)) &
+                 (absM < 0.5 * absM.max()))
+        brackets += list(np.where(ismin)[0])
     dth = 2 * np.pi / n_angles
-    res = minimize_scalar(lambda th: (lambda v: -v if np.isfinite(v) else np.inf)
-                          (F_at(np.exp(1j * th))),
-                          bounds=(theta[i] - dth, theta[i] + dth),
-                          method='bounded', options={'xatol': 1e-14})
-    return max(float(F[i]), float(-res.fun)) / stats.YY_combined
+
+    def negF(th):
+        v = F_at(np.exp(1j * np.atleast_1d(th)))[0]
+        return -v if np.isfinite(v) else np.inf
+
+    best = float(F[i])
+    for c in brackets:
+        res = minimize_scalar(negF, bounds=(theta[c] - 2 * dth,
+                                            theta[c] + 2 * dth),
+                              method='bounded', options={'xatol': 1e-14})
+        best = max(best, float(-res.fun))
+    return best / stats.YY_combined
 
 
 @pytest.mark.parametrize('seed', [3, 7, 11])
@@ -796,3 +874,102 @@ def test_multiband_shared_phase_scan_vs_independent_F_oracle(seed):
         assert abs(p_scan[i] - p_oracle) <= 1e-7, (seed, i, p_scan[i], p_oracle)
     # scan still matches the eigvals reference to the gate
     assert float(np.max(np.abs(p_scan - p_eig))) <= GATE_TOL
+
+
+# ----------------------------------------------------------------------
+# MB-2 deep-dip extension (2026-07-04 audit, defect 4): oracle-gate the
+# fallback regime itself. On rank-deficient phase-clustered fixtures every
+# frequency trips the shared_phase deep-dip exact fallback, so scan ==
+# eigvals is tautological there (the scan delegates to _shared_phase_fit
+# verbatim) and only an independent F-oracle can catch a regression -- or,
+# as it turned out, the pre-existing deficit of the G-root path itself.
+# ----------------------------------------------------------------------
+def _deepdip_multiband_fixture(seed, H=8, K=3, per_band=5):
+    """Rank-deficient, phase-clustered K-band fixture (the 2026-07-04
+    adjudicator's recipe): every frequency of the test grid trips the
+    shared_phase deep-dip exact fallback (min-band |MM| ratios ~1e-6..1e-4
+    on the scan circle)."""
+    rng = np.random.default_rng(seed)
+    labels = ['g', 'r', 'i', 'z'][:K]
+    n = np.arange(1, H + 1)
+    tmpl = Template(1.0 / n, 0.2 / n)
+    ts, bs = [], []
+    for j in range(K):
+        n1 = per_band // 2 + (per_band % 2)
+        clump1 = 0.9 * j + 0.03 * rng.random(n1)
+        clump2 = 3.0 + 0.7 * j + 0.03 * rng.random(per_band - n1)
+        ts.append(np.sort(np.concatenate([clump1, clump2])))
+        bs += [labels[j]] * per_band
+    t = np.concatenate(ts)
+    bands = np.array(bs)
+    dy = 0.05 * (1 + rng.random(K * per_band))
+    y = tmpl((t * 1.0) % 1.0) + dy * rng.standard_normal(K * per_band)
+    return t, y, bands, dy, tmpl
+
+
+def _deepdip_oracle_rows(seed, step=8):
+    """(p_scan, p_eig, [(row, p_oracle), ...]) on a deep-dip fixture, with
+    the fallback trigger asserted for every sampled row (regime guard)."""
+    from ..multiband import (build_template_set, compute_band_summations,
+                             _per_band_YM_MM)
+    from .. import core
+
+    H = 8
+    t, y, bands, dy, tmpl = _deepdip_multiband_fixture(seed)
+    freqs = np.linspace(0.8, 1.2, 25)
+    bands_ = np.unique(bands)
+    template_dict = build_template_set(tmpl, bands_)
+    per_band_sumlists, stats = compute_band_summations(
+        t, y, bands, freqs, H, dy=dy, mode='shared_phase', fast=False)
+
+    m = FastMultibandTemplatePeriodogram(
+        templates=tmpl, mode='shared_phase').fit(t, y, bands, dy)
+    p_scan = m.power(freqs, fast=False, save_best_model=False, method='scan')
+    p_eig = m.power(freqs, fast=False, save_best_model=False)
+
+    M_ang = max(core._SCAN_MIN_ANGLES,
+                core._SCAN_ANGLES_PER_H * H * len(bands_))
+    out = []
+    for i in range(0, len(freqs), step):
+        per_band_sums = {b: per_band_sumlists[b][i] for b in stats.bands}
+        pb = _per_band_YM_MM(template_dict, per_band_sums, stats.bands)
+        Mco = np.array([pb[k][1].coef for k in stats.bands])
+        absMg = np.abs(core._eval_polys_on_circle(Mco, M_ang))
+        assert np.any(np.min(absMg, axis=1) <
+                      core._SCAN_EXACT_RTOL * np.max(absMg, axis=1)), \
+            "fixture drifted out of the deep-dip fallback regime"
+        out.append((i, _shared_phase_F_oracle_power(template_dict,
+                                                    per_band_sums, stats)))
+    return p_scan, p_eig, out
+
+
+@pytest.mark.parametrize('seed', [40000, 40005, 40007])
+def test_multiband_shared_phase_deepdip_bounded_vs_F_oracle(seed):
+    """Deep-dip fallback regime, bounded gate: the scan must delegate to
+    the eigvals G-root path bitwise (full fallback), and the result must
+    stay within 6e-3 of the independent F-oracle (worst measured deficit
+    3.6e-3, C3 finding MB-DIP-1) -- the catastrophic-regression net for
+    _shared_phase_fit at deep dips, which no scan-vs-eigvals comparison
+    can provide."""
+    p_scan, p_eig, rows = _deepdip_oracle_rows(seed)
+    assert np.array_equal(p_scan, p_eig)   # full delegation to the fallback
+    for i, p_oracle in rows:
+        assert p_scan[i] >= p_oracle - 6e-3, (seed, i, p_scan[i], p_oracle)
+
+
+@pytest.mark.xfail(strict=False, reason=(
+    "CONFIRMED C3 finding MB-DIP-1 (2026-07-04): the shared_phase deep-dip "
+    "exact fallback (_shared_phase_fit, degree-(8HK-2) G-root path) "
+    "under-attains the true F max by up to ~4e-3 on rank-deficient "
+    "phase-clustered fixtures; confirmed normalization-free by raw-data "
+    "chi2 (explicit per-band lstsq fit beats the returned fit by up to "
+    "4.9% chi2). Shared bitwise by scan and eigvals -- NOT a scan "
+    "regression. See VERIFICATION.md WP C3. XPASSes when fixed."))
+@pytest.mark.parametrize('seed', [40000, 40005, 40007])
+def test_multiband_shared_phase_deepdip_attains_F_oracle(seed):
+    """Tight version of the bounded gate: the fallback should attain the
+    independent F-oracle max to 1e-9, as it does on well-conditioned
+    fixtures."""
+    p_scan, _, rows = _deepdip_oracle_rows(seed)
+    for i, p_oracle in rows:
+        assert p_scan[i] >= p_oracle - 1e-9, (seed, i, p_scan[i], p_oracle)
