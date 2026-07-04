@@ -578,12 +578,17 @@ def test_narrow_peak_nightly_cadence_alias():
 
 
 def test_narrow_peak_multiband_clustered():
-    """Two phase-clumped bands at H=8: scan == eigvals across modes.
-    Honest attribution (re-measured on a8fd646, 2026-07-04 audit): on
-    these committed fixtures the genuine pre-fix miss is in `independent`
-    mode (6/8 seeds, up to 0.083 at seed 26002); shared_phase and
-    floating_offsets pass pre-fix here and pin parity (the C2
-    verification's 0.174 shared_phase miss was on other fixtures)."""
+    """Two phase-clumped bands at H=8. Honest attribution (re-measured on
+    a8fd646, 2026-07-04 audit): on these committed fixtures the genuine
+    pre-fix miss is in `independent` mode (6/8 seeds, up to 0.083 at seed
+    26002); shared_phase and floating_offsets pass pre-fix here (the C2
+    verification's 0.174 shared_phase miss was on other fixtures).
+    Contracts: independent / floating_offsets pin scan == eigvals to the
+    gate; shared_phase, post-C3.5, is ONE-SIDED at deep dips -- the
+    max(scan, root-path) merge may recover micro-deficits of the G-root
+    reference (measured up to ~1.3e-8 here, seed 26007) but must never
+    fall below it; the 1e-6 cap on the recovery bounds gross F-evaluation
+    blowups without pinning the reference path's exact deficit."""
     for mode in ('shared_phase', 'independent', 'floating_offsets'):
         for seed in range(26000, 26008):
             rng = np.random.default_rng(seed)
@@ -604,7 +609,12 @@ def test_narrow_peak_multiband_clustered():
             p_e = m.power(freqs, fast=False, save_best_model=False)
             p_s = m.power(freqs, fast=False, save_best_model=False,
                           method='scan')
-            assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (mode, seed)
+            if mode == 'shared_phase':
+                assert np.all(p_s >= p_e - 1e-15), (mode, seed)
+                assert float(np.max(p_s - p_e)) <= 1e-6, (mode, seed)
+            else:
+                assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, \
+                    (mode, seed)
 
 
 def test_narrow_peak_concentrated_weights_high_H():
@@ -950,38 +960,28 @@ def _deepdip_oracle_rows(seed, rows=(0, 8, 14, 21)):
 
 @pytest.mark.parametrize('seed', [40000, 40005, 40007])
 def test_multiband_shared_phase_deepdip_bounded_vs_F_oracle(seed):
-    """Deep-dip fallback regime, bounded gate: the scan must delegate to
-    the eigvals G-root path bitwise (full fallback), and the result must
-    stay within 6e-3 of the independent F-oracle -- the
-    catastrophic-regression net for _shared_phase_fit at deep dips, which
-    no scan-vs-eigvals comparison can provide. Worst deficit on THESE
-    committed fixtures: 3.562e-3 (seed 40005, row 21; C3 finding
-    MB-DIP-1). NB the defect is recipe-conditional and grows on deeper
-    every-band-dip fixtures (independent C3 reproduction: up to 8.4e-2
-    power / 26.3% raw chi2) -- this gate bounds only the committed
-    fixtures; see VERIFICATION.md WP C3."""
+    """Deep-dip regime, eigvals-side net: the exact G-root REFERENCE path
+    retains its documented MB-DIP-1 deficit (the FP-constructed G drowns
+    below its coefficient noise floor at the maximizer; worst on THESE
+    committed fixtures 3.562e-3 at seed 40005 row 21; up to 8.4e-2 on
+    deeper every-band-dip recipes -- see VERIFICATION.md WP C3), so it is
+    gated by a bounded catastrophic-regression net vs the independent
+    F-oracle, which no scan-vs-eigvals comparison can provide. The scan,
+    post-C3.5, must never fall below the eigvals reference (max-merge
+    safety)."""
     p_scan, p_eig, rows = _deepdip_oracle_rows(seed)
-    assert np.array_equal(p_scan, p_eig)   # full delegation to the fallback
+    assert np.all(p_scan >= p_eig - 1e-15)   # max(scan, root) >= root
     for i, p_oracle in rows:
-        assert p_scan[i] >= p_oracle - 6e-3, (seed, i, p_scan[i], p_oracle)
+        assert p_eig[i] >= p_oracle - 6e-3, (seed, i, p_eig[i], p_oracle)
 
 
-@pytest.mark.xfail(strict=False, reason=(
-    "CONFIRMED C3 finding MB-DIP-1 (2026-07-04): the shared_phase deep-dip "
-    "exact fallback (_shared_phase_fit, degree-(8HK-2) G-root path) "
-    "under-attains the true F max on rank-deficient phase-clustered "
-    "fixtures -- 3.562e-3 power / 4.95% raw chi2 on these committed "
-    "fixtures (seed 40005 row 21), up to 8.4e-2 power / 26.3% raw chi2 on "
-    "deeper every-band-dip recipes (independent reproduction). Mechanism: "
-    "the FP-constructed G drowns below its coefficient-rounding noise "
-    "floor at the maximizer, so no computed root lands near it. Shared "
-    "bitwise by scan and eigvals -- NOT a scan regression. See "
-    "VERIFICATION.md WP C3. XPASSes when fixed."))
 @pytest.mark.parametrize('seed', [40000, 40005, 40007])
 def test_multiband_shared_phase_deepdip_attains_F_oracle(seed):
-    """Tight version of the bounded gate: the fallback should attain the
-    independent F-oracle max to 1e-9, as it does on well-conditioned
-    fixtures."""
+    """C3.5 fix gate for MB-DIP-1 (was xfail while the defect was open):
+    with the deep-dip max(scan, root-path) merge, method='scan' must attain
+    the independent F-oracle max to 1e-9 on the rank-deficient
+    phase-clustered fixtures where the G-root path alone loses up to
+    3.6e-3 (committed seeds) / 8.4e-2 (deeper recipes)."""
     p_scan, _, rows = _deepdip_oracle_rows(seed)
     for i, p_oracle in rows:
         assert p_scan[i] >= p_oracle - 1e-9, (seed, i, p_scan[i], p_oracle)

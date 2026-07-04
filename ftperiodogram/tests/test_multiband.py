@@ -573,3 +573,113 @@ def test_mismatched_harmonics_raises():
     t, y, bands, dy = _simulate(TEMPLATE, band_offsets=(0.0, 0.3))
     with pytest.raises(ValueError):
         build_template_set({0: t2, 1: t3}, bands)
+
+
+# ----------------------------------------------------------------------
+# C3 finding SESAR-DIP-1 (VERIFICATION.md WP C3 / C3.5): the sesar-only
+# global-recentring variance term was assembled in the uncentered form
+# sum_k W_k Mbar_k^2 - (sum_k W_k Mbar_k)^2, whose O(0.1) coefficient mass
+# cancels to ~1e-13 on the circle when the bands' mean-template polynomials
+# are similar -- corrupting MM' by ~5e-4 relative at deep |MM| dips and the
+# returned peak power by ~1e-4 in BOTH directions (including OVERSTATEMENT,
+# the false-alarm direction). combine_band_summations now assembles the
+# algebraically identical centered form sum_k W_k (Mbar_k - Mbar_comb)^2.
+#
+# The fixture is the worst adjudicated cell of the C3 verification (F3,
+# seed 96001 recipe: H=10 eclipse-like template, K=3, 5 pts/band in two
+# ~3e-4-wide phase clumps): uncentered error vs the raw-data oracle was
+# +1.186e-4 (overstatement); centered is 3.6e-10. Golden oracle value from
+# the C3 raw-data weighted-LS oracle (2^13 shift grid + refinement).
+# ----------------------------------------------------------------------
+_SESAR_DIP_T = np.array([
+    6.5947940084648416e-05, 2.0507639052717020e-04, 8.1935551429797678e-05,
+    2.4676665726079294e+00, 2.4676200475208092e+00, 2.2603734193551384e-04,
+    2.3652833671225965e-04, 4.1904105601952947e-05, 2.4676928296831537e+00,
+    2.4676546638681818e+00, 8.2569951874920494e-05, 1.6000160834251593e-04,
+    2.0831668423992129e-04, 2.4677384707458896e+00, 2.4675534114732689e+00])
+_SESAR_DIP_Y = np.array([
+    -2.436573625343343, -2.609919279486644, -2.822845698710106,
+    -2.6984468383117606, -2.731749682405403, -2.933623044880887,
+    -2.8656818873659486, -2.9180859527818885, -2.903921157092899,
+    -2.8076172141370916, -2.218293653729429, -2.21051006985073,
+    -2.3324702206991472, -2.040438259527455, -2.2148419209099215])
+_SESAR_DIP_DY = np.array([
+    0.12183737377127442, 0.1446486246012699, 0.13079587223685737,
+    0.12354644648967136, 0.14141522432554846, 0.06564458953444063,
+    0.06758106015148926, 0.07687534245474707, 0.09126503444120482,
+    0.12592828815641843, 0.05295583000582459, 0.11763739002989276,
+    0.0571207022186115, 0.13727680873738343, 0.12640351311193032])
+_SESAR_DIP_BANDS = np.array(['a'] * 5 + ['b'] * 5 + ['c'] * 5)
+_SESAR_DIP_CN = np.array([
+    4.3636250153424664e-09, 6.9465339645364166e-01, 4.2877295288067980e-09,
+    -5.1115347291167179e-01, 4.1430527420865291e-09, 3.1702829483339839e-01,
+    3.9423423912021357e-09, -1.7200116008195929e-01, 3.7015313533088177e-09,
+    8.3737577161999949e-02])
+_SESAR_DIP_SN = np.array([
+    -1.5391820517180577e-01, 4.1010577884974835e-10, 1.7574835857399859e-01,
+    7.9978224230826565e-10, -1.8114200779218151e-01, 1.1516062894649659e-09,
+    1.4916546913604969e-01, 1.4533406904715261e-09, -9.7130848384831922e-02,
+    1.6988080176794876e-09])
+_SESAR_DIP_LAM = {'a': 0.0, 'b': -0.2978243289731143, 'c': 0.4159798682813498}
+_SESAR_DIP_F = 1.2158266519810017
+_SESAR_DIP_ORACLE = 0.24529791670787773
+
+
+def test_sesar_deepdip_centered_recentring_matches_oracle():
+    """The centered MM' assembly must agree with the raw-data oracle on the
+    adjudicated deep-dip cell (uncentered: +1.186e-4 overstatement)."""
+    tmpl = Template(_SESAR_DIP_CN, _SESAR_DIP_SN)
+    m = FastMultibandTemplatePeriodogram(
+        templates=tmpl, mode='sesar',
+        relative_offsets=_SESAR_DIP_LAM).fit(
+            _SESAR_DIP_T, _SESAR_DIP_Y, _SESAR_DIP_BANDS, _SESAR_DIP_DY)
+    freqs = np.array([_SESAR_DIP_F])
+    p_eig = m.power(freqs, fast=False, save_best_model=False)
+    p_scan = m.power(freqs, fast=False, save_best_model=False, method='scan')
+    assert abs(float(p_eig[0]) - _SESAR_DIP_ORACLE) <= 5e-9
+    assert abs(float(p_scan[0]) - _SESAR_DIP_ORACLE) <= 5e-9
+
+
+def test_sesar_deepdip_uncentered_construction_still_fails():
+    """Non-vacuity pin: the OLD uncentered construction, rebuilt inline from
+    the same per-band pieces, still misses the oracle by ~1e-4 on this cell
+    -- so the test above genuinely discriminates the constructions."""
+    from ftperiodogram.multiband import (compute_band_summations,
+                                         _per_band_YM_MM,
+                                         _mean_template_poly)
+    H = 10
+    tmpl = Template(_SESAR_DIP_CN, _SESAR_DIP_SN)
+    bands_ = np.unique(_SESAR_DIP_BANDS)
+    td = build_template_set(tmpl, bands_)
+    sl, stats = compute_band_summations(
+        _SESAR_DIP_T, _SESAR_DIP_Y, _SESAR_DIP_BANDS,
+        np.array([_SESAR_DIP_F]), H, dy=_SESAR_DIP_DY, mode='sesar',
+        relative_offsets=_SESAR_DIP_LAM, fast=False)
+    pb = _per_band_YM_MM(td, {b: sl[b][0] for b in stats.bands}, stats.bands)
+
+    YM = MM = AC = None
+    for b in stats.bands:
+        YM_k, MM_k, AC_k = pb[b]
+        wk = stats.W[b]
+        YM = wk * YM_k if YM is None else YM + wk * YM_k
+        MM = wk * MM_k if MM is None else MM + wk * MM_k
+        a = wk * np.asarray(AC_k)
+        AC = a if AC is None else AC + a
+    YM_c = MM_c = Mb = None
+    for b in stats.bands:
+        AC_k = pb[b][2]
+        wk = stats.W[b]
+        M_k = _mean_template_poly(AC_k)
+        term = wk * ((stats.ybar[b] - stats.ybar_global) * M_k)
+        YM_c = term if YM_c is None else YM_c + term
+        sq = wk * (M_k * M_k)                       # uncentered square
+        MM_c = sq if MM_c is None else MM_c + sq
+        wm = wk * M_k
+        Mb = wm if Mb is None else Mb + wm
+    YM_old = YM + YM_c
+    MM_old = MM + MM_c - Mb * Mb                    # big - big cancellation
+
+    _, pw_old, _ = core.roots_from_YM_MM(
+        YM_old, MM_old, AC, H, stats.ybar_global, stats.YY_global,
+        positive_amplitude=True)
+    assert abs(pw_old - _SESAR_DIP_ORACLE) >= 5e-5   # measured 1.186e-4

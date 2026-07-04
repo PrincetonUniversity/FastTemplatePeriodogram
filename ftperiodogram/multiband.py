@@ -55,7 +55,9 @@ DEFAULT_MODE = 'floating_offsets'
 # independent flow through core.scan_polish_YM_MM on the (band-combined)
 # YM/MM polynomials, and shared_phase scans the total power
 # F(phi) = sum_k W_k Re(YM_k^2 / MM_k) directly on max(128, 32 H K)
-# circle angles -- the degree-8HK polynomial G is never formed.
+# circle angles -- the degree-8HK polynomial G is only formed at deep-|MM|
+# dips, where the scan returns max(scan, root path) (C3.5 / MB-DIP-1:
+# scan >= eigvals there, equal elsewhere).
 METHODS = ('eigvals', 'scan')
 DEFAULT_METHOD = 'eigvals'
 
@@ -292,6 +294,10 @@ def combine_band_summations(per_band_YM_MM, W, ybar, ybar_global, mode):
         MM' = sum_k W_k MM^(k) + sum_k W_k (Mbar^(k))^2 - (sum_k W_k Mbar^(k))^2
 
     where ``Mbar^(k)`` is band ``k``'s (phi**H-scaled) mean-template polynomial.
+    The ``MM'`` variance correction is *assembled* in the algebraically equal
+    centered form ``sum_k W_k (Mbar^(k) - sum_l W_l Mbar^(l))^2`` (C3 finding
+    SESAR-DIP-1: the uncentered form loses ~12 digits to cancellation on the
+    circle when the bands' mean-template polynomials are similar).
     At ``K = 1`` (``ybar_k == ybar_global``, ``W_k == 1``) every correction term
     vanishes and both modes collapse to the single-band ``YM``/``MM``.
 
@@ -311,23 +317,36 @@ def combine_band_summations(per_band_YM_MM, W, ybar, ybar_global, mode):
         AC = AC_k if AC is None else AC + AC_k
 
     if mode == 'sesar':
-        YM_corr = MM_corr = Mbar_comb = None
+        YM_corr = Mbar_comb = None
+        Mbar = {}
         for band in bands:
             AC_k = per_band_YM_MM[band][2]
             wk = W[band]
-            Mbar_k = _mean_template_poly(AC_k)
+            Mbar[band] = _mean_template_poly(AC_k)
 
-            term = wk * ((ybar[band] - ybar_global) * Mbar_k)
+            term = wk * ((ybar[band] - ybar_global) * Mbar[band])
             YM_corr = term if YM_corr is None else YM_corr + term
 
-            sq = wk * (Mbar_k * Mbar_k)
-            MM_corr = sq if MM_corr is None else MM_corr + sq
-
-            wk_mbar = wk * Mbar_k
+            wk_mbar = wk * Mbar[band]
             Mbar_comb = wk_mbar if Mbar_comb is None else Mbar_comb + wk_mbar
 
+        # The re-centering variance term is computed in CENTERED form,
+        #     sum_k W_k (Mbar_k - Mbar_comb)^2
+        # which equals sum_k W_k Mbar_k^2 - Mbar_comb^2 exactly (the W_k sum
+        # to 1) but avoids its catastrophic cancellation: the uncentered
+        # form carries O(0.1) coefficient mass that cancels to ~1e-13 on
+        # the circle when the bands' mean-template polynomials are similar,
+        # corrupting MM' by up to ~5e-4 relative at deep |MM| dips and the
+        # peak power by ~1e-4 in BOTH directions (C3 finding SESAR-DIP-1,
+        # VERIFICATION.md).
+        MM_corr = None
+        for band in bands:
+            D_k = Mbar[band] - Mbar_comb
+            sq = W[band] * (D_k * D_k)
+            MM_corr = sq if MM_corr is None else MM_corr + sq
+
         YM = YM + YM_corr
-        MM = MM + MM_corr - Mbar_comb * Mbar_comb
+        MM = MM + MM_corr
 
     return YM, MM, AC
 
@@ -492,7 +511,9 @@ def _shared_phase_fit(template_dict, per_band_sums, stats):
         G = term if G is None else G + term
 
     # true degree <= 8HK-2; the nominal leading coefficient is FP residue
-    G = pdg.trim_zero_leading_coef(G)
+    # (length-gated: keep a genuine small leading coefficient when numpy
+    # already removed the exactly-cancelled zero -- C3 finding FO-TRIM-1)
+    G = pdg.trim_zero_leading_coef(G, nominal_degree=8 * H * len(bands) - 1)
 
     roots = G.roots()
     roots = roots[np.absolute(roots) > 0]
@@ -543,12 +564,17 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
     ``|MM_k|``, refined to the ``|MM_k|^2`` minimum -- with Newton steps on
     ``dF/dtheta`` using the analytic per-band derivatives of
     :func:`ftperiodogram.core._scan_dP_d2P`, summed over bands with weights
-    ``W_k``. Frequencies where any band's ``|MM_k|`` nearly vanishes on the
-    circle (see :data:`ftperiodogram.core._SCAN_EXACT_RTOL`) are handed to
-    the exact :func:`_shared_phase_fit` root path, where narrow spikes of
-    ``F`` defeat any grid scan. On the scan path the degree-``8HK``
-    stationarity polynomial ``G`` is never formed, so the ``(HK)^3``
-    per-frequency root-finding cost is avoided.
+    ``W_k``. At frequencies where any band's ``|MM_k|`` nearly vanishes on
+    the circle (see :data:`ftperiodogram.core._SCAN_EXACT_RTOL`) the exact
+    :func:`_shared_phase_fit` root path is ALSO run and the better of the
+    two solutions is returned: narrow sub-grid spikes of ``F`` defeat any
+    grid scan (the root path's guarantee), while in the same regime the
+    root path's ``G`` polynomial can drown below its FP noise floor exactly
+    where ``F`` peaks (the scan's guarantee; C3 finding MB-DIP-1). Both
+    evaluate the true objective at genuine phases, so the max is a valid
+    lower bound that never overshoots. Away from deep dips the
+    degree-``8HK`` stationarity polynomial ``G`` is never formed, so the
+    ``(HK)^3`` per-frequency root-finding cost is avoided.
 
     Parameter reconstruction (per-band ``theta_1``, offsets) is identical
     to :func:`_shared_phase_fit`.
@@ -577,14 +603,43 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
     Yg = pdg._eval_polys_on_circle(Yco, M_ang)               # (K, M)
     Mg = pdg._eval_polys_on_circle(Mco, M_ang)
 
-    # exact fallback: when ANY band's |MM_k| dips deep on the circle, F can
-    # carry a spike the grid scan + seeded polish has no convergence
-    # guarantee for (see core._SCAN_EXACT_RTOL); hand the whole frequency
-    # to the exact G-polynomial root path.
+    # Deep-dip regime: when ANY band's |MM_k| dips below _SCAN_EXACT_RTOL
+    # of its circle max, neither maximizer dominates. F can carry a
+    # sub-grid-width spike the grid scan + seeded polish has no bracketing
+    # guarantee for (Bernstein: such a spike REQUIRES a deep dip) -- but in
+    # the same regime the exact path's degree-(8HK-2) G polynomial can
+    # drown below its own FP coefficient noise floor precisely where F
+    # peaks, so G carries no root there while F itself stays smooth and
+    # scannable (C3 finding MB-DIP-1: verbatim delegation cost up to
+    # 8.4e-2 of power on rank-deficient phase-clustered fixtures). So run
+    # BOTH maximizers and return the better one: each evaluates the true
+    # objective at a genuine phase, so each is a valid lower bound and
+    # their max never overshoots (C2 fix-evaluation critic; the C3
+    # root-cause agent validated the scan machinery recovers the G-path
+    # deficits to < 2e-14).
     absMg = np.abs(Mg)
-    if np.any(np.min(absMg, axis=1) <
-              pdg._SCAN_EXACT_RTOL * np.max(absMg, axis=1)):
-        return _shared_phase_fit(template_dict, per_band_sums, stats)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        r_min = float(np.min(np.min(absMg, axis=1) / np.max(absMg, axis=1)))
+    deep_dip = r_min < pdg._SCAN_EXACT_RTOL
+
+    if deep_dip:
+        # Escalate the scan density until the grid is guaranteed to bracket
+        # the narrowest F spike a dip of this depth can host: a sub-grid
+        # spike of a band's Re(YM_k^2/MM_k) term requires
+        # min|MM_k| <= max|MM_k| ((2H) dtheta)^2 / 2 (the C2 Bernstein
+        # bound), so dtheta <= sqrt(2 r_min)/(2H) suffices; capped at
+        # core._SCAN_DEEP_MAX_ANGLES (the exact path below still covers the
+        # capped extreme). Validated on the C3 reproduction fixtures: the
+        # default M misses genuine ~1e-3-cycle-wide peaks by up to 2e-2;
+        # the escalated grid attains the raw-data oracle to <~1e-9.
+        need = 2.0 * np.pi * 2.0 * H / np.sqrt(max(2.0 * r_min, 1e-30))
+        M_deep = int(min(pdg._SCAN_DEEP_MAX_ANGLES,
+                         max(M_ang, 1 << int(np.ceil(np.log2(need))))))
+        if M_deep > M_ang:
+            M_ang = M_deep
+            Yg = pdg._eval_polys_on_circle(Yco, M_ang)
+            Mg = pdg._eval_polys_on_circle(Mco, M_ang)
+            absMg = np.abs(Mg)
 
     with np.errstate(divide='ignore', invalid='ignore'):
         Fg = np.dot(Wv, np.real(Yg * Yg / Mg))               # (M,)
@@ -677,7 +732,11 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
         F0 = np.concatenate([F0, F_dip])
 
     if len(theta0) == 0 or not np.any(F0 > -np.inf):
-        # no candidate with finite total power anywhere: degenerate
+        # no scan candidate with finite total power anywhere: degenerate
+        # for the scan; in the deep-dip regime let the exact path decide
+        # (it applies its own degenerate guards)
+        if deep_dip:
+            return _shared_phase_fit(template_dict, per_band_sums, stats)
         return _flat_model(stats, 'shared_phase')
 
     theta = theta0.copy()
@@ -709,6 +768,16 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
         theta_1_k = np.real(np.power(best_phi, H) * P_YM(best_phi) / P_MM(best_phi))
         c_k = stats.ybar[k] - theta_1_k * _mbar_at(AC_k, best_phi)
         params_by_band[k] = ModelFitParams(a=theta_1_k, b=b, c=c_k, sgn=sgn)
+
+    if deep_dip:
+        # max(scan, exact root path): strictly safe (both are valid lower
+        # bounds of the true max of F); ties go to the exact path, which
+        # keeps the historical behavior wherever the root path is already
+        # optimal (see the deep-dip comment above / MB-DIP-1)
+        root_params, root_power = _shared_phase_fit(template_dict,
+                                                    per_band_sums, stats)
+        if root_power >= power:
+            return root_params, float(root_power)
 
     return MultibandModelFitParams(params_by_band, 'shared_phase'), float(power)
 
