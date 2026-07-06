@@ -416,3 +416,17 @@ Zero unfixed critical/major findings; all panel findings were minor/info and are
 `20bf034` or recorded above. **WP C3.5 signed off 2026-07-05 (adversarial verification in
 lieu of human review, per delegation). The C3 escalation is RESOLVED (option A); C4 is
 unblocked.**
+
+## WP C4 — scan+polish is the default (`bbdf0ca`) — 2026-07-06
+
+Defaults flipped (core / multiband / modeler); `method='eigvals'` retained permanently as the
+reference/validation mode. Anti-drift pins in `test_default_method.py`: default ≡ scan
+(bitwise, single band + all four multiband modes + modeler autopower); default ≡ eigvals to
+1e-12 with identical argmax on conditioning-screened fixtures (two-sided scope per WP C3
+finding 4b); shared_phase deep-dip one-sidedness (default ≥ eigvals, ≥1e-5 recovery
+non-vacuity) per the C3.5 contract. 27 pre-existing reference comparisons made explicitly
+`method='eigvals'` (they would otherwise have become scan-vs-scan tautologies). Default-path
+smoke benchmark: 26.3× @H=2 / 19.8× @H=8 / 22.1× @H=10 vs eigvals, max|ΔP| ~1e-15
+(N_obs=300, N_freq=20000). Full suite 483 / 1 / 2 / 0. The production experiment harness
+(FTPEstimator, greedy source_masks, joint-EM E-step) now runs the scan maximizer by default —
+relevant to B8-closure and C5 timing.
