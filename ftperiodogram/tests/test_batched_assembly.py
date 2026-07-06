@@ -48,7 +48,7 @@ def test_gate_batched_power_matches_eigvals(H, N):
     for seed in GATE_SEEDS:
         t, y, dy, template, freqs = _simulate(H, N, seed)
         p_ref, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                        freqs, fast=True)
+                                        freqs, fast=True, method='eigvals')
         p_bat, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                         freqs, fast=True, method='batched')
         worst = max(worst, float(np.max(np.abs(p_ref - p_bat))))
@@ -61,7 +61,7 @@ def test_batched_power_matches_eigvals_direct_sums(H):
     for seed in (0, 1):
         t, y, dy, template, freqs = _simulate(H, 30, seed)
         p_ref, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                        freqs, fast=False)
+                                        freqs, fast=False, method='eigvals')
         p_bat, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                         freqs, fast=False, method='batched')
         assert float(np.max(np.abs(p_ref - p_bat))) <= GATE_TOL
@@ -83,7 +83,7 @@ def test_batched_with_user_provided_summations():
     w = weights(dy)
     sums = direct_summations(t, y, w, freqs, len(template.c_n))
     p_ref, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                    freqs, summations=sums)
+                                    freqs, summations=sums, method='eigvals')
     p_bat, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                     freqs, summations=sums, method='batched')
     assert float(np.max(np.abs(p_ref - p_bat))) <= GATE_TOL
@@ -140,7 +140,7 @@ def test_modeler_autopower_batched_matches():
     ftp = FastTemplatePeriodogram(template=template).fit(t, y, dy)
     kw = dict(minimum_frequency=0.5, maximum_frequency=3.0,
               samples_per_peak=3)
-    f_ref, p_ref = ftp.autopower(**kw)
+    f_ref, p_ref = ftp.autopower(**kw, method='eigvals')
     f_bat, p_bat = ftp.autopower(method='batched', **kw)
     assert np.array_equal(f_ref, f_bat)
     assert float(np.max(np.abs(p_ref - p_bat))) <= GATE_TOL
@@ -154,7 +154,7 @@ def test_multi_template_autopower_batched_matches():
     ftp = FastMultiTemplatePeriodogram(templates=templates).fit(t, y, dy)
     kw = dict(minimum_frequency=0.5, maximum_frequency=3.0,
               samples_per_peak=3)
-    f_ref, p_ref = ftp.autopower(**kw)
+    f_ref, p_ref = ftp.autopower(**kw, method='eigvals')
     f_bat, p_bat = ftp.autopower(method='batched', **kw)
     assert np.array_equal(f_ref, f_bat)
     assert float(np.max(np.abs(p_ref - p_bat))) <= GATE_TOL
@@ -168,7 +168,7 @@ def test_batched_params_match_eigvals(H):
     fitted-curve test below."""
     t, y, dy, template, freqs = _simulate(H, 30, 5)
     _, prm_ref = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                      freqs)
+                                      freqs, method='eigvals')
     _, prm_bat = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                       freqs, method='batched')
     ref = np.array([[p.a, p.b, p.c, p.sgn] for p in prm_ref])
@@ -182,7 +182,7 @@ def test_batched_h1_fitted_curves_match():
     the fitted models themselves."""
     t, y, dy, template, freqs = _simulate(1, 30, 5)
     _, prm_ref = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                      freqs)
+                                      freqs, method='eigvals')
     _, prm_bat = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                       freqs, method='batched')
     t_dense = np.linspace(t.min(), t.max(), 500)

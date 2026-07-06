@@ -172,10 +172,29 @@ unknown shape, it might make more sense to use a multi-harmonic periodogram.
 
 For more discussion of the multiharmonic periodogram and related extensions, see [VanderPlas_etal_2015]_ and [VanderPlas2017]_.
 
+Phase-maximizer methods
+-----------------------
+
+``template_periodogram``, the modeler classes, and the multiband solver take a
+``method`` keyword selecting how the per-frequency maximization over the phase
+parameter is performed:
+
+* ``'scan'`` (the default): an FFT circle scan plus Newton polish of every
+  bracketed local maximum, with automatic density escalation and an
+  exact-root merge at numerically extreme frequencies. It is much faster at
+  high harmonic number and is verified equivalent to the reference path to
+  ~1e-12 on well-conditioned data (see ``VERIFICATION.md`` for the
+  adversarial verification record and the conditioning-scoped guarantees).
+* ``'eigvals'``: the reference root-finding path (companion-matrix roots of
+  the per-frequency stationarity polynomial), retained permanently as the
+  validation mode.
+* ``'batched'`` (single band): the same root selection on vectorized
+  coefficient assembly; numerically equivalent to ``'eigvals'``.
+
 TODO
 ----
 
-* Speed improvements
+* GPU implementation
 
 
 References

@@ -57,9 +57,11 @@ DEFAULT_MODE = 'floating_offsets'
 # F(phi) = sum_k W_k Re(YM_k^2 / MM_k) directly on max(128, 32 H K)
 # circle angles -- the degree-8HK polynomial G is only formed at deep-|MM|
 # dips, where the scan returns max(scan, root path) (C3.5 / MB-DIP-1:
-# scan >= eigvals there, equal elsewhere).
+# scan >= eigvals there, equal elsewhere). 'scan' is the default since
+# WP C4; 'eigvals' is retained permanently as the reference/validation
+# mode.
 METHODS = ('eigvals', 'scan')
-DEFAULT_METHOD = 'eigvals'
+DEFAULT_METHOD = 'scan'
 
 
 def _validate_method(method):

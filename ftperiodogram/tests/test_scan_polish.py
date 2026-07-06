@@ -72,7 +72,7 @@ def test_gate1_scan_matches_eigvals(H, N):
     for seed in GATE_SEEDS:
         t, y, dy, template, freqs = _simulate(H, N, seed)
         p_ref, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                        freqs, fast=True)
+                                        freqs, fast=True, method='eigvals')
         p_scan, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                          freqs, fast=True, method='scan')
         assert float(np.max(np.abs(p_ref - p_scan))) <= GATE_TOL
@@ -85,7 +85,7 @@ def test_scan_matches_eigvals_direct_sums(H):
     for seed in (0, 1):
         t, y, dy, template, freqs = _simulate(H, 30, seed)
         p_ref, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                        freqs, fast=False)
+                                        freqs, fast=False, method='eigvals')
         p_scan, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                          freqs, fast=False, method='scan')
         assert float(np.max(np.abs(p_ref - p_scan))) <= GATE_TOL
@@ -210,7 +210,7 @@ def test_gate4_scan_weight_conditioning_within_2x_of_eigvals(weight_ratio):
     freqs = regular_grid(t)
 
     p_ref = GLSEstimator().power_spectrum(t, y, None, dy, freqs)
-    p_eig, _ = template_periodogram(t, y, dy, H1_CN, H1_SN, freqs, fast=False)
+    p_eig, _ = template_periodogram(t, y, dy, H1_CN, H1_SN, freqs, fast=False, method='eigvals')
     p_scan, _ = template_periodogram(t, y, dy, H1_CN, H1_SN, freqs,
                                      fast=False, method='scan')
 
@@ -249,7 +249,7 @@ def test_multiband_scan_matches_eigvals(mode, H):
               if mode == 'sesar' else {})
         m = FastMultibandTemplatePeriodogram(templates=tmpl, mode=mode,
                                              **kw).fit(t, y, bands, dy)
-        p_e = m.power(freqs, fast=True, save_best_model=False)
+        p_e = m.power(freqs, fast=True, save_best_model=False, method='eigvals')
         p_s = m.power(freqs, fast=True, save_best_model=False, method='scan')
         assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (mode, H, seed)
         assert int(np.argmax(p_e)) == int(np.argmax(p_s))
@@ -261,7 +261,7 @@ def test_multiband_scan_three_bands_shared_phase():
     t, y, bands, dy, tmpl, freqs, _ = _simulate_multiband(3, 30, 2, K=3)
     m = FastMultibandTemplatePeriodogram(templates=tmpl,
                                          mode='shared_phase').fit(t, y, bands, dy)
-    p_e = m.power(freqs, fast=True, save_best_model=False)
+    p_e = m.power(freqs, fast=True, save_best_model=False, method='eigvals')
     p_s = m.power(freqs, fast=True, save_best_model=False, method='scan')
     assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL
 
@@ -283,7 +283,7 @@ def test_scan_params_match_eigvals(H):
     tied +/-phi maxima are a parametrization gauge (see curve test below)."""
     t, y, dy, template, freqs = _simulate(H, 30, 5)
     _, prm_ref = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                      freqs)
+                                      freqs, method='eigvals')
     _, prm_scan = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                        freqs, method='scan')
     ref = np.array([[p.a, p.b, p.c, p.sgn] for p in prm_ref])
@@ -295,7 +295,7 @@ def test_scan_h1_fitted_curves_match():
     """H = 1: gauge-invariant equivalence of the fitted models themselves."""
     t, y, dy, template, freqs = _simulate(1, 30, 5)
     _, prm_ref = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                      freqs)
+                                      freqs, method='eigvals')
     _, prm_scan = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                        freqs, method='scan')
     t_dense = np.linspace(t.min(), t.max(), 500)
@@ -339,7 +339,7 @@ def test_scan_constant_y_zero_power():
     p, prm = template_periodogram(t, y, dy, [0.7, 0.2], [0.1, -0.1], freqs,
                                   fast=False, method='scan')
     p_eig, prm_eig = template_periodogram(t, y, dy, [0.7, 0.2], [0.1, -0.1],
-                                          freqs, fast=False)
+                                          freqs, fast=False, method='eigvals')
     assert np.all(np.isfinite(p)) and np.allclose(p, 0.0)
     assert all(np.allclose(q.a, 0.0) and np.allclose(q.c, 3.5) for q in prm)
     # both maximizers sit on the same ~1e-33 residue landscape (not bitwise:
@@ -377,7 +377,7 @@ def test_scan_reachable_from_modeler_autopower():
     ftp = FastTemplatePeriodogram(template=template).fit(t, y, dy)
     kw = dict(minimum_frequency=0.5, maximum_frequency=3.0,
               samples_per_peak=3)
-    f_ref, p_ref = ftp.autopower(**kw)
+    f_ref, p_ref = ftp.autopower(**kw, method='eigvals')
     f_scan, p_scan = ftp.autopower(method='scan', **kw)
     assert np.array_equal(f_ref, f_scan)
     assert float(np.max(np.abs(p_ref - p_scan))) <= GATE_TOL
@@ -388,7 +388,7 @@ def test_scan_with_user_provided_summations():
     w = weights(dy)
     sums = direct_summations(t, y, w, freqs, len(template.c_n))
     p_ref, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
-                                    freqs, summations=sums)
+                                    freqs, summations=sums, method='eigvals')
     p_scan, _ = template_periodogram(t, y, dy, template.c_n, template.s_n,
                                      freqs, summations=sums, method='scan')
     assert float(np.max(np.abs(p_ref - p_scan))) <= GATE_TOL
@@ -497,7 +497,7 @@ def test_narrow_peak_eclipse_sparse_matches_eigvals(H, N):
         y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(N)
         freqs = np.linspace(0.2, 3.0, 40)
         p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
-                                      fast=False)
+                                      fast=False, method='eigvals')
         p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
                                       fast=False, method='scan')
         assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (seed, H, N)
@@ -520,7 +520,7 @@ def test_narrow_peak_extreme_corner_conditioning():
         y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(6)
         freqs = np.linspace(0.2, 3.0, 40)
         p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
-                                      fast=False)
+                                      fast=False, method='eigvals')
         p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
                                       fast=False, method='scan')
         worst = max(worst, float(np.max(np.abs(p_e - p_s))))
@@ -546,7 +546,7 @@ def test_narrow_peak_clustered_cadence():
         y = tmpl((t * 0.62) % 1.0) + 0.1 * rng.standard_normal(N)
         freqs = np.linspace(0.3, 1.5, 30)
         p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
-                                      fast=False)
+                                      fast=False, method='eigvals')
         p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
                                       fast=False, method='scan')
         assert float(np.max(np.abs(p_e - p_s))) <= 5e-12, seed
@@ -571,7 +571,7 @@ def test_narrow_peak_nightly_cadence_alias():
         y = tmpl((t / 0.51) % 1.0) + dy * rng.standard_normal(len(t))
         freqs = np.linspace(0.9995, 1.0005, 21)
         p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
-                                      fast=False)
+                                      fast=False, method='eigvals')
         p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
                                       fast=False, method='scan')
         assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, seed
@@ -606,7 +606,7 @@ def test_narrow_peak_multiband_clustered():
             m = FastMultibandTemplatePeriodogram(
                 templates=tmpl, mode=mode).fit(t, y, bands, dy)
             freqs = np.linspace(0.8, 1.2, 25)
-            p_e = m.power(freqs, fast=False, save_best_model=False)
+            p_e = m.power(freqs, fast=False, save_best_model=False, method='eigvals')
             p_s = m.power(freqs, fast=False, save_best_model=False,
                           method='scan')
             if mode == 'shared_phase':
@@ -633,7 +633,7 @@ def test_narrow_peak_concentrated_weights_high_H():
             y = tmpl((t / 0.77) % 1.0) + dy * rng.standard_normal(N)
             freqs = np.linspace(0.2, 3.0, 40)
             p_e, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n,
-                                          freqs, fast=False)
+                                          freqs, fast=False, method='eigvals')
             p_s, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n,
                                           freqs, fast=False, method='scan')
             assert float(np.max(np.abs(p_e - p_s))) <= GATE_TOL, (ratio, seed)
@@ -666,7 +666,7 @@ def test_scan_exact_fallback_is_load_bearing(monkeypatch):
 
     t, y, dy, tmpl, freqs = _corner_fixture(10004)
     p_eig, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
-                                    fast=False)
+                                    fast=False, method='eigvals')
     p_prod, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
                                      fast=False, method='scan')
     assert float(np.max(np.abs(p_eig - p_prod))) <= 5e-10
@@ -696,7 +696,7 @@ def test_scan_dip_candidates_are_load_bearing(monkeypatch):
     freqs = np.linspace(0.2, 3.0, 40)
 
     p_eig, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
-                                    fast=False)
+                                    fast=False, method='eigvals')
     p_prod, _ = template_periodogram(t, y, dy, tmpl.c_n, tmpl.s_n, freqs,
                                      fast=False, method='scan')
     assert float(np.max(np.abs(p_eig - p_prod))) <= GATE_TOL
@@ -872,7 +872,7 @@ def test_multiband_shared_phase_scan_vs_independent_F_oracle(seed):
     m = FastMultibandTemplatePeriodogram(
         templates=tmpl, mode='shared_phase').fit(t, y, bands, dy)
     p_scan = m.power(freqs, fast=False, save_best_model=False, method='scan')
-    p_eig = m.power(freqs, fast=False, save_best_model=False)
+    p_eig = m.power(freqs, fast=False, save_best_model=False, method='eigvals')
 
     for i in range(0, len(freqs), 4):
         per_band_sums = {b: per_band_sumlists[b][i] for b in stats.bands}
@@ -942,7 +942,7 @@ def _deepdip_oracle_rows(seed, rows=(0, 8, 14, 21)):
     m = FastMultibandTemplatePeriodogram(
         templates=tmpl, mode='shared_phase').fit(t, y, bands, dy)
     p_scan = m.power(freqs, fast=False, save_best_model=False, method='scan')
-    p_eig = m.power(freqs, fast=False, save_best_model=False)
+    p_eig = m.power(freqs, fast=False, save_best_model=False, method='eigvals')
 
     M_ang = max(core._SCAN_MIN_ANGLES,
                 core._SCAN_ANGLES_PER_H * H * len(bands_))

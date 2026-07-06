@@ -933,7 +933,7 @@ def _template_periodogram_batched(t, y, w, cn, sn, freqs, ybar, YY,
 
 def template_periodogram(t, y, dy, cn, sn, freqs,
                         summations=None, fast=True, sigma=2, tol=1E-7,
-                        method='eigvals', chunk_size=4096):
+                        method='scan', chunk_size=4096):
     r"""
     Produces a template periodogram using a single template
 
@@ -963,10 +963,12 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
     tol : float, optional (default 1e-7)
         NFFT kernel truncation tolerance; forwarded to `fast_summations`
         (only used when `fast=True` and `summations` is None).
-    method : str, optional (default 'eigvals')
-        'eigvals' is the reference per-frequency path (polynomial objects
-        assembled and rooted one frequency at a time). 'batched' assembles
-        the YM/MM/stationarity coefficients for whole chunks of frequencies
+    method : str, optional (default 'scan')
+        'scan' -- the default since WP C4 -- is the scan+polish maximizer;
+        'eigvals' is retained permanently as the reference/validation mode
+        (the per-frequency path: polynomial objects assembled and rooted
+        one frequency at a time). 'batched' assembles the
+        YM/MM/stationarity coefficients for whole chunks of frequencies
         as stacked arrays (vectorized over frequency) and then runs the same
         per-frequency root selection on the precomputed coefficients; it is
         numerically equivalent (powers agree to ~1e-15). 'scan' uses the
