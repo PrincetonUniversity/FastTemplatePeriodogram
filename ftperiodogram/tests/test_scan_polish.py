@@ -922,9 +922,11 @@ def _deepdip_oracle_rows(seed, rows=(0, 8, 14, 21)):
     """(p_scan, p_eig, [(row, p_oracle), ...]) on a deep-dip fixture, with
     the fallback trigger asserted for every sampled row (regime guard).
     Rows 8 and 21 are the known deficit-carrying rows (C3 verification,
-    per-row adjudication on seed 40005: +3.838e-4 at row 8, +3.562e-3 at
-    row 21 = f=1.15, the clump-degenerate frequency); 0 and 14 are clean
-    contrast rows."""
+    per-row adjudication on seed 40005 against the PRE-C3.5 tree:
+    +3.838e-4 at row 8, +3.562e-3 at row 21 = f=1.15, the clump-degenerate
+    frequency; post-C3.5 the G-trim gate alone recovered +2.92e-3 of the
+    row-21 deficit, leaving ~4.5e-4 on the eigvals reference); 0 and 14
+    are clean contrast rows."""
     from ..multiband import (build_template_set, compute_band_summations,
                              _per_band_YM_MM)
     from .. import core
@@ -961,14 +963,15 @@ def _deepdip_oracle_rows(seed, rows=(0, 8, 14, 21)):
 @pytest.mark.parametrize('seed', [40000, 40005, 40007])
 def test_multiband_shared_phase_deepdip_bounded_vs_F_oracle(seed):
     """Deep-dip regime, eigvals-side net: the exact G-root REFERENCE path
-    retains its documented MB-DIP-1 deficit (the FP-constructed G drowns
-    below its coefficient noise floor at the maximizer; worst on THESE
-    committed fixtures 3.562e-3 at seed 40005 row 21; up to 8.4e-2 on
-    deeper every-band-dip recipes -- see VERIFICATION.md WP C3), so it is
-    gated by a bounded catastrophic-regression net vs the independent
-    F-oracle, which no scan-vs-eigvals comparison can provide. The scan,
-    post-C3.5, must never fall below the eigvals reference (max-merge
-    safety)."""
+    retains a (reduced) MB-DIP-1 deficit -- the FP-constructed G drowns
+    below its coefficient noise floor at the maximizer; pre-C3.5 worst on
+    THESE committed fixtures 3.562e-3 at seed 40005 row 21 (up to 8.4e-2
+    on deeper every-band-dip recipes), post-C3.5 the G-trim gate recovered
+    most of it (~4.5e-4 residual at that cell) -- see VERIFICATION.md WP
+    C3/C3.5. It is gated by a bounded catastrophic-regression net vs the
+    independent F-oracle, which no scan-vs-eigvals comparison can provide.
+    The scan, post-C3.5, must never fall below the eigvals reference
+    (max-merge safety)."""
     p_scan, p_eig, rows = _deepdip_oracle_rows(seed)
     assert np.all(p_scan >= p_eig - 1e-15)   # max(scan, root) >= root
     for i, p_oracle in rows:

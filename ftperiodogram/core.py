@@ -405,9 +405,17 @@ _SCAN_EXACT_RTOL = 0.15
 # densified until the Bernstein bracketing bound
 # dtheta <= sqrt(2 r_min)/(2H) (r_min = worst band's min|MM|/max|MM| on the
 # circle) is met, so no F spike a dip of that depth can host escapes the
-# grid; the cap bounds the FFT length when r_min is extreme (the exact
-# root path still runs at those rows and the max of both is returned).
-_SCAN_DEEP_MAX_ANGLES = 1 << 17
+# grid; the cap bounds the FFT length when r_min is extreme. Below
+# r_min ~ (4 pi H / cap)^2 / 2 (~4.6e-10 at H = 8 with the 2^20 cap) the
+# bound is unmet and the remaining mitigations -- dip-Newton candidate
+# seeds and max(scan, exact root path) -- are BEST-EFFORT, not guaranteed
+# (MB-DIP-1 is itself proof the exact path can also fail there); the
+# C3.5 panel measured residual true misses up to ~1.5e-4 at the old 2^17
+# cap in that zone, recovered to the ~1e-6 local float64 evaluation floor
+# by 2^20 (its own adjudicated recommendation). Note the escalation sizes
+# the grid from the coarse-grid r_min measured once, so a dip deeper than
+# coarse-measured is also covered only by the same best-effort net.
+_SCAN_DEEP_MAX_ANGLES = 1 << 20
 
 
 def _scan_dP_d2P(Y, Y1, Y2, Mm, M1, M2):

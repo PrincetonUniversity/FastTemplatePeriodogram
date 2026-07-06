@@ -294,10 +294,14 @@ def combine_band_summations(per_band_YM_MM, W, ybar, ybar_global, mode):
         MM' = sum_k W_k MM^(k) + sum_k W_k (Mbar^(k))^2 - (sum_k W_k Mbar^(k))^2
 
     where ``Mbar^(k)`` is band ``k``'s (phi**H-scaled) mean-template polynomial.
-    The ``MM'`` variance correction is *assembled* in the algebraically equal
-    centered form ``sum_k W_k (Mbar^(k) - sum_l W_l Mbar^(l))^2`` (C3 finding
-    SESAR-DIP-1: the uncentered form loses ~12 digits to cancellation on the
-    circle when the bands' mean-template polynomials are similar).
+    The ``MM'`` variance correction is *assembled* in the centered form
+    ``sum_k W_k (Mbar^(k) - sum_l W_l Mbar^(l))^2`` -- the definition of the
+    between-band variance, algebraically equal to the uncentered form above
+    when the ``W_k`` sum to 1 and insensitive (second order) to the actual
+    ulp-level deviation of their float sum from 1 (C3 finding SESAR-DIP-1:
+    the uncentered form loses ~12 digits to cancellation on the circle when
+    the bands' mean-template polynomials are similar; C3.5 panel measured
+    the centered assembly at 1.3e-21 abs error vs 4.6e-16 uncentered).
     At ``K = 1`` (``ybar_k == ybar_global``, ``W_k == 1``) every correction term
     vanishes and both modes collapse to the single-band ``YM``/``MM``.
 
@@ -628,8 +632,10 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
         # spike of a band's Re(YM_k^2/MM_k) term requires
         # min|MM_k| <= max|MM_k| ((2H) dtheta)^2 / 2 (the C2 Bernstein
         # bound), so dtheta <= sqrt(2 r_min)/(2H) suffices; capped at
-        # core._SCAN_DEEP_MAX_ANGLES (the exact path below still covers the
-        # capped extreme). Validated on the C3 reproduction fixtures: the
+        # core._SCAN_DEEP_MAX_ANGLES. Where the cap binds (see the
+        # constant's comment) the bracketing bound is unmet and the
+        # dip-Newton seeds plus the max(scan, root) merge below are
+        # best-effort only. Validated on the C3 reproduction fixtures: the
         # default M misses genuine ~1e-3-cycle-wide peaks by up to 2e-2;
         # the escalated grid attains the raw-data oracle to <~1e-9.
         need = 2.0 * np.pi * 2.0 * H / np.sqrt(max(2.0 * r_min, 1e-30))
