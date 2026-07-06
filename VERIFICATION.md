@@ -333,3 +333,86 @@ C3 text ("ESCALATE if it finds one") and the 2026-06-12 delegation (ESCALATE on 
 defect), **C3 is NOT signed off; ESCALATED to John 2026-07-04** with a validated fix package
 (scan-first + max(scan, root) for shared_phase; one-line trim length-gate; sesar recentring
 reformulation to be designed). **C4 (default flip) not started** — strict C-track order.
+
+## WP C3.5 — deep-dip reference-path fixes (`dd632f0`, `decfe08`, `20bf034`) — VERIFIED 2026-07-05
+
+**Scope**: John approved option A of the C3 escalation (2026-07-04): fix the three confirmed
+defects, then C4. **Fixes**: FO-TRIM-1 — `trim_zero_leading_coef` length-gated by the nominal
+degree (6H−1 band / 8HK−1 shared-phase G), so a genuine degree-(6H−2) coefficient is never
+eaten after numpy has removed the exactly-cancelled analytic zero. SESAR-DIP-1 — the sesar
+recentring variance term is assembled in centered form Σ W_k (M̄_k − M̄_comb)² (the
+between-band variance definition; second-order-insensitive to the ~2-ulp deviation of the
+float W_k sum from 1). MB-DIP-1 — `_shared_phase_scan_fit` no longer delegates deep-dip rows
+verbatim to the G-root path: it escalates the scan grid to the Bernstein bracketing bound
+Δθ ≤ √(2 r_min)/(2H) (cap `_SCAN_DEEP_MAX_ANGLES` = 2^20 after panel hardening) and returns
+max(scan, root path) — strictly safe, both being true-objective evaluations at genuine
+phases. **Deliberate contract change**: shared_phase `method='scan'` is now ONE-SIDED at deep
+dips (scan ≥ eigvals, recovering the reference's deficit); eigvals stays the pure reference.
+
+### Fix results (orchestrator, re-running the C3 harnesses on fixed code)
+
+- M3's independent 400-cell MB-DIP-1 sweep: worst (oracle − scan) 8.4e-2 → **7.1e-10** at the
+  final 2^20 cap (zero cells >1e-9; overshoot ≤9.1e-10 = shared floor; scan ≥ eigvals on
+  400/400). The default-density max-merge alone left up to 2.0e-2 (68/400) — the Bernstein
+  escalation was REQUIRED, not optional.
+- F3's 96-cell sesar sweep: worst |error| 1.186e-4 → **5.9e-10** (both signs bounded).
+- F3's floating_offsets / independent sweeps: 7.4e-10 / 6.8e-9 (unchanged micro-levels).
+- F2's adjudicated FO-TRIM-1 cells: gains +3.93e-8 / +3.42e-8 reproduced exactly.
+- Realistic-cadence probe: worst 2.9e-8 → 3.0e-12. Full suite 470 passed / 1 skipped /
+  2 xfailed (the 3 MB-DIP-1 xfails now PASS as fix gates; +4 new regression tests).
+
+### Adversarial panel (workflow `wf_2f97265f-95b`, 8 agents; A6 refutation agent stalled and
+### was dropped — its three checks were covered by A1/A3/A4 (overshoot vs 50-digit truth),
+### A2 (Bernstein-transfer + cap-zone analysis), and an orchestrator probe (one-sidedness:
+### 200 fresh deep-dip cells, 0 violations, 31 bitwise root-wins / 169 scan recoveries)
+
+- **A1 (MB-DIP-1, harsher fixtures than C3)**: 360 cells (clump widths 3e-4 AND 3e-5, K≤4,
+  H≤10, r_min to 4.6e-11), own validated raw-data oracle (3.5e-14): zero genuine misses on
+  non-cap-bound cells (worst TRUE miss +2.4e-10 after 50-digit adjudication of the two
+  apparent gate hits); overshoot vs f64 oracle ≤1.1e-11; eig − scan ≤ 0 EXACTLY everywhere;
+  pre-fix worktree deficits up to 2.1e-2 removed (non-vacuity). Cap-zone (then 2^17)
+  quantified: worst true miss 1.472e-4, recovered to ~1e-6 by 2^20 → adopted in `20bf034`.
+  Notable scope facts: eclipse-like templates at H≥8 route through the deep-dip merge even on
+  benign dense data (r_min < 0.15 is ROUTINE there), and at r_min ~3e-8 a 1-ulp input
+  perturbation moves the result by ~1.2e-7 — float64 is input-limited in that zone.
+- **A3 + follow-up F1 (SESAR-DIP-1)**: centered form non-perturbing (1.1e-15 vs uncentered on
+  well-conditioned cells; code vs raw oracle 5.0e-14 there); fresh defect-geometry fixtures
+  (identical clump centers, clump-degenerate trial frequency — the load-bearing lever)
+  re-excited the pre-fix defect to **6.36e-3** (58/576 rows ≥1e-5, both signs) while the fixed
+  tree stayed within [−1.1e-8, +5.7e-9] of the oracle; pre-fix worktree ≡ inline uncentered
+  rebuild BIT-EXACTLY, isolating the delta to the fix.
+- **A4 (FO-TRIM-1)**: single-band well-conditioned = strict bitwise no-op (the gate corner
+  fired 0/4800 cells); where the gate changes answers the fixed value is the better one
+  (164/164 corner cells adjudicated); batched path bit-identical pre/post.
+- **A5 (global no-regression, both trees)**: nothing outside the three fix surfaces moved;
+  sesar well-conditioned shifts ≤~1e-13 (assembly rounding), everything else bitwise or
+  ≤1e-15. Timing is config-dependent: sparse all-deep rows cost up to 2.5× eigvals at H=2
+  (G cheap) vs ~1.0–1.2× at H=8; dense keeps ~1.7–2× scan advantage at H=8, ~1× at H=3.
+- **A2 (adversarial diff review)**: structural proof the length gate can never eat a genuine
+  coefficient; sesar YM′ correction's analogous uncancelled assembly contributes only ~1e-10
+  (recorded, no action); escalation arithmetic total and safe (r_min = 0/NaN handled; flat-band
+  semantics preserved). Doc over-claims it flagged (W_k-sum wording, cap-coverage comment,
+  stale 3.562e-3 magnitude — the G-trim gate alone recovered +2.92e-3 of that cell's eigvals
+  deficit, residual ~4.5e-4) fixed in `20bf034`.
+- **Follow-up F2 (fast=True/NFFT surface)**: all parity gates pass; fix signatures realize
+  identically under NFFT sums (max-merge recovered +2.7e-2 at an extreme dip with the cap
+  exercised); NFFT floor 3.3e-12 well-conditioned, conditioning-amplified at extreme dips as
+  documented.
+
+### Residual scope notes (recorded, no action)
+
+- Shared float64 value-evaluation noise at extreme dips (r_min ≲ 1e-7): reported power can
+  deviate from exact-arithmetic truth by ~±1e-8 class (worst measured overshoot +5.8e-9,
+  deficit −1.1e-8; supersedes the earlier "+1.0e-9" upper-side figure). Pre-existing, shared
+  by eigvals/scan/any float64 oracle — not a maximizer defect.
+- Cap-bound best-effort zone now r_min < ~(4πH/2^20)²/2 (≈4.6e-10 at H=8): no committed
+  fixture exercises it; behavior there is max(scan, root) best-effort (panel evidence only).
+- Test-authoring follow-ons for a later WP: a committed cap-zone regression fixture; a
+  deep-regime guard on the one-sided assert in `test_narrow_peak_multiband_clustered`.
+
+### Sign-off
+
+Zero unfixed critical/major findings; all panel findings were minor/info and are fixed in
+`20bf034` or recorded above. **WP C3.5 signed off 2026-07-05 (adversarial verification in
+lieu of human review, per delegation). The C3 escalation is RESOLVED (option A); C4 is
+unblocked.**
