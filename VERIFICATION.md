@@ -466,3 +466,87 @@ reading `measure_null.py` or `output_null/`. Budget: 30 realizations, ≥4000 fr
   0.45 as the typical null max would be slightly optimistic; SUMMARY.md quotes the actual
   measured mean/median/p99, so no artifact overstates this. Zero confirmed defects → no
   ESCALATE; D1 finalized to DONE.
+
+## WP C5 — timing narrative + performance figures (paper repo `h-vs-accuracy`) — VERIFIED 2026-07-10
+
+Fresh timing benchmark `paper/…/timing_v5/timing_c5.py` (never legacy `scripts/`; recorded
+`SEED=1`) **re-run in THIS session** on the submission machine (D1 compute finished → quiet
+machine); `timing_results.json` + the three figures (`plots/timing_vs_nharm`,
+`timing_vs_ndata`, `timing_vs_ndata_const_freq`) regenerated at 16:58. Compares the default
+scan+polish maximiser (`method='scan'`, C4 default) vs the permanent reference root path
+(`method='eigvals'`) vs full non-linear optimisation (`SlowTemplatePeriodogram`, `nguesses=10`),
+on **identical seeds/data per configuration** (WP MUST iii). **Every number written into
+paper_v5.tex was re-measured from this session's run**, not quoted from the interrupted prior
+session (an earlier queue iteration produced the same edits but was killed by the harness
+background-wait ceiling before commit; its numbers were discarded and independently reproduced
+to within timing noise).
+
+**Re-measured numbers (this session, min-of-reps):**
+- Single-band scan-vs-eigvals speedup vs H (N=200, Nf=6000): 34.9/29.2/26.6/25.6/25.3/25.7/
+  26.9/30.2/29.6/31.3/34.3/34.9× for H=1..12 → **range 25.3–34.9×** (TeX "25–35"). U-shaped,
+  never below 25.
+- H=8 grid-stability vs Nf (N=300): Nf=2000 → 31.9× (eigvals 1.52 s → scan 0.048 s);
+  8000 → 29.3× (6.10 → 0.208); 20000 → 28.3× (15.27 → 0.540). TeX "≈32×, ≈29×, ≈28×".
+- Log-log slopes over H=8..12: **eigvals 2.29, scan 1.86** (polyfit) → TeX "≈2.3 / ≈1.9".
+- Multiband `shared_phase` (K=2, N=200, Nf=2000): H=3 → 1.34× (1.84 → 1.38 s), H=8 → 5.48×
+  (19.52 → 3.56 s). TeX "1.3× / 5.4×" (both round DOWN from measured — conservative).
+- FTP(scan) vs non-linear (nguesses=10): const-cadence (Nf=12N) N=15 → 13.7×, N=250 → 479×;
+  const-baseline (Nf=2000) N=15 → 14.6×, N=250 → 498×. TeX "~14–15×" and "~480–500×"
+  (brackets both regimes) and const-baseline "≳480×" (498 ≥ 480 ✓).
+
+**Complexity (settled from code, not doc):** the reference eigvals path roots a degree-(6H−2)
+companion matrix → O((6H)³) = O(H³) per trial frequency; the default scan path's per-freq cost
+is O(H²) (coefficient assembly O(H²); polish of ≤4H bracketed candidates × constant Newton
+steps × O(H) Horner = O(H²); circle-eval FFT subdominant O(H log H)), with the adjoint-NFFT
+summations shared across the grid at O(HN_f log HN_f). So the TeX's default
+**O(HN_f log HN_f + H²N_f)** / reference **O(H³N_f)** (and the ×H resolving-power variants
+H³N_f / H⁴N_f) are correct. Measured slopes 2.29/1.86 at H≤12 sit below the 3/2 asymptotes
+because the lower-order NFFT and constant terms still contribute in that range — the paper's
+"interpolates between O(H²) throughout the practical H≲15 and O(H³) as the deep-|MM| exact-root
+fallback incidence grows" hedge is honest (and conservative — real fallbacks are rare on
+well-conditioned data).
+
+**Acceptance gate — PASS.** PDF builds (`make all`, exit 0) → **19 pages, 0 undefined
+references/citations, no new or appendix overfull hbox** (3 pre-existing body overfulls only,
+all outside the C5 diff hunks). Figures regenerate from the committed fresh script with the
+recorded seed. Retired headroom claims removed everywhere as live text (10³×/`~5%`/`1–2 orders`/
+`25–100×`/`factor of 3–20`/`10^120` survive only inside `%` comments); eigvals labelled "the
+reference Python implementation"; precision-floor caveat untouched (not claimed retired, per WP).
+
+**Adversarial panel (workflow `wf_a5f3df23-e2e`; 3 independent verifiers, own oracles/scripts,
+effort max/xhigh).** Zero confirmed critical/major.
+- **complexity-derivation (max; read ONLY core.py, NOT the timing script/JSON/tex): CONFIRMED.**
+  Independently derived scan = O(H²N_f + HN_f log HN_f), reference = O(H³N_f) "exactly as
+  claimed"; interpolation hedge "honest … conservative". 1 *minor* nuance: the scan carries a
+  second, subdominant per-frequency circle FFT (`_eval_polys_on_circle`, O(N_f H log H)) not
+  named in the decomposition — dominated by the O(H²N_f) assembly and the shared NFFT term, so
+  the stated leading order is unaffected. No edit required.
+- **timing-repro (xhigh; own fresh script, did NOT read `timing_c5.py`/JSON): CONFIRMED band.**
+  Independent measurement 34.9×/29.6×/37.0× at H=1/8/12 (25–35× band; H=12 within ±20% timing
+  tolerance) and FTP-vs-nonlinear growing to a few-hundred× by N=250. Surfaced that the
+  FTP-vs-nonlinear factor scales ~linearly with the optimiser's restart count → **fix applied:
+  fig:timingndata caption now states "10 random phase restarts per frequency".** Its "N=60 is
+  ~112× not 10–20×" finding was against the orchestrator's brief ballpark, **not** any paper
+  claim (the paper makes no N=60 claim — grep-confirmed by the critic).
+- **tex-audit (max; cross-checked EVERY TeX number vs the JSON): CONFIRMED.** "All substantive
+  claims supported; none materially overstate the data" (max deviation 2.4%, all nearest-
+  rounding). 29×/28×, 1.3×/5.4× round DOWN (conservative). Flagged the one bare (non-`~`)
+  round-up — "32×" for measured 31.888× — → **fix applied: now "≈32×, ≈29×, ≈28×".**
+- **completeness-critic:** the workflow synthesis agent FAILED TWICE on harness/serialization
+  issues (first the sandbox lacks `JSON.stringify`; on resume, the StructuredOutput retry cap
+  was hit — the `findings` array kept being rejected, a payload/special-char formatting failure
+  after ~8.5 min), NOT on substance. Its transcript recorded a complete CONFIRMED assessment,
+  adopted here by the orchestrator (precedent: C3.5 A6 refutation-agent stall): both applied
+  fixes verified live in the tex; no `N_obs=60` claim exists; the H⁴ reference term is fully &
+  consistently derived (reference O(H³N_f) × the δf∝1/H peak-resolution factor, labelled
+  reference-only); the only C5-adjacent number left unrefreshed — the introduction's
+  Lomb–Scargle NFFT-vs-direct baseline timings (lines ~342–352) — is **out of C5 scope** and
+  already self-caveats "will be refreshed for the final submission" (recorded for a later pass,
+  no action this WP).
+
+**Sign-off (adversarial multi-agent verification in lieu of human review, per delegation
+2026-06-12).** Zero unfixed critical/major; the two actionable findings (nguesses provenance,
+bare "32×" round-up) both FIXED this session; no measured number changed. C5 SIGNED OFF. No
+ESCALATE trigger fired (acceptance gate passed first attempt; no headline shift — the re-run
+reproduced the prior interrupted run to within timing noise; no paid compute; branches
+`h-vs-accuracy`/`dev`, `master` untouched). Suite unaffected (paper-only + docs).
