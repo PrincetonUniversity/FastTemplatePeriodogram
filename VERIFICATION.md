@@ -430,3 +430,39 @@ smoke benchmark: 26.3× @H=2 / 19.8× @H=8 / 22.1× @H=10 vs eigvals, max|ΔP| ~
 (N_obs=300, N_freq=20000). Full suite 483 / 1 / 2 / 0. The production experiment harness
 (FTPEstimator, greedy source_masks, joint-EM E-step) now runs the scan maximizer by default —
 relevant to B8-closure and C5 timing.
+
+## WP D1 — measured null / FAP calibration (`experiments/fap/`) — VERIFIED 2026-07-10
+
+Collection/finalization of the detached 3000-realization pure-noise Monte-Carlo launched
+2026-07-10 (marker `output_null/DONE.marker`; mc wall 3468.2 s ≈ 58 min; local, unpaid).
+All numbers below re-measured in THIS session from `output_null/null_maxpower.npz`, not quoted.
+
+**Acceptance gate (COLLECT_D1.md Step 2), re-measured — PASS.** Config in the npz:
+n_real=3000, n_obs=40, n_freq=10000. Pure-noise null max-power at N=40:
+FTP H=1 mean 0.4075 / median 0.4013 / p99 0.5347; H=3 0.4404/0.4350/0.5509;
+H=6 0.4425/0.4361/0.5507; H=12 0.4426/0.4367/0.5527; GLS ≡ FTP H=1. Invariants:
+FTP H=1 == GLS max|diff| = 1.20e-9 (< 1e-8); catalog-max `cat_K8` == max over the 8 vocab
+templates exactly (0.0); catalog-max nested/monotone in K∈{1,2,4,8} (True); all values
+finite. Anchor is in the audit's "~0.5" ballpark (canary was mean ~0.42-0.44) — not
+wildly off, no ESCALATE. Both figures render sensibly: FTP null sits modestly above GLS
+(extra nonlinear-phase DOF), GEV dashed tails track the empirical curves, catalog extra-
+trials penalty grows monotonically with K.
+
+**Adversarial verifier (1 bounded agent, blind — headline-bearing result).** Single claim:
+independently confirm (A) the pure-noise FTP H=1 max-power null at N=40 is ~0.4-0.5 and
+(B) FTP H=1 == floating-mean Lomb-Scargle to <1e-8 per-frequency, using its OWN hand-rolled
+weighted-LS χ² oracle (NOT `GLSEstimator`), its OWN fresh pure-noise LCs/seeds, and WITHOUT
+reading `measure_null.py` or `output_null/`. Budget: 30 realizations, ≥4000 freqs, <30 s.
+**Verdict: CONFIRMED (with one quantified caveat).**
+- (B) identity: CONFIRMED decisively — its from-scratch oracle matched FTP H=1 to 5.3e-10
+  across ~10⁴ freqs × 30 realizations (round-off, not a modeling gap); the P=1−χ²/χ²₀
+  normalizations coincide. Independent confirmation of the 1.20e-9 gate number above.
+- (A) anchor: CONFIRMED — its independent production-density run gave mean 0.402 /
+  median 0.397 / p99 0.515, within ~1% of the re-measured 0.4075 / 0.4013 / 0.5347.
+  **Caveat (recorded honestly, not overstated in any artifact):** the null-max *center*
+  pins to ~0.40 — the LOW edge of "~0.4-0.5" — and is grid-density-sensitive (~0.38 at a
+  ~5k grid; a 3-yr baseline supports only ~4400 independent frequencies, analytic
+  median-of-max ≈ 0.377, and oversampling to 10k nudges the center up to ~0.40). Treating
+  0.45 as the typical null max would be slightly optimistic; SUMMARY.md quotes the actual
+  measured mean/median/p99, so no artifact overstates this. Zero confirmed defects → no
+  ESCALATE; D1 finalized to DONE.
