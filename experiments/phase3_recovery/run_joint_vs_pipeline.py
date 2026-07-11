@@ -23,6 +23,7 @@ on a many-core box for the publication figure.  Search band is an explicit
 import argparse
 import json
 import os
+import time
 
 import numpy as np
 
@@ -89,9 +90,12 @@ def run(args):
                                     intrinsic_jitter=args.intrinsic_jitter,
                                     random_state=seed, n_jobs=args.n_jobs)
 
+    t_wall0 = time.perf_counter()
+    t0 = time.perf_counter()
     train_m = master(args.seed + 11)
     val_m = master(args.seed + 22)
     eval_m = master(args.seed + 33)
+    t_sim = time.perf_counter() - t0
 
     # pipeline vocabulary is N-independent -- build once (from the library).
     pipeline_vocab = build_template_catalog(library, args.k, method='pam',
@@ -99,29 +103,55 @@ def run(args):
                                             n_harmonics=args.n_harmonics)
     gls = [Template([1.0], [0.0])]
 
+    # per-phase wall-second totals (B8-closure P3): the canary acceptance check
+    # is that the assignment share collapses from ~87% (serial loop, B8E-2) to
+    # <~10% once the parallel E-step lands (validation.assignment_accuracy).
+    phase_totals = dict(sim=t_sim, em=0.0, eval_pipe=0.0, eval_joint=0.0,
+                        gls=0.0, assign_pipe=0.0, assign_joint=0.0)
     rows = []
     for N in sorted(args.n_epochs_values):
         train_N = train_m.downsample(N, random_state=args.seed)
         val_N = val_m.downsample(N, random_state=args.seed)
         eval_N = eval_m.downsample(N, random_state=args.seed)
 
+        t0 = time.perf_counter()
         joint_vocab, diag = build_joint_em_catalog(
             library, args.k, train_N, val_scorer=val_N, max_iter=args.max_iter,
             n_harmonics=args.n_harmonics, random_state=args.seed,
             n_jobs=args.n_jobs, return_diagnostics=True)
+        t_em = time.perf_counter() - t0
 
+        t0 = time.perf_counter()
         pipe_rec = float(eval_N(pipeline_vocab))
+        t_eval_pipe = time.perf_counter() - t0
+        t0 = time.perf_counter()
         joint_rec = float(eval_N(joint_vocab))
+        t_eval_joint = time.perf_counter() - t0
+        t0 = time.perf_counter()
         gls_rec = float(eval_N(gls))
+        t_gls = time.perf_counter() - t0
         # mechanism metric: correct-template assignment on the correct-period subset
         # (period recovery clips shape gains; this exposes them if joint learns
         # better-matched templates).  Quoted with n_subset and the MAJORITY-TARGET
         # null (always predicting the subset's most common correct target) -- the
         # honest chance bar; 1/K understates it because targets are not uniform.
+        t0 = time.perf_counter()
         pipe_assign, _, pipe_n_sub, pipe_null = eval_N.assignment_accuracy(
             pipeline_vocab, return_counts=True)
+        t_assign_pipe = time.perf_counter() - t0
+        t0 = time.perf_counter()
         joint_assign, _, joint_n_sub, joint_null = eval_N.assignment_accuracy(
             joint_vocab, return_counts=True)
+        t_assign_joint = time.perf_counter() - t0
+        timers = dict(t_em=round(t_em, 3), t_eval_pipe=round(t_eval_pipe, 3),
+                      t_eval_joint=round(t_eval_joint, 3), t_gls=round(t_gls, 3),
+                      t_assign_pipe=round(t_assign_pipe, 3),
+                      t_assign_joint=round(t_assign_joint, 3))
+        for key, tv in (('em', t_em), ('eval_pipe', t_eval_pipe),
+                        ('eval_joint', t_eval_joint), ('gls', t_gls),
+                        ('assign_pipe', t_assign_pipe),
+                        ('assign_joint', t_assign_joint)):
+            phase_totals[key] += tv
         rows.append(dict(n_epochs=int(N), pipeline=pipe_rec, joint=joint_rec,
                          gls=gls_rec, gap=joint_rec - pipe_rec,
                          pipeline_assign=pipe_assign, joint_assign=joint_assign,
@@ -136,7 +166,8 @@ def run(args):
                          em_val_signal=diag.val_signal_name,
                          em_val_hist=[float(v) for v in diag.val_signal],
                          em_n_gated=[int(v) for v in diag.n_gated],
-                         em_n_reverted=[int(v) for v in diag.n_reverted]))
+                         em_n_reverted=[int(v) for v in diag.n_reverted],
+                         **timers))
         print("N=%2d  rec pipe=%.3f joint=%.3f gap=%+.3f | assign pipe=%.3f "
               "joint=%.3f mech_gap=%+.3f (n=%d/%d null=%.2f/%.2f) | gls=%.3f "
               "(EM %d/%d %s)"
@@ -144,6 +175,11 @@ def run(args):
                  joint_assign, joint_assign - pipe_assign, pipe_n_sub,
                  joint_n_sub, pipe_null, joint_null, gls_rec,
                  diag.best_iter, diag.n_iter, diag.stop_reason))
+        # flushed so a wall-killed pod's run.log tail still carries the timers
+        print("N=%2d  timers[s]: em=%.1f eval=%.1f/%.1f gls=%.1f "
+              "assign=%.1f/%.1f (em iters=%d)"
+              % (N, t_em, t_eval_pipe, t_eval_joint, t_gls, t_assign_pipe,
+                 t_assign_joint, diag.n_iter), flush=True)
 
     os.makedirs(args.out, exist_ok=True)
     result = dict(universe=args.universe, bands=bands, k=args.k,
@@ -157,7 +193,11 @@ def run(args):
                   grid_points_per_rayleigh=round(
                       (1.0 / args.baseline_days) /
                       ((args.f_max - args.f_min) / (args.n_freq - 1)), 3),
-                  max_iter=args.max_iter, seed=args.seed, rows=rows)
+                  max_iter=args.max_iter, seed=args.seed,
+                  phase_seconds={**{k: round(v, 3)
+                                    for k, v in phase_totals.items()},
+                                 'wall': round(time.perf_counter() - t_wall0, 3)},
+                  rows=rows)
     with open(os.path.join(args.out, 'results.json'), 'w') as fh:
         json.dump(result, fh, indent=2)
     _write_summary(args, rows)
