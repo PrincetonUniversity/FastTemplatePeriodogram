@@ -751,3 +751,62 @@ max-power comparison against the D1 null must state the config mismatch explicit
 thresholds are quoted; (b) the D1 null's K-axis nests prefixes of one K=8 PAM vocabulary
 (pure extra-trials design) whereas production rebuilds independent per-K vocabularies —
 divergence bounded by the measured **0.025** between-template spread.
+
+## WP F2 — vocabulary-method + sim-validation paper sections (paper repo `h-vs-accuracy`) — DONE 2026-07-11
+
+**Deliverable:** paper commit `95abf57` (pushed). Two new body sections in `paper_v5.tex` —
+"Template vocabularies for heterogeneous signal classes" (sec:vocab) and "Validation on
+simulated sparse multi-band surveys" (sec:simval, 5 subsections) — plus the alias-breakdown
+appendix (app:aliases, Table 4), a robustness-arms table, two new figures
+(`plots/recovery_vs_nepochs_sesar.pdf`, `plots/recovery_vs_k_sparse.pdf`), three
+ADS/arXiv-verified new refs (Baeza-Villagra+2025 A&A 694 A72 / arXiv:2501.03813;
+Kaufman & Rousseeuw 1990 doi:10.1002/9780470316801; Simon & Lee 1981 ApJ 248 291), and
+three cross-reference stitches (sec:choiceH forward ref, sec:fap K-wobble sentence,
+Discussion item 3 rewritten to point at the new sections).
+
+**Methods text source:** the F2 line-level ground-truth read of `catalog_builder.py` /
+`recovery.py` / the `validation.py` scorer seam (unit-Fourier-energy normalization; orbit
+distance d^2 = 1 - max CC on the alias-free oversampled FFT grid + Newton polish;
+reflections NOT quotiented; PAM BUILD+SWAP on unsquared distances, n_init=10, medoids
+physical; greedy = set cover on standalone masks with end-to-end re-score, farthest-point
+padding, pam:M pool = lower bound, disjoint selection split; loaders 98 sesar g,r / 560 BV
+g,r shapes at common H=8). Code behavior cited over design docs throughout.
+
+**Number provenance (hard rule honored):** every quoted number recomputed THIS session from
+the committed `experiments/phase3_recovery/rerun_202606/raw/*/out/{results.json,per_source/*.npz}`
+artifacts by the fresh committed script `simval_v5/make_simval_figures.py` (paper repo);
+`simval_v5/derived_numbers.json` is the single machine-readable source for the TeX. Key
+recomputed values: N-sweep pooled (768/cell, K=2) FTP(PAM) 0.233/0.902/0.984/1.000/0.999/1.000
+vs GLS 0.040/0.417/0.889/0.993/1.000/1.000; McNemar FTP-vs-GLS N=8 = 392/19 (p~1e-91), N=4 =
+169/21; MHLS==GLS at N=4 mask-identical (B2 cap); sesar sparse PAM K-curve 0.716/0.715/0.738/0.741,
+K1-vs-K2 discordant 34/33 (p=1.0), SE-aware knee=1 (frac-rule 4); BV 0.512/0.703/0.727/0.719,
+K1->K2 +0.191 (13/62, p=8.4e-9), knee=2; robustness arms per raw jsons incl. xuniv N=16
+exception (PAM 0.996 vs GLS 1.000) and greedy adaptivity (0.887 vs 0.695 at N=8); empirical
+arm d 0.215/0.918/0.988 at K=4, error-curve ratio recomputed 1.35-3.54x over mags 14.3-18.5;
+cost 23.54 s vs 56.25 s = 2.39x at identical recovery 0.34375 (32 src, 1500 freq, n_tau=128);
+grid 2.281 pts/Rayleigh (10k) vs 4.563 (20k), paired McNemar 8/30 significant, all gaining,
+GLS all p>=0.13, FTP-GLS margin 0.199->0.246 (N=4) / 0.539 both (N=8). Alias table = fresh
+`rescore_aliases` phase-coherence pooled re-scoring of the 3 sesar seeds.
+
+**Grid caveat:** isolated in ONE comment-fenced paragraph ("Grid-resolution caveat", end of
+sec:simval-nsweep; the only other touchpoint is one cross-reference sentence in the
+fig:nsweep caption) — written to be updated in place by the B8-closure rerun.
+
+**Gates:** `make all` exit 0; 24 pp; 0 undefined references/citations; overfull boxes = the
+3 pre-existing only (none new). Pages 13-16 + 24 visually inspected.
+
+**Discrepancies found by recomputation (carried, not silently adopted):**
+1. `SUMMARY_c-grid20k.md` prose says "GLS/MBLS converged (all p>0.13)" — its own table (and
+   this recompute) has MBLS N=12 significant at p=0.0163. Paper text says GLS-only flat and
+   counts MBLS among the significant gainers.
+2. `SUMMARY.md` acceptance item 1 headline ("FTP>GLS ordering holds in EVERY arm at every
+   cell") is contradicted by its own JSON dict (a-sesar-1, b-xuniv-0 false). Paper reports
+   pooled contrasts and states the b-xuniv N=16 one-source exception explicitly.
+3. Canonical "~2.5x" cost figure: the committed rerun artifact gives 2.389x -> paper quotes
+   "measured ~2.4x". The unartifacted "~5x @ n_tau=256" / "~96x @ 3840 obs" docstring figures
+   were NOT quoted (no committed artifact to recompute from); replaced by the structural
+   n_tau*N_obs argument + cross-ref to the C5-measured single-band timings.
+4. `EMPIRICAL_ERROR_REVALIDATION.md` says ratio "1.6-3.5x"; recomputation from the committed
+   `ztf_error_curve.json` vs `exp_mag_error` gives 1.35-3.54x -> paper quotes "1.4-3.5".
+5. Baseline PDF was already 20 pp before F2; the WP's "~19-20pp" gate figure is stale — F2's
+   required content adds 4 pp (24 pp total).
