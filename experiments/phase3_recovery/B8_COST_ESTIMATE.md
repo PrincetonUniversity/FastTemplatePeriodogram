@@ -285,3 +285,68 @@ g-refine canary pinned to 32 vCPU (~1.4 h, ~$1.6–1.9 at table est, deadline-fe
 without the ×1.5 margin and only if arm (a) is dropped.
 
 **Ledger:** $9.10 + $3.43 = **$12.53 of the $25 cap; $12.47 remains.**
+
+## B8-closure arm (b) 32-vCPU canary -- measured, gate FAILED (2026-07-11)
+
+Arm (a) e2-* was DROPPED for this run (measured >=7.3x over estimate; escalated
+to John separately); this session ran arm (b) only, task budget $12, canary-first
+with g-refine-sesar-0 PINNED to 32 vCPU (new ``B8C_PIN_VCPU`` env in the
+launcher + per-job cpu3c avoid; new ``launch <tag>`` subcommand so the e2 canary
+tag cannot be relaunched by accident).
+
+| job | pod / flavor | wall | billed | outcome |
+|---|---|---|---|---|
+| g-refine-sesar-0 | `ehrzmk00e1cq0d` cpu5c/32 SECURE ($1.12/h) | 2.87 h | **$3.21** / >=91.2 core-hr | INCOMPLETE -- killed 18:37Z at the hard 2h45m deadline (+grace poll); no RESULT beacon, so NO refined per-source data landed |
+
+Timeline: create 15:45:25Z -> fresh START 15:46:00Z (35 s boot; image cached;
+the 620df98 fix holds) -> greedy ordering done in 836 s -> N-sweep silent by
+design (single log line only at sweep end; all 4 PROG posts show only the
+greedy line) -> deadline breach 18:30Z -> killed 18:37Z. Account after: only
+`cuvarbase-dev` (untouched; launcher guard now also matches the pod NAME --
+the old id constant had gone stale).
+
+### What was measured
+
+- **Greedy phase is core-hr-stable across vCPU**: 836 s x 32 = 7.43 core-hr vs
+  7.2 core-hr on the killed 16-vCPU attempt. Good sanity anchor.
+- **The refined N-sweep alone burned >=83.7 core-hr without finishing**, vs the
+  June UNREFINED N-sweep measurement of ~44 core-hr (a-sesar-0 share). So the
+  ``--refine`` overhead is **>=1.9x** (floor -- job never completed), not the
+  ~1.4x the RefinedEstimator cost formula predicted, and any C4-speedup offset
+  assumed in the est-45 arithmetic did NOT materialize on this path.
+- **Job total >=91.2 core-hr vs est 45 -- >=2.03x, canary gate FAILED** (the
+  protocol's within-~2x threshold, and a floor: completion cost unknown).
+
+### Extrapolation and release decision (task budget $12)
+
+At the measured FLOOR (91.2 core-hr/job; bv x1.51): sesar jobs >=2.85 h wall
+(**already past the 2h45m deadline**) >= $3.20 each; bv >=4.3 h (**deadline-
+infeasible**) >= $4.83. Batch = $3.21 (canary) + (2 x $3.20 + $4.83) x 1.3 =
+**>=$17.8 vs the $12 task budget -- batch NOT released** (gate failed on both
+budget and per-job deadline feasibility; floors, so the true overrun is larger).
+
+### Acceptance analysis status
+
+**Cannot run**: the per-cell paired McNemar (refined vs 10k) requires the
+refined per-source npz, which only ship in the RESULT beacon. Zero arm-(b)
+cells landed. The 10k-grid rates therefore REMAIN "lower bounds at the 10k
+production grid" (SUMMARY_c-grid20k.md disposition unchanged). The analysis
+is implemented and smoke-tested in ``finalize_b8_closure.py`` (pairs refined
+vs arm-(a) masks per cell, asserts identical ``p_true``, pools sesar seeds,
+marks the 8 arm-(c) flagged cells, writes ``SUMMARY_g-refine.md`` +
+``aggregate_g_refine.json``) -- ready the moment real g-refine results land.
+
+### De-risks before any re-attempt (decision John's)
+
+1. **Shard the N-sweep by N-value** (6 pods x ~15-16 core-hr at the measured
+   floor => ~30 min wall each on 32 vCPU; same total cost, deadline-trivial,
+   launcher job-table change only).
+2. Or raise the per-job deadline to >=3.5 h (sesar) / >=5 h (bv) and accept
+   ~$3.4-5 per job -- but first measure refine overhead to completion once,
+   locally at reduced scale, so the next canary gate is against a validated
+   number, not another 1.4x assumption.
+3. The June effective rate ($0.041/core-hr) now looks optimistic for pinned
+   32-vCPU SECURE ($1.12/h = $0.035/core-hr list, but only when jobs FINISH).
+
+**Ledger:** $12.53 + $3.21 = **$15.74 of the $25 cap; $9.26 remains.** Arm (b)
+still has zero refined cells; arms (a) and (b) both await re-scoping.

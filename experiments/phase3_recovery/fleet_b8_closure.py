@@ -93,7 +93,21 @@ BAD_MACHINES = set()  # 2026-07-11: cleared -- the never-booted pods were the
 
 # The ONE pre-existing pod on the account (John's separate cuvarbase GPU
 # workstream).  NEVER stopped, deleted, or modified by this launcher.
-CUVARBASE_POD = "6nzaafwb96j38r"
+# Its POD ID CHANGES when John recreates it (2026-07-11: 6nzaafwb96j38r ->
+# bp2pmad0mz6gjl), so every guard also matches the NAME below.
+CUVARBASE_POD = "bp2pmad0mz6gjl"
+CUVARBASE_NAME = "cuvarbase-dev"
+
+
+def _is_protected(pid, name=None):
+    """True for John's cuvarbase-dev pod, by id OR name (ids rotate)."""
+    if pid == CUVARBASE_POD:
+        return True
+    if name is None and pid:
+        m = re.search(r'"name"\s*:\s*"([^"]*)"',
+                      _runpod("GET", "/pods/%s" % pid) or "")
+        name = m.group(1) if m else ""
+    return (name or "").strip().lower() == CUVARBASE_NAME
 
 # ----------------------------------------------------------------------
 # Job table.
@@ -176,7 +190,7 @@ def _delete_pod(pid):
     """DELETE one pod -- with the cuvarbase-dev guard on EVERY delete path."""
     if not pid:
         return
-    if pid == CUVARBASE_POD:
+    if _is_protected(pid):
         print("REFUSING to delete protected pod %s (cuvarbase-dev)" % pid)
         return
     _runpod("DELETE", "/pods/%s" % pid)
@@ -278,9 +292,16 @@ def _create(tag, driver, token, avoid=()):
     host is RunPod's placement, not a boot attempt of ours)."""
     script = _bootstrap(tag, driver, token)
     _check_script_syntax(script, tag)     # never POST a script bash can't parse
+    # B8C_PIN_VCPU=32: canary lesson 2026-07-11 -- g-refine-sesar-0 landed on
+    # 16 vCPU (32-pool exhausted) and was deadline-infeasible from the start.
+    # With the pin set, ONLY flavors at exactly that vcpu count are tried; the
+    # caller wait-retries the create when the pinned pool is empty.
+    pin = int(os.environ.get("B8C_PIN_VCPU") or 0)
     last = ""
     for flav, vcpu, cloud in FALLBACKS:
         if flav in avoid:
+            continue
+        if pin and vcpu != pin:
             continue
         body = {"name": "b8c-%s" % tag, "computeType": "CPU",
                 "cpuFlavorIds": [flav], "vcpuCount": vcpu, "imageName": IMAGE,
@@ -433,6 +454,24 @@ def canary():
     _save_state(st)
     print("token %s | webhook https://webhook.site/#!/%s"
           % (st["token"], st["token"]))
+
+
+def launch_one():
+    """Launch exactly ONE job by tag (``launch <tag>``) -- the arm-(b)-only
+    path: ``canary``/``release`` would also (re)launch e2-* jobs, which the
+    2026-07-11 canary showed fail their estimate gate by >=7.3x and are
+    escalated separately.  Never touches any other job record."""
+    tag = sys.argv[2]
+    st = _load_state()
+    jobs = [j for j in st["jobs"] if j["tag"] == tag]
+    if len(jobs) != 1:
+        raise SystemExit("no unique job with tag %r" % tag)
+    j = jobs[0]
+    if j.get("pod") or j["received"]:
+        raise SystemExit("%s already has pod=%s received=%s -- refusing"
+                         % (tag, j.get("pod"), j["received"]))
+    _launch(j, st["token"])
+    _save_state(st)
 
 
 def release():
@@ -674,8 +713,8 @@ def teardown():
     for pid, name in survivors:
         print("  %s  %s%s" % (pid, name,
                               "  [protected cuvarbase-dev]"
-                              if pid == CUVARBASE_POD else ""))
-    others = [p for p in survivors if p[0] != CUVARBASE_POD]
+                              if _is_protected(pid, name) else ""))
+    others = [p for p in survivors if not _is_protected(p[0], p[1])]
     if others:
         print("WARNING: %d non-cuvarbase pod(s) still live (NOT touched -- "
               "delete by id only if they are yours): %s"
@@ -689,6 +728,7 @@ if __name__ == "__main__":
     # NO 'cleanup' on purpose: it would terminate ALL account pods, including
     # the protected cuvarbase-dev pod.  Use teardown/killstale (own pods only).
     {"mint": mint, "plan": plan, "canary": canary, "release": release,
-     "collect": collect, "report": report, "count": count, "prog": prog,
-     "bootwatch": bootwatch, "killstale": killstale, "teardown": teardown,
+     "launch": launch_one, "collect": collect, "report": report,
+     "count": count, "prog": prog, "bootwatch": bootwatch,
+     "killstale": killstale, "teardown": teardown,
      "start_beacon": start_beacon}[sys.argv[1]]()
