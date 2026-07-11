@@ -726,31 +726,82 @@ Verdict: **PASS** (minor findings only). Checks:
 - Reject reason `"prescreen ngoodobsrel g=45 r=39 < 40"` reads loosely (only r fails);
   behaviour is correct.
 
-## WP E3 — false-alarm run on real photometry (`experiments/phase4_demo/e3_false_alarm/`) — IN PROGRESS, checkpoint 2026-07-11
+## WP E3 — false-alarm run on real photometry (`experiments/phase4_demo/e3_false_alarm/`) — DONE, verified 2026-07-11
 
-**Run summary:** The null driver is already running in the background and will re-invoke me
-when it exits. Arming a lightweight completion watch is redundant — I'll simply wait for the
-background task's completion notification, then aggregate, commit, and return the final JSON.
+**Verdict: CONFIRMED** (independent adversarial verification; artifacts-only — all numbers
+below recomputed by the verifier's own scripts from `e3_results.npz`, `screen_table.json`,
+the per-unit `output/*.npz`, the raw cached photometry, and the D1 null
+`experiments/fap/output_null/null_maxpower.npz`; the run agents' reasoning was not read).
 
-Null stage in progress (100 chunks total, 8 workers, ~35–50 min wall). Waiting for the
-background driver to finish.
+**Supersession note:** an earlier "IN PROGRESS, checkpoint 2026-07-11" version of this
+section (commit `8117d80`) quoted placeholder text — including a bogus
+"**Verifier: CONFIRMED**" line that merely described monitoring being armed — left behind
+by a killed workflow. That checkpoint was NOT a verification sign-off; it is superseded by
+this record, which is the actual verification.
 
-**Memo headline:** Null stage in progress (9/100 chunks at last check). Background driver,
-monitor, and timed checks are armed and will re-invoke this session; next action on wake is:
-count chunks → when 100/100, run `--stage aggregate` → `make_e3_figures.py` → write
-`E3_MEMO.md` → commit + push.
+**What ran (commits `4525c35`, `52ea39e`, `767fde8`, `cc94423`, `a5cea8e`, all on `dev`,
+pushed):** phase-1 variability screen of the 99 cached ZTF field objects (81 clean / 18
+flagged; 155 band-LCs = 126 clean + 29 screened, 0 skipped for N<40), then
+`run_e3.py` — (a) PRIMARY: per band-LC seeded N=40 subsample (catflags==0, seeds
+500,000+) scanned on the identical D1 10k-freq [1,5] cyc/day grid and compared to the D1
+n=3000 null; (b) SECONDARY: full-N runs on per-object df≤0.2/T grids compared ONLY to
+(c) a fresh N/T/grid-matched synthetic null per band stratum (g: N=626, T=2743.8 d,
+n_freq=54,877; r: N=947, T=2730.7 d, n_freq=54,615; 500 realizations each, seeds
+3,000,000+/3,500,000+). Statistics: GLS, FTP H∈{1,3}, nested catalog-max K∈{1,2,4,8}
+(seed-0 H=8 PAM vocab, identical to D1), all with the C4 `method='scan'` default.
+Deliverables: `E3_MEMO.md`, `e3_results.npz`, `fig_e3_primary.png`, `fig_e3_secondary.png`,
+`check_hits.py`, `make_e3_figures.py`.
 
-**Verifier: CONFIRMED** — "Monitoring armed (state changes + 30-min stall alarm) with a
-background keep-alive. I'll resume verification when the null stage completes and
-`e3_results.npz` + memo land."
+**Verifier recomputations (all MATCH the memo):**
+1. *Primary exceedances (126 clean band-LCs, expected 1.26/statistic at p99):* thresholds
+   recomputed from the D1 npz — p99 0.5347/0.5509/0.5403/0.5606/0.5695/0.5760 and GEV-99
+   0.5293/0.5508/0.5410/0.5563/0.5689/0.5789 for gls(=ftp_H1)/ftp_H3/cat_K1/K2/K4/K8;
+   clean counts >p99 = 3/2/4/3/3/3 (GEV: 3/2/4/3/3/2), binomial P(≥obs) 0.13/0.36/0.04/
+   0.13/0.13/0.13. `prim_gls` vs `prim_ftp_H1` agree to 2.8e-9. Union: D1 7-statistic
+   union rate 2.20% → expected 2.77, observed 5 (binomial P(≥5)=0.146), and the 5
+   exceeders are exactly g00014 r, g00029 g, g00037 g, g00044 g, g00082 r. KS clean-vs-D1
+   for cat_K8 = 0.140 (p=0.016), clean median 0.4588 vs D1 0.4615 (slightly below, tail
+   heavier). Largest clean tail event g00037 g GLS d1-p = 6.7e-4.
+2. *Determinism:* for g00014 r the seed formula (500000 + 10·i_obj + band_idx → 500141)
+   re-derives the recorded `prim_idx` exactly; `frequency_grid(1,5,10000)` is bit-identical
+   to the stored D1 grid; all 7 primary statistics recomputed from the raw cached
+   photometry match both the per-unit npz and `e3_results.npz` to 0.0 (exact float match).
+3. *Screened hits (verifier's own peak extraction from raw data):* g00017 g full-N peak
+   f=4.31343 = 2·f_orb(Chen P=0.46366 d) − 7e-5; N=40 peak 3.31073 = 2·f_orb − 1.00277
+   (sidereal-day alias). g00015 g full-N peak f=1.65726 = 2·f_orb(P=1.2068 d) − 1e-5;
+   N=40 peak 3.65997 = 2·f_orb + 2.00269. g00052 r N=40 peak f=2.00220 (catK8 and GLS),
+   on the ~2 cyc/day diurnal-alias comb. The other 26 screened band-LCs are below the p99
+   thresholds in all 7 statistics (screened union = exactly those 3 hits).
+4. *Secondary:* full-N powers compared ONLY to the fresh matched null (verified in
+   `run_e3.py` aggregate, `make_e3_figures.py`, and the memo table — D1 thresholds are
+   never applied to `sec_*`). Recomputed table matches every cell: g p99
+   0.0470/0.0505/0.0481/0.0521 with clean exceedances 52/51/50/51 of 53 (KS 0.97/0.96/
+   0.96/0.96); r p99 0.0300/0.0348/0.0314/0.0366 with 61/60/61/61 of 73 (KS 0.85/0.86/
+   0.84/0.86). The memo's operational conclusion is supported: synthetic Gaussian nulls
+   (even N/T/grid-matched) must NOT set full-depth real-data thresholds — the whole real
+   sample, clean included, sits far above them (known ZTF excess variance; GLS displaced
+   equally with the catalog statistic, so not an FTP/K-axis artifact).
+5. *Caveats & metadata:* all four mandatory caveats present in `E3_MEMO.md` — (i) n=99 ⇒
+   ~1% FAP floor; (ii) only 8 same_star physical pairs vs 48 same_field_cadence cadence
+   nulls, with measured pair separations (verifier recomputed: median 0.249°, max 0.847°,
+   matching the memo's 0.25°/0.85°); (iii) D1 single-band N=40 non-transferability, with
+   the residual ~0.95 vs 2.28 pts/Rayleigh trials mismatch quantified (verifier: prim_T
+   median 2630.8 d → 0.950; D1 1095.75 d → 2.281); (iv) nested-vs-per-K vocabulary bound
+   ~0.025. Grid metadata (df, explicit [f_min,f_max]=[1,5], pts/Rayleigh) present for all
+   five run configs and recomputed to match (secondary df median 7.324e-5, min 7.281e-5,
+   max 1.892e-4; ppr 5.00; n_freq median 54,615, max 54,935). Seed ranges verified unique
+   and mutually disjoint (primary 500,000–500,980; matched null 3,000,000–3,000,499 g /
+   3,500,000–3,500,499 r; D1 1,000,000+).
+6. *Git:* all E3 commits on `dev` and contained in `origin/dev`; committed npz sizes sane
+   (`e3_results.npz` 105 KB; `output/` 2.0 MB total, 155 real units + 100 null chunks).
 
-**Mandatory caveats (AUDIT_2026-07-10_QUEUE_RUN.md D1-scope findings, carried into every E3
-artifact):** (a) the D1 null is calibrated at **single-band N_obs=40** — it is not
-transferable across N, band structure, or grid without recalibration, so E3's real-photometry
-max-power comparison against the D1 null must state the config mismatch explicitly wherever
-thresholds are quoted; (b) the D1 null's K-axis nests prefixes of one K=8 PAM vocabulary
-(pure extra-trials design) whereas production rebuilds independent per-K vocabularies —
-divergence bounded by the measured **0.025** between-template spread.
+**Minor findings (prose-level, no action required; tables/figures/conclusions unaffected):**
+- Memo hit table quotes g00017 g cat_K8 = 0.688; the npz (and verifier recompute) give
+  0.6863 → "0.686" (the 0.688 belongs to g00052 r). The quoted d1-p range is consistent.
+- Memo secondary prose says "96–98% of clean g LCs"; the actual per-statistic range is
+  94.3–98.1% (cat_K1 is 50/53 = 94.3%). The memo's own table is correct.
+- `fig_e3_secondary.png` reuses the g-stratum legend counts (n=53/11) figure-wide; the r
+  panels' in-panel counts (…/73, …/18) are correct.
 
 ## WP F2 — vocabulary-method + sim-validation paper sections (paper repo `h-vs-accuracy`) — DONE 2026-07-11
 
