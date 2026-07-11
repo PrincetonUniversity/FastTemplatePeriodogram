@@ -1,0 +1,80 @@
+{
+ "adjudicator": "Claude (Fable 5), WP E4 Score/Adjudication session 2026-07-11, per the review-delegation standing instruction (2026-06-12)",
+ "scope": "every (star, ftp_mb) row with E4 verdict alias/miss vs its role truth (9 stars: 7 science, 2 control_antijoin). Evidence = folds/<uid>_ftp_mb.png + e4_adjudication_evidence.json (PDM theta, fold chi2_red, 6-method consensus, ftp_mb top-5 peaks, mags).",
+ "post_adjudication_rule": "lawful stars get adjudicated_period = the ftp_mb recovered period (the 7.5-yr ZTF consensus period); any method whose best_freq matches it (same AND criterion: frac<1% AND |df|*T<0.5, exact-or-harmonic) is credited post-adjudication. The failure star credits no method. Non-queued (star,method) cells keep their pre-adjudication verdicts -- only the ftp_mb queue was adjudicated, per the E4 brief.",
+ "categories": {
+  "truth_period_precision": "catalog truth period too imprecise to phase 7.5 yr of ZTF data; recovered period folds decisively cleaner; no independent catalog confirms the truth value",
+  "chen_truth_error_confirmed_by_gaia": "recovered period agrees with the INDEPENDENT Gaia DR3 SOS period within phase coherence while Chen's disagrees; Chen truth error/precision, not a method failure",
+  "gaia_truth_precision": "control star (truth = Gaia); unanimous 6-method ZTF consensus period folds decisively cleaner than the Gaia fold; Gaia DR3 ~34-month baseline cannot pin 7.5-yr phase",
+  "blazhko_or_period_change": "excess fold scatter + resolved close sideband and/or mutually consistent catalog truths that both disagree with the full-baseline period: the star's period is modulated/drifting, so a single fixed truth period is ill-defined at this coherence",
+  "photometric_depth_failure": "no coherent signal present in the ZTF photometry even at the truth period; all methods lock onto window systematics; genuine failure (of the data, charged to every method)"
+ },
+ "stars": [
+  {
+   "uid": "chen_f486_ZTFJ180625.92+054646.1",
+   "role": "science", "type": "RRc",
+   "verdict": "lawful", "category": "truth_period_precision",
+   "adjudicated_period": 0.36109872235485474,
+   "evidence": "PDM theta: recovered 0.058 vs Chen truth 0.907 (Gaia p1_o 0.453, itself 1.34 cyc from Chen -- the two catalogs disagree with each other); 6/6 methods at the same peak (dphi 0.87 cyc, frac 1.1e-4); recovered fold is a textbook clean RRc, truth fold fully smeared. g=15.5/r=15.0, 1447 epochs."
+  },
+  {
+   "uid": "chen_f486_ZTFJ180708.63+013433.4",
+   "role": "science", "type": "RRab",
+   "verdict": "lawful", "category": "chen_truth_error_confirmed_by_gaia",
+   "adjudicated_period": 0.7952508439064137,
+   "evidence": "Recovered 0.7952508 d = Gaia pf 0.7952526 d within 0.007 cyc over T. PDM theta: recovered 0.039, Gaia 0.045, Chen 0.727. 6/6 consensus (dphi 0.65). Textbook RRab sawtooth at recovered/Gaia period; smeared at Chen's."
+  },
+  {
+   "uid": "chen_f486_ZTFJ181921.70+032211.3",
+   "role": "science", "type": "RRc", "dual_truth": true,
+   "verdict": "lawful", "category": "chen_truth_error_confirmed_by_gaia",
+   "adjudicated_period": 0.36162051389837635,
+   "evidence": "Dual-truth star: verdict under the Gaia truth is EXACT (score phase); recovered 0.3616205 vs Gaia p1_o 0.3616172 = 0.07 cyc. Chen is 3.57 cyc off (frac 4.7e-4, its largest error in the sample). theta: recovered 0.234 / Gaia 0.264 / Chen 0.831. 5/6 methods same peak; mhls_h8 took its f/2."
+  },
+  {
+   "uid": "gaia_f486_4276113046713707904",
+   "role": "control_antijoin", "type": "RRab",
+   "verdict": "lawful", "category": "gaia_truth_precision",
+   "adjudicated_period": 0.5089515018424089,
+   "evidence": "Truth IS Gaia here; unanimous 6/6 consensus at 1.964824 c/d, 1.75-1.95 cyc from the Gaia value; theta recovered 0.368 vs Gaia fold 0.860 (no coherent fold at Gaia's period). Crowded f486 star (chi2_red 61 -- blending scatter) but unambiguous RRab shape at the ZTF period. Gaia DR3 SOS baseline (~34 mo) cannot fix 7.5-yr phase; ZTF's own period is the better one."
+  },
+  {
+   "uid": "chen_f686_ZTFJ194003.35+301707.8",
+   "role": "science", "type": "RRc",
+   "verdict": "lawful", "category": "truth_period_precision",
+   "adjudicated_period": 0.3567994146545417,
+   "evidence": "Threshold case, not an alias: CE scored EXACT on this same star (0.50 cyc); the six methods land 0.5-0.9 cyc from Chen -- peak-location jitter on a broadened peak in the crowded Galactic-plane field 686 (large blending scatter, theta_best 0.416). Gaia p1_o is 0.39 cyc from Chen (catalogs mutually inconsistent at this coherence). Recovered fold cleaner than truth fold (0.416 vs 0.622)."
+  },
+  {
+   "uid": "chen_f786_ZTFJ092904.98+521752.3",
+   "role": "science", "type": "RRc",
+   "verdict": "lawful", "category": "chen_truth_error_confirmed_by_gaia",
+   "adjudicated_period": 0.3302152254924329,
+   "evidence": "Recovered 0.3302152 vs Gaia p1_o 0.3302075 = 0.19 cyc (agree); Chen is 2.16 cyc off. theta: recovered 0.289 / Gaia 0.322 / Chen 0.958 (truth fold = pure smear). 5/6 methods same peak (mhls at its f/2-region value)."
+  },
+  {
+   "uid": "chen_f786_ZTFJ094954.90+514422.2",
+   "role": "science", "type": "RRab", "dual_truth": true,
+   "verdict": "lawful", "category": "blazhko_or_period_change",
+   "adjudicated_period": 0.5719429198682766,
+   "evidence": "Both truths miss: Chen and Gaia agree with each other (0.31 cyc) but BOTH sit ~0.86 cyc from the unanimous 6/6 ZTF consensus period, whose fold is decisively cleaner (theta 0.249 vs 0.916/0.898). Excess scatter concentrated at maximum light (fold chi2_red 56) + a RESOLVED close sideband in the ftp_mb top-5 (delta_f = 5.4e-4 c/d => P_mod ~ 5.1 yr): amplitude/phase modulation (Blazhko) or secular period change. Bright star (r=13.1, near ZTF saturation). A single fixed period is ill-defined at 7.5-yr coherence; shorter-baseline catalog values lawfully disagree."
+  },
+  {
+   "uid": "chen_f786_ZTFJ095443.72+570927.4",
+   "role": "science", "type": "RRab", "dual_truth": true,
+   "verdict": "lawful", "category": "chen_truth_error_confirmed_by_gaia",
+   "adjudicated_period": 0.6978289540428122,
+   "evidence": "Borderline miss (0.52 cyc vs the 0.50 threshold). Dual-truth star: verdict under Gaia truth is EXACT (recovered vs Gaia pf = 0.07 cyc). theta: recovered 0.062 / Gaia 0.018 / Chen 0.510. 6/6 consensus. Chen's period is marginally off; Gaia and ZTF agree."
+  },
+  {
+   "uid": "gaia_f786_1020098816344918656",
+   "role": "control_antijoin", "type": "RRab",
+   "verdict": "failure", "category": "photometric_depth_failure",
+   "adjudicated_period": null,
+   "evidence": "g=20.4 / r=20.2 -- >= 2 mag fainter than every science star, at ZTF's depth limit (per-epoch errors ~0.2 mag vs RRab amplitude). The fold AT THE GAIA TRUTH shows no coherent signal (theta 0.922, fold chi2_red 1.70 ~ noise-dominated). All 6 methods lock onto the 1-day window comb (top-5 = 1.0002/1.0025/2.0030/1.0031/2.0025 c/d = pure window structure). NOT the brief's 'genuine 1-day alias with comparable fold quality' -- the truth fold is not comparable; the signal is simply undetectable in this photometry. Genuine failure of every method, attributed to photometric depth; this is the Chen selection function made visible (a Gaia RRL that ZTF-photometry methods cannot recover)."
+  }
+ ],
+ "summary": {"n_adjudicated": 9, "lawful": 8, "failure": 1,
+             "lawful_science": 7, "lawful_antijoin": 1,
+             "failure_science": 0, "failure_antijoin": 1}
+}

@@ -1,0 +1,789 @@
+[
+ {
+  "P_rec": 0.36109872235485474,
+  "P_true": 0.3610577,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 0.87,
+    "f_rec": 2.7693257773902937
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.87,
+    "f_rec": 2.7693257773902937
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 0.87,
+    "f_rec": 2.7693257773902937
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.87,
+    "f_rec": 2.7693257773902937
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 0.87,
+    "f_rec": 2.7693257773902937
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 0.87,
+    "f_rec": 2.7693257773902937
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.3610577,
+    "chi2_red_fold": 234.21,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (chen)",
+    "theta": 0.9072
+   },
+   {
+    "P": 0.36109872235485474,
+    "chi2_red_fold": 14.91,
+    "dphi_vs_truth_cycles": 0.866,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.0578
+   },
+   {
+    "P": 0.36112103514108074,
+    "chi2_red_fold": 116.89,
+    "dphi_vs_truth_cycles": 1.337,
+    "name": "alt truth (gaia p1_o)",
+    "theta": 0.4528
+   }
+  ],
+  "chen_period": "0.3610577",
+  "class": "miss",
+  "dphi_cycles": 0.866,
+  "f_true": 2.769640420353866,
+  "frac_err": 0.00011360426474852156,
+  "ftp_mb_top5_freq": [
+   2.769326,
+   3.772014,
+   1.766565,
+   4.772014,
+   1.769326
+  ],
+  "ftp_mb_top5_stat": [
+   0.91477,
+   0.63761,
+   0.63756,
+   0.60848,
+   0.42095
+  ],
+  "g_med_mag": 15.48,
+  "gaia_period": "0.36112103514108074",
+  "gaia_period_source": "gaia_dr3_p1_o",
+  "n_epochs_joint": 1447,
+  "png": "folds/chen_f486_ZTFJ180625.92+054646.1_ftp_mb.png",
+  "r_med_mag": 14.99,
+  "role": "science",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "chen",
+  "type": "RRc",
+  "uid": "chen_f486_ZTFJ180625.92+054646.1"
+ },
+ {
+  "P_rec": 0.7952508439064137,
+  "P_true": 0.7950996,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 0.65,
+    "f_rec": 1.2574648711943794
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.65,
+    "f_rec": 1.2574648711943794
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 0.65,
+    "f_rec": 1.2574648711943794
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.65,
+    "f_rec": 1.2574648711943794
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 0.65,
+    "f_rec": 1.2574648711943794
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 0.65,
+    "f_rec": 1.2574648711943794
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.7950996,
+    "chi2_red_fold": 56.83,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (chen)",
+    "theta": 0.7272
+   },
+   {
+    "P": 0.7952508439064137,
+    "chi2_red_fold": 3.03,
+    "dphi_vs_truth_cycles": 0.654,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.0387
+   },
+   {
+    "P": 0.7952526150126012,
+    "chi2_red_fold": 3.52,
+    "dphi_vs_truth_cycles": 0.661,
+    "name": "alt truth (gaia pf)",
+    "theta": 0.0451
+   }
+  ],
+  "chen_period": "0.7950996",
+  "class": "miss",
+  "dphi_cycles": 0.654,
+  "f_true": 1.2577040662578625,
+  "frac_err": 0.0001901838992973254,
+  "ftp_mb_top5_freq": [
+   1.257465,
+   2.260173,
+   3.260246,
+   4.262954,
+   1.747951
+  ],
+  "ftp_mb_top5_stat": [
+   0.92732,
+   0.5555,
+   0.5505,
+   0.432,
+   0.33185
+  ],
+  "g_med_mag": 14.87,
+  "gaia_period": "0.7952526150126012",
+  "gaia_period_source": "gaia_dr3_pf",
+  "n_epochs_joint": 1336,
+  "png": "folds/chen_f486_ZTFJ180708.63+013433.4_ftp_mb.png",
+  "r_med_mag": 14.3,
+  "role": "science",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "chen",
+  "type": "RRab",
+  "uid": "chen_f486_ZTFJ180708.63+013433.4"
+ },
+ {
+  "P_rec": 0.36162051389837635,
+  "P_true": 0.3617904,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 3.37,
+    "f_rec": 2.7652571926765477
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 3.37,
+    "f_rec": 2.7652571926765477
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 3.57,
+    "f_rec": 2.7653298459750073
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 3.37,
+    "f_rec": 2.7652571926765477
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 3.57,
+    "f_rec": 2.7653298459750073
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 3802.37,
+    "f_rec": 1.3826649229875037
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.3617904,
+    "chi2_red_fold": 73.56,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (chen)",
+    "theta": 0.8313
+   },
+   {
+    "P": 0.36162051389837635,
+    "chi2_red_fold": 20.69,
+    "dphi_vs_truth_cycles": 3.574,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.2337
+   },
+   {
+    "P": 0.36161719724716124,
+    "chi2_red_fold": 23.32,
+    "dphi_vs_truth_cycles": 3.644,
+    "name": "alt truth (gaia p1_o)",
+    "theta": 0.2635
+   }
+  ],
+  "chen_period": "0.3617904",
+  "class": "miss",
+  "dphi_cycles": 3.574,
+  "f_true": 2.7640313286366913,
+  "frac_err": 0.0004697911072362757,
+  "ftp_mb_top5_freq": [
+   2.76533,
+   1.762569,
+   4.768018,
+   3.768018,
+   1.765257
+  ],
+  "ftp_mb_top5_stat": [
+   0.75344,
+   0.57806,
+   0.54301,
+   0.52055,
+   0.35593
+  ],
+  "g_med_mag": 14.4,
+  "gaia_period": "0.36161719724716124",
+  "gaia_period_source": "gaia_dr3_p1_o",
+  "n_epochs_joint": 1468,
+  "png": "folds/chen_f486_ZTFJ181921.70+032211.3_ftp_mb.png",
+  "r_med_mag": 13.95,
+  "role": "science",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "chen",
+  "type": "RRc",
+  "uid": "chen_f486_ZTFJ181921.70+032211.3"
+ },
+ {
+  "P_rec": 0.5089515018424089,
+  "P_true": 0.5091168863349941,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 1.75,
+    "f_rec": 1.9648237531080883
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 1.75,
+    "f_rec": 1.9648237531080883
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 1.75,
+    "f_rec": 1.9648237531080883
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 1.95,
+    "f_rec": 1.964896884598508
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 1.75,
+    "f_rec": 1.9648237531080883
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 1.95,
+    "f_rec": 1.964896884598508
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.5091168863349941,
+    "chi2_red_fold": 142.95,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (gaia)",
+    "theta": 0.8602
+   },
+   {
+    "P": 0.5089515018424089,
+    "chi2_red_fold": 61.16,
+    "dphi_vs_truth_cycles": 1.745,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.368
+   }
+  ],
+  "chen_period": "nan",
+  "class": "miss",
+  "dphi_cycles": 1.745,
+  "f_true": 1.9641854883242067,
+  "frac_err": 0.0003249513794270912,
+  "ftp_mb_top5_freq": [
+   1.964824,
+   2.967603,
+   3.967603,
+   4.970309,
+   1.040588
+  ],
+  "ftp_mb_top5_stat": [
+   0.57895,
+   0.44508,
+   0.41086,
+   0.36872,
+   0.25651
+  ],
+  "g_med_mag": 16.42,
+  "gaia_period": "0.5091168863349941",
+  "gaia_period_source": "gaia_dr3_pf",
+  "n_epochs_joint": 1473,
+  "png": "folds/gaia_f486_4276113046713707904_ftp_mb.png",
+  "r_med_mag": 15.82,
+  "role": "control_antijoin",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "gaia",
+  "type": "RRab",
+  "uid": "gaia_f486_4276113046713707904"
+ },
+ {
+  "P_rec": 0.3567994146545417,
+  "P_true": 0.3568413,
+  "all_methods": {
+   "ce": {
+    "class": "exact",
+    "dphi_cycles": 0.5,
+    "f_rec": 2.8025487036765786
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.7,
+    "f_rec": 2.8026219422879746
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 0.9,
+    "f_rec": 2.80269518089937
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.7,
+    "f_rec": 2.8026219422879746
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 0.9,
+    "f_rec": 2.80269518089937
+   },
+   "mhls_h8": {
+    "class": "f/2",
+    "dphi_cycles": 3825.71,
+    "f_rec": 1.401347590449685
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.3568413,
+    "chi2_red_fold": 28.84,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (chen)",
+    "theta": 0.6219
+   },
+   {
+    "P": 0.3567994146545417,
+    "chi2_red_fold": 19.28,
+    "dphi_vs_truth_cycles": 0.898,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.4158
+   },
+   {
+    "P": 0.356823186101753,
+    "chi2_red_fold": 26.63,
+    "dphi_vs_truth_cycles": 0.388,
+    "name": "alt truth (gaia p1_o)",
+    "theta": 0.5742
+   }
+  ],
+  "chen_period": "0.3568413",
+  "class": "miss",
+  "dphi_cycles": 0.898,
+  "f_true": 2.802366205929639,
+  "frac_err": 0.00011739185586636958,
+  "ftp_mb_top5_freq": [
+   2.802695,
+   1.799912,
+   3.805405,
+   4.805405,
+   1.802622
+  ],
+  "ftp_mb_top5_stat": [
+   0.53926,
+   0.41132,
+   0.37806,
+   0.33064,
+   0.31926
+  ],
+  "g_med_mag": 14.55,
+  "gaia_period": "0.356823186101753",
+  "gaia_period_source": "gaia_dr3_p1_o",
+  "n_epochs_joint": 1648,
+  "png": "folds/chen_f686_ZTFJ194003.35+301707.8_ftp_mb.png",
+  "r_med_mag": 14.25,
+  "role": "science",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "chen",
+  "type": "RRc",
+  "uid": "chen_f686_ZTFJ194003.35+301707.8"
+ },
+ {
+  "P_rec": 0.3302152254924329,
+  "P_true": 0.3303055,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 2.16,
+    "f_rec": 3.0283279594656842
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 2.16,
+    "f_rec": 3.0283279594656842
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 2.16,
+    "f_rec": 3.0283279594656842
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 2.16,
+    "f_rec": 3.0283279594656842
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 2.16,
+    "f_rec": 3.0283279594656842
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 5257.13,
+    "f_rec": 1.009442653155228
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.3303055,
+    "chi2_red_fold": 97.24,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (chen)",
+    "theta": 0.9582
+   },
+   {
+    "P": 0.3302152254924329,
+    "chi2_red_fold": 29.31,
+    "dphi_vs_truth_cycles": 2.156,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.2888
+   },
+   {
+    "P": 0.33020753874887093,
+    "chi2_red_fold": 32.68,
+    "dphi_vs_truth_cycles": 2.34,
+    "name": "alt truth (gaia p1_o)",
+    "theta": 0.322
+   }
+  ],
+  "chen_period": "0.3303055",
+  "class": "miss",
+  "dphi_cycles": 2.156,
+  "f_true": 3.0275002989656548,
+  "frac_err": 0.0002733808152924841,
+  "ftp_mb_top5_freq": [
+   3.028328,
+   4.028328,
+   2.025641,
+   4.031092,
+   2.028328
+  ],
+  "ftp_mb_top5_stat": [
+   0.67773,
+   0.41587,
+   0.39894,
+   0.37516,
+   0.3666
+  ],
+  "g_med_mag": 15.31,
+  "gaia_period": "0.33020753874887093",
+  "gaia_period_source": "gaia_dr3_p1_o",
+  "n_epochs_joint": 1932,
+  "png": "folds/chen_f786_ZTFJ092904.98+521752.3_ftp_mb.png",
+  "r_med_mag": 15.24,
+  "role": "science",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "chen",
+  "type": "RRc",
+  "uid": "chen_f786_ZTFJ092904.98+521752.3"
+ },
+ {
+  "P_rec": 0.5719429198682766,
+  "P_true": 0.572051,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 0.86,
+    "f_rec": 1.7484262244741287
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.86,
+    "f_rec": 1.7484262244741287
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 0.86,
+    "f_rec": 1.7484262244741287
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.86,
+    "f_rec": 1.7484262244741287
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 0.86,
+    "f_rec": 1.7484262244741287
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 0.86,
+    "f_rec": 1.7484262244741287
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.572051,
+    "chi2_red_fold": 207.18,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (chen)",
+    "theta": 0.9157
+   },
+   {
+    "P": 0.5719429198682766,
+    "chi2_red_fold": 56.33,
+    "dphi_vs_truth_cycles": 0.861,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.249
+   },
+   {
+    "P": 0.5720895761044757,
+    "chi2_red_fold": 203.16,
+    "dphi_vs_truth_cycles": 0.307,
+    "name": "alt truth (gaia pf)",
+    "theta": 0.898
+   }
+  ],
+  "chen_period": "0.572051",
+  "class": "miss",
+  "dphi_cycles": 0.861,
+  "f_true": 1.7480958865555694,
+  "frac_err": 0.00018897013664976502,
+  "ftp_mb_top5_freq": [
+   1.748426,
+   2.75119,
+   3.75119,
+   2.748426,
+   1.747889
+  ],
+  "ftp_mb_top5_stat": [
+   0.69987,
+   0.35779,
+   0.35005,
+   0.33948,
+   0.1094
+  ],
+  "g_med_mag": 13.34,
+  "gaia_period": "0.5720895761044757",
+  "gaia_period_source": "gaia_dr3_pf",
+  "n_epochs_joint": 1865,
+  "png": "folds/chen_f786_ZTFJ094954.90+514422.2_ftp_mb.png",
+  "r_med_mag": 13.11,
+  "role": "science",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "chen",
+  "type": "RRab",
+  "uid": "chen_f786_ZTFJ094954.90+514422.2"
+ },
+ {
+  "P_rec": 0.6978289540428122,
+  "P_true": 0.6979211,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 0.52,
+    "f_rec": 1.4330159191684233
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.52,
+    "f_rec": 1.4330159191684233
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 0.52,
+    "f_rec": 1.4330159191684233
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 0.52,
+    "f_rec": 1.4330159191684233
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 0.52,
+    "f_rec": 1.4330159191684233
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 0.52,
+    "f_rec": 1.4330159191684233
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.6979211,
+    "chi2_red_fold": 117.76,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (chen)",
+    "theta": 0.51
+   },
+   {
+    "P": 0.6978289540428122,
+    "chi2_red_fold": 14.23,
+    "dphi_vs_truth_cycles": 0.521,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.0616
+   },
+   {
+    "P": 0.6978420694543642,
+    "chi2_red_fold": 4.18,
+    "dphi_vs_truth_cycles": 0.446,
+    "name": "alt truth (gaia pf)",
+    "theta": 0.0181
+   }
+  ],
+  "chen_period": "0.6979211",
+  "class": "miss",
+  "dphi_cycles": 0.521,
+  "f_true": 1.4328267192380344,
+  "frac_err": 0.00013204662353694856,
+  "ftp_mb_top5_freq": [
+   1.433016,
+   2.433016,
+   2.435778,
+   3.435778,
+   2.865959
+  ],
+  "ftp_mb_top5_stat": [
+   0.9101,
+   0.41467,
+   0.40266,
+   0.3845,
+   0.17379
+  ],
+  "g_med_mag": 14.55,
+  "gaia_period": "0.6978420694543642",
+  "gaia_period_source": "gaia_dr3_pf",
+  "n_epochs_joint": 1828,
+  "png": "folds/chen_f786_ZTFJ095443.72+570927.4_ftp_mb.png",
+  "r_med_mag": 14.27,
+  "role": "science",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "chen",
+  "type": "RRab",
+  "uid": "chen_f786_ZTFJ095443.72+570927.4"
+ },
+ {
+  "P_rec": 0.9997697444163021,
+  "P_true": 0.6648564984691379,
+  "all_methods": {
+   "ce": {
+    "class": "miss",
+    "dphi_cycles": 1306.76,
+    "f_rec": 1.0024566252111162
+   },
+   "ftp_1band": {
+    "class": "miss",
+    "dphi_cycles": 1312.56,
+    "f_rec": 1.0002303086135422
+   },
+   "ftp_mb": {
+    "class": "miss",
+    "dphi_cycles": 1312.56,
+    "f_rec": 1.0002303086135422
+   },
+   "gls_1band": {
+    "class": "miss",
+    "dphi_cycles": 1306.56,
+    "f_rec": 1.0025333947489636
+   },
+   "mbls_h1": {
+    "class": "miss",
+    "dphi_cycles": 1306.56,
+    "f_rec": 1.0025333947489636
+   },
+   "mhls_h8": {
+    "class": "miss",
+    "dphi_cycles": 1306.76,
+    "f_rec": 1.0024566252111162
+   }
+  },
+  "candidates": [
+   {
+    "P": 0.6648564984691379,
+    "chi2_red_fold": 1.7,
+    "dphi_vs_truth_cycles": 0.0,
+    "name": "truth (gaia)",
+    "theta": 0.9219
+   },
+   {
+    "P": 0.9997697444163021,
+    "chi2_red_fold": 1.28,
+    "dphi_vs_truth_cycles": 1312.562,
+    "name": "recovered (ftp_mb)",
+    "theta": 0.6965
+   }
+  ],
+  "chen_period": "nan",
+  "class": "miss",
+  "dphi_cycles": 1312.562,
+  "f_true": 1.5040839674464268,
+  "frac_err": 0.3349903793524952,
+  "ftp_mb_top5_freq": [
+   1.00023,
+   1.002533,
+   2.002994,
+   1.003071,
+   2.002457
+  ],
+  "ftp_mb_top5_stat": [
+   0.24542,
+   0.22004,
+   0.17791,
+   0.17008,
+   0.16451
+  ],
+  "g_med_mag": 20.38,
+  "gaia_period": "0.6648564984691379",
+  "gaia_period_source": "gaia_dr3_pf",
+  "n_epochs_joint": 1273,
+  "png": "folds/gaia_f786_1020098816344918656_ftp_mb.png",
+  "r_med_mag": 20.16,
+  "role": "control_antijoin",
+  "truth_rank_in_ftp_mb_top5": null,
+  "truth_source": "gaia",
+  "type": "RRab",
+  "uid": "gaia_f786_1020098816344918656"
+ }
+]
