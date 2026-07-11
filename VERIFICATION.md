@@ -572,3 +572,70 @@ effect (≲10%). The reps asymmetry (eigvals min-of-2 in timing_c5.py vs min-of-
 benchmark) and BLAS threading (env unset in both) were checked and are immaterial. **Quote
 ~20× for the C2/C4 random-template smoke fixture and ≈28× for the paper's timing_c5 config;
 neither supersedes the other.**
+
+## WP F1 — multiband appendix derivations (paper repo `d825d69`) — VERIFIED 2026-07-10, defects closed 2026-07-10
+
+**Original work (2026-07-10, unattended queue session; paper repo `h-vs-accuracy`
+commit `d825d69`).** Retitled the multiband appendix, added the sharing-hierarchy
+Table 2 (all four modes: shared-vs-free parameters, reference variance $V_0$, per-frequency
+root cost), the `floating_offsets` derivation (the default headline mode), a `shared_phase`
+subsection, and a hierarchy-wide cost subsection. Every claim was re-measured in that
+session against `ftperiodogram/multiband.py` / `core.py`. In-run sign-off = **2-agent
+adversarial panel @max** (independent re-derivation SIGN_OFF, 14/14 CONFIRMED; adversarial
+TeX audit, 14/14 CONFIRMED, its 3 flags fixed in-session), recorded in the PLAN.md Status
+ledger. No VERIFICATION.md entry was written at the time — this section closes that gap.
+
+**Independent audit finding (2026-07-10, `AUDIT_2026-07-10_QUEUE_RUN.md`, f1-math
+verifier).** The audit re-derived the floating_offsets algebra from the code and confirmed
+the substance (its record: end-to-end FO power vs brute force 8.7e-16; polynomial degrees
+16 = 6H−2 and 46 = 8HK−2; all four Table 2 rows verified behaviorally, including $V_0$ per
+mode to ~1e-15). It also found **two real TeX defects that the in-run 14/14×2 panel
+missed**:
+
+1. **Hatted-macro / centred-moment inconsistency.** The new `app:floatingoffsets`
+   subsection reused the hatted macros `\YMh`/`\MMh` — which the paper's own definitions
+   (single-band appendix; sesar subsection) fix as *uncentred* moments — for *centred*
+   per-band quantities, so `eq:foaverage` was wrong under the paper's own symbol
+   definitions and correct only via the prose gloss ("about that band's own weighted
+   mean"); the neighbouring `app:sharedphase` writes the same centred objects unhatted.
+   The primes on the band-combined `YM'`/`MM'`/`YY'` were also used without the
+   ψ-rescaling that primes carry everywhere else in the derivation appendices.
+2. **shared_phase cost-sentence contradiction.** `app:sharedphase` called `shared_phase`
+   "the only member of the hierarchy whose per-frequency cost grows with $K$ beyond the
+   summations", contradicting Table 2's own $O(KH^3)$ row for the `independent` mode
+   (linear in $K$).
+
+**Policy significance.** This is the **first measured false-negative for the
+sign-off-delegation policy** (2026-06-12: adversarial multi-agent verification in lieu of
+human review): a 2-agent panel returned 14/14 CONFIRMED twice over a work product that
+contained two real (TeX-internal, non-substantive) defects. Calibration point recorded:
+panel CONFIRMED counts bound *substance* well (the audit found zero math/code defects)
+but under-detect notation-consistency defects that require cross-referencing symbol
+definitions from distant sections; future paper-WP panels should include an explicit
+notation-consistency check against the paper's own macro definitions.
+
+**Fixes (this session, 2026-07-10; paper repo `h-vs-accuracy`).**
+- **`8eb6b28`** — closes both audit defects. (1) `app:floatingoffsets` now uses unhatted
+  centred per-band moments $YM^{(k)} \equiv \widehat{YM}^{(k)} - \bar{y}^{(k)}\overline{M}^{(k)}$,
+  $MM^{(k)} \equiv \widehat{MM}^{(k)} - (\overline{M}^{(k)})^2$ (matching `app:sharedphase`),
+  with overlined $\overline{YM}/\overline{MM}/\overline{YY}$ for the plain $W^{(k)}$-weighted
+  band averages and an explicit remark reserving hats for uncentred moments and primes for
+  ψ-rescaled polynomials; verified this session against the implementation ground truth
+  (`multiband.py::combine_band_summations` — plain $W_k$-weighted average of per-band
+  `YM`/`MM` built by `core.YM_MM_from_sums` from the *centred* sums of `summations.py`,
+  normalised by `YY_combined` $= \sum_k W_k YY^{(k)}$). (2) The `shared_phase` sentence now
+  states the true distinction — the only mode whose phase maximisation *couples* the bands
+  into a single polynomial of $K$-dependent degree (superlinear $(HK)^3$), vs the
+  `independent` mode's $K$ repetitions of the single-band solve — and `app:mbcost`'s
+  "no larger than a single-band periodogram's" was tightened to acknowledge the $K$-fold
+  NFFT summations. Build gate re-run: `make all` exit 0, **19 pp, 0 undefined references,
+  no new overfull boxes** (the 3 pre-existing body overfulls only).
+- **`25ae62c`** (same session, same audit run, c5-consistency verifier finding) — the
+  stale abstract speed claim ("a factor of a few faster for $N_{\rm obs}\lesssim 10$", a
+  pre-C5 leftover with no supporting measurement) replaced with ratios recomputed this
+  session from the committed `timing_v5/timing_results.json`: 13.7×/14.6×
+  (const-cadence/const-baseline) at $N_{\rm obs}=15$ rising to 479×/498× at
+  $N_{\rm obs}=250$ → abstract now says "≈14× at $N_{\rm obs}=15$ … ≳480× by
+  $N_{\rm obs}=250$, an advantage that grows without bound".
+
+Both commits pushed to `h-vs-accuracy`; `master` untouched in both repos.
