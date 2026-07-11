@@ -39,17 +39,30 @@ on RunPod CPU pods) with the B8-closure deltas:
 * canary-first: ``canary`` launches ONLY e2-jitter-0 + g-refine-sesar-0
   (~$2-3); ``report`` compares measured core-hr against the estimates; the
   FULL batch (cap $25) is released only after a human-approved estimate.
+* SHARDED arm (b) (2026-07-11, post-canary): the g-refine jobs are split ONE
+  POD PER N-VALUE (see the job-table comment); the N4 shard of each
+  (universe, seed) computes the dense greedy order once, siblings inject it
+  via ``--greedy-order`` (placeholder resolved at launch from the collected
+  N4 results.json).  ``sync`` merges the shard jobs into an existing state
+  and retires the superseded monolith entries; ``retoken`` rotates to a
+  fresh webhook token (request-count budget); ``deadline`` kills own pods
+  past their per-job ``deadline_h`` (one fresh-pod retry, then FAILED);
+  ``step`` = collect + deadline + bootwatch + dependency-aware slot fill
+  (max MAX_LIVE concurrent pods), the one-call foreground supervision pass.
+  Launch with ``B8C_PIN_VCPU=32``: hold-and-retry beats accepting 16 vCPU.
 
     .venv/bin/python fleet_b8_closure.py mint       # fresh token + pending state (no pods)
     .venv/bin/python fleet_b8_closure.py plan       # dry-run: job table + drivers, no network
-    .venv/bin/python fleet_b8_closure.py canary     # launch the 2 canary pods
-    .venv/bin/python fleet_b8_closure.py report     # canary timing vs estimate + $ projection
-    .venv/bin/python fleet_b8_closure.py release    # launch every job without a pod yet
+    .venv/bin/python fleet_b8_closure.py sync       # merge shard jobs into existing state
+    .venv/bin/python fleet_b8_closure.py retoken    # rotate to a fresh webhook token
+    .venv/bin/python fleet_b8_closure.py step       # one supervision pass (poll foreground)
+    .venv/bin/python fleet_b8_closure.py report     # timing vs estimate + $ projection
     .venv/bin/python fleet_b8_closure.py collect    # fetch results, extract, kill done pods
     .venv/bin/python fleet_b8_closure.py prog       # latest PROG log tail per running job
+    .venv/bin/python fleet_b8_closure.py deadline   # one deadline-watchdog pass
     .venv/bin/python fleet_b8_closure.py bootwatch  # one boot-watchdog pass (poll from foreground)
     .venv/bin/python fleet_b8_closure.py killstale 12   # kill OWN pods past 12 h wall
-    .venv/bin/python fleet_b8_closure.py teardown   # delete OWN pods; verify only cuvarbase-dev lives
+    .venv/bin/python fleet_b8_closure.py teardown   # delete OWN pods; verify zero b8c pods live
 """
 import base64
 import gzip
@@ -124,12 +137,71 @@ def _is_protected(pid, name=None):
 PROD = ("python run_production_matrix.py --universe %(u)s --seeds %(s)d --n-jobs -1 "
         "--nharmonics 8 --n-sources 256 --baseline-days 1095.75 --obs-bands g,r "
         "--dense-master-epochs 60 --sparse-master-epochs 6 --k-values 1,2,4,8 "
-        "--n-epochs-values 4,8,12,16,24,40 --mhls-h 8 --mbls-h 1 "
+        "--n-epochs-values %(nvals)s --mhls-h 8 --mbls-h 1 "
         "--greedy-select-sources 64 --greedy-select-nfreq 2000 --bv-bands g,r "
         "--with-ce --no-figures --outdir /workspace/out")
 # grid-closure: same 10k grid + peak refinement, N-sweep only (the flagged
 # cells all live in the N-sweep; --fixed-k 2 matches arm a for McNemar pairing)
 ARM_REFINE = " --n-freq 10000 --stages n_sweep --fixed-k 2 --refine"
+
+# ----------------------------------------------------------------------
+# Arm-(b) SHARDING (2026-07-11, post-canary).  The monolithic g-refine jobs
+# measured >=91.2 (sesar) / ~138 (bv, x1.51) core-hr -- deadline-infeasible on
+# one pod.  Split each job into ONE POD PER N-VALUE of its own
+# --n-epochs-values grid (job table: 4,8,12,16,24,40).  downsample(N,
+# random_state=seed) draws ONE frozen permutation per (source, band) and keeps
+# the first N, so a single-N shard reproduces the monolithic cell EXACTLY and
+# p_true pairing vs arm (a) is untouched.
+#
+# The greedy-order precompute is template-count linear (measured: sesar
+# 98 templates = 7.4 core-hr; bv 560 => ~42, which is also exactly the June
+# a-bv-vs-a-sesar wall gap) and per-N sharding would replay it 6x per job, so
+# only the N4 shard computes it (cheapest cell) and records it in
+# results.json; sibling shards inject it via --greedy-order and skip the
+# precompute.  Sibling drivers carry a placeholder resolved at launch time
+# from the collected N4 result.
+# ----------------------------------------------------------------------
+N_SHARDS = (4, 8, 12, 16, 24, 40)
+GREEDY_PLACEHOLDER = "{GREEDY_ORDER}"
+MAX_LIVE = 20        # one pod per shard authorized 2026-07-11 (wall-clock min)
+DEADLINE_DEFAULT_H = 1.5
+
+
+def _shard_est(u, n, with_greedy):
+    """Per-shard core-hr estimate from MEASURED anchors (2026-07-11 canary +
+    June a-jobs): unrefined N-sweep ~44 core-hr across sum(N)=104 (~prop. N),
+    refine adds ~8 core-hr/cell flat (>=1.9x overall floor), greedy dense
+    7.4 core-hr (sesar) / ~42 (bv, 560/98 templates)."""
+    cell = 44.0 * n / 104.0 + 8.0 + (1.0 if u == "bv" else 0.0)
+    greedy = (7.4 if u == "sesar" else 42.0) if with_greedy else 0.0
+    return int(round(cell + greedy))
+
+
+def _shard_driver(u, s, n, inject):
+    d = PROD % {"u": u, "s": s, "nvals": str(n)} + ARM_REFINE
+    if inject:
+        d += " --greedy-order " + GREEDY_PLACEHOLDER
+    return d
+
+
+_G_JOBS = []
+for _u, _seeds in (("sesar", (0, 1, 2)), ("bv", (0,))):
+    for _s in _seeds:
+        for _n in N_SHARDS:
+            _inject = (_n != N_SHARDS[0])
+            _G_JOBS.append({
+                "tag": "g-refine-%s-%d-N%d" % (_u, _s, _n),
+                "est": _shard_est(_u, _n, not _inject),
+                "driver": _shard_driver(_u, _s, _n, _inject),
+                "avoid_flavors": ["cpu3c"],       # June-measured slow silicon
+                # bv-N4 carries the one-time 560-template greedy (~42 core-hr
+                # = ~1.6 h on 32 vCPU): the only shard allowed past 1.5 h
+                "deadline_h": (2.5 if (_u == "bv" and not _inject)
+                               else DEADLINE_DEFAULT_H),
+                # N4 shards get 2 PROG posts (greedy timing salvage), siblings
+                # 1 -- keeps the batch under the ~100-request token cap
+                "prog_posts": (2 if not _inject else 1),
+            })
 
 # arm-(e) relaunch: ONE (scenario, seed) per pod (B8 lesson: shard; one job
 # must not set the tail).  --n-epochs-values 4 5 6 8 12 re-grids N so the
@@ -139,10 +211,6 @@ JOINT = ("python run_joint_vs_pipeline.py --universe sesar --k 2 --n-sources 256
          "--n-harmonics 8 --f-min 1.4 --f-max 3.6 --n-freq 2000 --baseline-days 60 "
          "--mean-mag 19 --max-iter 8 --n-jobs -1 --n-epochs-values 4 5 6 8 12 "
          "--seed %(seed)d --no-figure%(extra)s --out /workspace/out/%(scen)s_seed%(seed)d")
-
-
-def _prod(u, s, extra):
-    return PROD % {"u": u, "s": s} + extra
 
 
 def _joint(scen, seed, extra):
@@ -158,12 +226,11 @@ _E2_SCENARIOS = [("base", ""),
 JOBS = ([{"tag": "e2-%s-%d" % (scen, seed), "est": 10,
           "driver": _joint(scen, seed, extra)}
          for scen, extra in _E2_SCENARIOS for seed in (0, 1, 2)]
-        + [{"tag": "g-refine-sesar-%d" % s, "est": 45,
-            "driver": _prod("sesar", s, ARM_REFINE)} for s in (0, 1, 2)]
-        + [{"tag": "g-refine-bv-0", "est": 68,
-            "driver": _prod("bv", 0, ARM_REFINE)}])
+        + _G_JOBS)
 
-CANARY_TAGS = ("e2-jitter-0", "g-refine-sesar-0")
+# canary phase CLOSED 2026-07-11 (measured; both gates failed at monolithic
+# scope -- see B8_COST_ESTIMATE.md).  Tag kept only for plan's sanity assert.
+CANARY_TAGS = ("e2-jitter-0", "g-refine-sesar-0-N4")
 
 
 # ----------------------------------------------------------------------
@@ -227,25 +294,26 @@ def _post(token, job, suffix):
             % (token, job, suffix))
 
 
-def _prog_beacon(token, tag):
-    """Backgrounded 15-min progress beacon (max 4 posts -- webhook.site free
-    tokens store ~100 requests; 16 jobs x (START+RESULT+4 PROG) = 96).  Uses
-    its own payload file so it never clobbers /workspace/payload.b64.
+def _prog_beacon(token, tag, n_posts=4):
+    """Backgrounded 15-min progress beacon (``n_posts`` max -- webhook.site
+    free tokens store ~100 requests; the 24-shard batch runs 1-2 posts/shard
+    so START+RESULT+PROG stays under the cap with retry margin).  Uses its
+    own payload file so it never clobbers /workspace/payload.b64.
 
     MUST NOT end in a bare ``&``: _bootstrap joins lines with '' ; '' and
     ``cmd & ; next`` is a bash SYNTAX ERROR that aborts the ENTIRE -c string
     before anything runs -- the root cause of the three 2026-07-10/11 pods
     that billed at uptime 0 with zero beacons.  The trailing ``true`` makes
     the join valid (``cmd & true ; next``)."""
-    return ("( for i in 1 2 3 4; do sleep 900; "
+    return ("( for i in $(seq 1 %d); do sleep 900; "
             "tail -40 /workspace/run.log 2>/dev/null | gzip -c | base64 -w0 "
             ">/workspace/prog.b64; "
             "curl -sf --max-time 60 -X POST https://webhook.site/%s "
             "-H 'X-Job: %s-PROG' --data-binary @/workspace/prog.b64; "
-            "done ) >/dev/null 2>&1 & true" % (token, tag))
+            "done ) >/dev/null 2>&1 & true" % (int(n_posts), token, tag))
 
 
-def _bootstrap(tag, driver, token):
+def _bootstrap(tag, driver, token, n_prog=4):
     diag = ("( echo \"REPO=[$REPO]\"; echo --ls--; ls /workspace; echo --dl--; "
             "cat /workspace/dl.log; echo --tar--; cat /workspace/tar.log; echo --pip--; "
             "tail -6 /workspace/pip.log; echo --numpy--; "
@@ -270,7 +338,7 @@ def _bootstrap(tag, driver, token):
         diag,
         'ST=diag; gzip -c /workspace/diag.txt | base64 -w0 >/workspace/payload.b64',
         _post(token, tag, "-START"),
-        _prog_beacon(token, tag),
+        _prog_beacon(token, tag, n_prog),
         'cd "$REPO/experiments/phase3_recovery"',
         "ST=run; { %s ; } >/workspace/run.log 2>&1; ST=$?" % driver,
         result,
@@ -286,11 +354,11 @@ def _machine_id(pid):
     return m.group(1) if m else ""
 
 
-def _create(tag, driver, token, avoid=()):
+def _create(tag, driver, token, avoid=(), n_prog=4):
     """Create a pod, skipping flavors in ``avoid`` (boot-watchdog retries) and
     deleting-and-continuing if the pod lands on a BAD_MACHINES host (a bad
     host is RunPod's placement, not a boot attempt of ours)."""
-    script = _bootstrap(tag, driver, token)
+    script = _bootstrap(tag, driver, token, n_prog)
     _check_script_syntax(script, tag)     # never POST a script bash can't parse
     # B8C_PIN_VCPU=32: canary lesson 2026-07-11 -- g-refine-sesar-0 landed on
     # 16 vCPU (32-pool exhausted) and was deadline-infeasible from the start.
@@ -322,8 +390,42 @@ def _create(tag, driver, token, avoid=()):
             _delete_pod(pid)
             last = "bad machine %s" % mach
             continue
-        return pid, "%s/%d/%s@%s" % (flav, vcpu, cloud, mach or "?")
-    return None, (last[:140] or "no fallback flavor available")
+        mc = re.search(r'"costPerHr"\s*:\s*([0-9.]+)', t)
+        cost = float(mc.group(1)) if mc else None
+        return pid, "%s/%d/%s@%s" % (flav, vcpu, cloud, mach or "?"), cost
+    return None, (last[:140] or "no fallback flavor available"), None
+
+
+def _resolve_driver(j):
+    """Substitute the greedy-order placeholder from the collected sibling N4
+    shard's results.json (SystemExit if it has not landed yet)."""
+    d = j["driver"]
+    if GREEDY_PLACEHOLDER not in d:
+        return d
+    prefix = j["tag"].rsplit("-N", 1)[0]
+    src = os.path.join(RAW, "%s-N%d" % (prefix, N_SHARDS[0]),
+                       "out", "results.json")
+    if not os.path.exists(src):
+        raise SystemExit("%s: sibling N%d shard result not collected yet (%s)"
+                         % (j["tag"], N_SHARDS[0], src))
+    order = json.load(open(src))["per_seed"][0]["n_epochs_sweep"][
+        "greedy_order_dense"]
+    if not order:
+        raise SystemExit("%s: empty greedy_order_dense in %s" % (j["tag"], src))
+    return d.replace(GREEDY_PLACEHOLDER,
+                     ",".join(str(int(i)) for i in order))
+
+
+def _record_spend(st, j, note):
+    """Accumulate billed wall for job ``j``'s live pod into st['spend_usd']
+    (called at EVERY pod-delete site so the ledger never loses a billed pod)."""
+    if not j.get("pod") or not j.get("created"):
+        return
+    wall_h = (time.time() - j["created"]) / 3600.0
+    cost = wall_h * float(j.get("cost_hr") or 1.12)
+    st["spend_usd"] = round(st.get("spend_usd", 0.0) + cost, 4)
+    print("  spend +$%.2f (%s %s, %.2f h) -> total $%.2f"
+          % (cost, j["tag"], note, wall_h, st["spend_usd"]))
 
 
 def _launch(j, token):
@@ -335,14 +437,20 @@ def _launch(j, token):
         print("launch %s: SKIP -- boot-attempt cap (%d) reached"
               % (j["tag"], MAX_BOOT_ATTEMPTS))
         return None
-    pid, info = _create(j["tag"], j["driver"], token,
-                        avoid=tuple(j.get("avoid_flavors") or ()))
+    driver = _resolve_driver(j)
+    pid, info, cost = _create(j["tag"], driver, token,
+                              avoid=tuple(j.get("avoid_flavors") or ()),
+                              n_prog=int(j.get("prog_posts") or 4))
+    j["driver"] = driver               # record what actually runs (resolved)
     j["pod"], j["info"] = pid, info
     j["created"] = time.time() if pid else None
+    if cost is not None:
+        j["cost_hr"] = cost
     if pid:
         j["boot_attempts"] = j.get("boot_attempts", 0) + 1
-        print("launch %s -> %s (%s) [boot attempt %d/%d]"
-              % (j["tag"], pid, info, j["boot_attempts"], MAX_BOOT_ATTEMPTS))
+        print("launch %s -> %s (%s, $%s/h) [boot attempt %d/%d]"
+              % (j["tag"], pid, info, cost, j["boot_attempts"],
+                 MAX_BOOT_ATTEMPTS))
     else:
         print("launch %s -> FAIL (%s)" % (j["tag"], info))
     return pid
@@ -372,6 +480,32 @@ def _headers(r):
             for k, v in (r.get("headers") or {}).items()}
 
 
+def _start_times(token):
+    """{tag: latest START-beacon epoch} -- timestamped so a deadline-retry pod
+    is never credited with its killed predecessor's START beacon."""
+    from datetime import datetime, timezone
+    out = {}
+    for r in _requests(token):
+        job = _headers(r).get("x-job", "")
+        if not job.endswith("-START"):
+            continue
+        try:
+            ts = datetime.strptime(
+                r["created_at"][:19], "%Y-%m-%d %H:%M:%S").replace(
+                tzinfo=timezone.utc).timestamp()
+        except Exception:
+            continue
+        tag = job[:-6]
+        out[tag] = max(out.get(tag, 0.0), ts)
+    return out
+
+
+def _started(j, starts):
+    """True if the job's CURRENT pod (created at j['created']) has beaconed."""
+    ts = starts.get(j["tag"])
+    return ts is not None and ts >= (j.get("created") or 0) - 180.0
+
+
 def _load_state():
     return json.load(open(STATE))
 
@@ -381,9 +515,13 @@ def _save_state(st):
 
 
 def _new_job(j, pod=None, info="pending"):
-    return {"tag": j["tag"], "est": j["est"], "driver": j["driver"], "pod": pod,
-            "info": info, "received": False, "status": None, "started": False,
-            "created": None}
+    nj = {"tag": j["tag"], "est": j["est"], "driver": j["driver"], "pod": pod,
+          "info": info, "received": False, "status": None, "started": False,
+          "created": None}
+    for k in ("avoid_flavors", "deadline_h", "prog_posts"):
+        if j.get(k) is not None:
+            nj[k] = j[k]
+    return nj
 
 
 # ----------------------------------------------------------------------
@@ -408,7 +546,12 @@ def plan():
     assert len(tags) == len(set(tags)), "duplicate job tags: %s" % tags
     assert all(t in tags for t in CANARY_TAGS), "canary tag not in JOBS"
     for j in JOBS:
-        _check_script_syntax(_bootstrap(j["tag"], j["driver"], "TOKEN"), j["tag"])
+        # syntax-check what launch will actually post: placeholder resolved
+        # (dummy order here; the real one comes from the sibling N4 result)
+        drv = j["driver"].replace(GREEDY_PLACEHOLDER, "0,1")
+        _check_script_syntax(
+            _bootstrap(j["tag"], drv, "TOKEN", int(j.get("prog_posts") or 4)),
+            j["tag"])
     print("bash -n: all %d bootstrap scripts parse clean\n" % len(JOBS))
     total = canary_total = 0
     for j in JOBS:
@@ -475,10 +618,13 @@ def launch_one():
 
 
 def release():
-    """Launch every job that has no pod yet (post-canary, or capacity retry)."""
+    """Launch every job that has no pod yet (post-canary, or capacity retry).
+    NOT used for the sharded arm-(b) batch -- ``step`` is (dependency-aware,
+    concurrency-capped); release would also launch the escalated e2-* arm."""
     st = _load_state()
     for j in st["jobs"]:
-        if j.get("pod") or j["received"] or j.get("boot_dead"):
+        if (j.get("pod") or j["received"] or j.get("boot_dead")
+                or j.get("retired") or j.get("failed")):
             continue
         _launch(j, st["token"])
         time.sleep(2)
@@ -546,8 +692,9 @@ def collect():
                             and _headers(r).get("x-status") == "0"):
             posts[job] = r
     os.makedirs(RAW, exist_ok=True)
+    starts = _start_times(st["token"])
     for j in st["jobs"]:
-        if posts.get(j["tag"] + "-START"):
+        if not j["started"] and _started(j, starts):
             j["started"] = True
         if j["received"]:
             continue
@@ -573,6 +720,9 @@ def collect():
             print("%s: FAILED status=%s (log saved)" % (j["tag"], status))
         j["received"], j["status"] = True, status
         if j["pod"]:
+            j["done_wall_h"] = round(
+                (time.time() - (j.get("created") or time.time())) / 3600.0, 3)
+            _record_spend(st, j, "RESULT")
             _delete_pod(j["pod"])
             print("%s: pod %s terminated" % (j["tag"], j["pod"]))
     _save_state(st)
@@ -642,13 +792,13 @@ def bootwatch():
     FOREGROUND poll loop; it is deliberately not a daemon."""
     st = _load_state()
     try:
-        starts = {_headers(r).get("x-job", "") for r in _requests(st["token"])}
+        starts = _start_times(st["token"])
     except Exception as e:
         print("bootwatch: beacon fetch failed (%s) -- no action taken" % e)
         return
     now = time.time()
     for j in st["jobs"]:
-        if not j["started"] and (j["tag"] + "-START") in starts:
+        if not j["started"] and _started(j, starts):
             j["started"] = True
             print("bootwatch %s: START beacon seen -- boot OK" % j["tag"])
         if (not j.get("pod") or j["received"] or j["started"]
@@ -661,6 +811,7 @@ def bootwatch():
             continue
         print("bootwatch %s: NO START after %.1f min -- deleting pod %s (%s)"
               % (j["tag"], age_min, j["pod"], j.get("info")))
+        _record_spend(st, j, "BOOT-TIMEOUT")
         _delete_pod(j["pod"])
         flav = (j.get("info") or "").split("/", 1)[0]
         j.setdefault("history", []).append(
@@ -689,6 +840,7 @@ def killstale():
             continue
         age = (now - (j.get("created") or now)) / 3600.0
         if age > hours:
+            _record_spend(st, j, "KILLED-STALE")
             _delete_pod(j["pod"])
             j["killed"] = True
             j["info"] = (j.get("info") or "") + " KILLED-STALE@%.1fh" % age
@@ -700,28 +852,180 @@ def killstale():
 
 
 def teardown():
-    """Delete every pod THIS state launched, then verify via GET /pods that the
-    only survivor on the account is the protected cuvarbase-dev pod."""
+    """Delete every pod THIS state launched, then verify via GET /pods that no
+    b8c-* pod survives.  Pods that are neither b8c-* nor cuvarbase-dev (e.g.
+    the concurrent E5-offload fleet's) are EXTERNAL workstreams: listed,
+    never touched, and not a failure."""
     st = _load_state()
     for j in st["jobs"]:
+        if j.get("pod") and not j["received"]:
+            _record_spend(st, j, "TEARDOWN")
         if j.get("pod"):
             _delete_pod(j["pod"])
             print("teardown %s: DELETE pod %s" % (j["tag"], j["pod"]))
+    _save_state(st)
     time.sleep(5)
     survivors = _live_pods()
     print("live pods after teardown:")
     for pid, name in survivors:
-        print("  %s  %s%s" % (pid, name,
-                              "  [protected cuvarbase-dev]"
-                              if _is_protected(pid, name) else ""))
-    others = [p for p in survivors if not _is_protected(p[0], p[1])]
-    if others:
-        print("WARNING: %d non-cuvarbase pod(s) still live (NOT touched -- "
-              "delete by id only if they are yours): %s"
-              % (len(others), [p[0] for p in others]))
+        note = ("  [protected cuvarbase-dev]" if _is_protected(pid, name)
+                else ("  [OURS -- SHOULD BE DEAD]"
+                      if (name or "").startswith("b8c-")
+                      else "  [external workstream -- untouched]"))
+        print("  %s  %s%s" % (pid, name, note))
+    stray = [p for p in survivors if (p[1] or "").startswith("b8c-")]
+    if stray:
+        print("WARNING: %d b8c pod(s) still live: %s"
+              % (len(stray), [p[0] for p in stray]))
         sys.exit(1)
-    print("OK: no foreign pods remain (cuvarbase-dev %s may or may not exist "
-          "-- external workstream, never ours to manage)" % CUVARBASE_POD)
+    print("OK: zero b8c pods remain (cuvarbase-dev and any external-fleet "
+          "pods are not ours to manage)")
+
+
+def sync():
+    """Merge the current JOBS table into an existing state: append job entries
+    that state does not know yet (the per-N shards) and RETIRE monolithic
+    g-refine entries a shard set supersedes (never touching pods or history).
+    Idempotent."""
+    st = _load_state()
+    have = {j["tag"] for j in st["jobs"]}
+    added = 0
+    for j in JOBS:
+        if j["tag"] in have:
+            continue
+        st["jobs"].append(_new_job(j))
+        added += 1
+    shard_prefixes = {j["tag"].rsplit("-N", 1)[0] for j in JOBS
+                      if re.search(r"-N\d+$", j["tag"])}
+    retired = 0
+    for j in st["jobs"]:
+        if j["tag"] not in shard_prefixes or j.get("retired"):
+            continue
+        if j.get("pod"):
+            print("sync: NOT retiring %s -- it has live pod %s"
+                  % (j["tag"], j["pod"]))
+            continue
+        j["retired"] = True
+        j["info"] = ((j.get("info") or "")
+                     + " | RETIRED: superseded by per-N shards 2026-07-11")
+        retired += 1
+    _save_state(st)
+    print("sync: +%d shard jobs, %d monolith(s) retired, %d jobs total"
+          % (added, retired, len(st["jobs"])))
+
+
+def retoken():
+    """Rotate to a FRESH webhook token (the canary token already carries dozens
+    of requests; the 24-shard batch needs the full ~100-request budget).  Old
+    token kept in state for provenance; all canary outcomes are already
+    recorded in state history + B8_COST_ESTIMATE.md."""
+    st = _load_state()
+    old = st.get("token")
+    st.setdefault("old_tokens", []).append(old)
+    st["token"] = _mint_token()
+    _save_state(st)
+    print("token rotated %s -> %s | webhook https://webhook.site/#!/%s"
+          % (old, st["token"], st["token"]))
+
+
+def deadline():
+    """ONE deadline-watchdog pass: kill any OWN pod past its job's
+    ``deadline_h`` (default %.1f h) without a RESULT, then allow ONE retry on
+    a fresh pod (a shard at 2x its expected wall is wrong, not slow -- the
+    2026-07-11 lesson).  Second breach marks the job FAILED (the batch
+    proceeds without it; the gap is reported)."""
+    st = _load_state()
+    now = time.time()
+    for j in st["jobs"]:
+        if not j.get("pod") or j["received"] or j.get("killed"):
+            continue
+        dl = float(j.get("deadline_h") or DEADLINE_DEFAULT_H)
+        age_h = (now - (j.get("created") or now)) / 3600.0
+        if age_h <= dl:
+            continue
+        print("deadline %s: %.2f h > %.2f h -- killing pod %s"
+              % (j["tag"], age_h, dl, j["pod"]))
+        _record_spend(st, j, "KILLED-DEADLINE")
+        _delete_pod(j["pod"])
+        j.setdefault("history", []).append(
+            {"pod": j["pod"], "created": j.get("created"),
+             "info": "%s KILLED-DEADLINE@%.2fh" % (j.get("info") or "", age_h)})
+        j["pod"], j["created"], j["started"] = None, None, False
+        att = j.get("deadline_attempts", 0) + 1
+        j["deadline_attempts"] = att
+        if att > 1:
+            j["failed"] = True
+            j["info"] = "FAILED: 2x deadline kills"
+            print("deadline %s: second breach -- job FAILED, batch proceeds "
+                  "without it" % j["tag"])
+        else:
+            j["boot_attempts"] = 0      # fresh cycle for the one retry
+            j["info"] = "killed-deadline; retry pending"
+            print("deadline %s: ONE retry on a fresh pod queued" % j["tag"])
+    _save_state(st)
+
+
+deadline.__doc__ = deadline.__doc__ % DEADLINE_DEFAULT_H
+
+
+def _launchable(j):
+    """Shard jobs ready for a pod: never e2-* (escalated separately), never
+    retired/failed/boot-dead/done, and greedy-injected shards only after their
+    sibling N4 result landed (the placeholder must be resolvable)."""
+    if (j.get("pod") or j["received"] or j.get("retired") or j.get("failed")
+            or j.get("boot_dead")):
+        return False
+    if not j["tag"].startswith("g-refine-"):
+        return False
+    if GREEDY_PLACEHOLDER in j["driver"]:
+        prefix = j["tag"].rsplit("-N", 1)[0]
+        return os.path.exists(os.path.join(
+            RAW, "%s-N%d" % (prefix, N_SHARDS[0]), "out", "results.json"))
+    return True
+
+
+def step():
+    """ONE supervision pass (call from a FOREGROUND poll loop): collect
+    finished shards (+ kill their pods), enforce deadlines, run the boot
+    watchdog, then fill free slots up to MAX_LIVE with launchable shards --
+    N4 gate shards first (bv first: longest pole), then injected shards by
+    descending N.  Launch creates are staggered 30 s, max 6 per pass (keeps a
+    pass well under a foreground call budget)."""
+    collect()
+    deadline()
+    bootwatch()
+    st = _load_state()
+    live = [j for j in st["jobs"]
+            if j.get("pod") and not j["received"] and not j.get("killed")]
+    cand = [j for j in st["jobs"] if _launchable(j)]
+
+    def prio(j):
+        gate = GREEDY_PLACEHOLDER in j["driver"]      # False = N4 gate shard
+        bv = "-bv-" in j["tag"]
+        n = int(j["tag"].rsplit("-N", 1)[1])
+        return (gate, not bv, -n)
+    cand.sort(key=prio)
+    slots = max(0, MAX_LIVE - len(live))
+    launched = 0
+    for j in cand:
+        if launched >= min(slots, 6):
+            break
+        if launched:
+            time.sleep(30)
+        _launch(j, st["token"])
+        _save_state(st)                  # persist after EVERY create
+        if j.get("pod"):
+            launched += 1
+    st = _load_state()
+    done = sum(1 for j in st["jobs"] if j["received"] and j["status"] == "0")
+    fail = sum(1 for j in st["jobs"]
+               if j.get("failed") or j.get("boot_dead")
+               or (j["received"] and j["status"] != "0"))
+    live_n = sum(1 for j in st["jobs"]
+                 if j.get("pod") and not j["received"] and not j.get("killed"))
+    wait = sum(1 for j in st["jobs"] if _launchable(j))
+    print("step: ok %d | live %d | launchable %d | failed %d | spend $%.2f"
+          % (done, live_n, wait, fail, st.get("spend_usd", 0.0)))
 
 
 if __name__ == "__main__":
@@ -730,5 +1034,6 @@ if __name__ == "__main__":
     {"mint": mint, "plan": plan, "canary": canary, "release": release,
      "launch": launch_one, "collect": collect, "report": report,
      "count": count, "prog": prog, "bootwatch": bootwatch,
-     "killstale": killstale, "teardown": teardown,
+     "killstale": killstale, "teardown": teardown, "sync": sync,
+     "retoken": retoken, "deadline": deadline, "step": step,
      "start_beacon": start_beacon}[sys.argv[1]]()

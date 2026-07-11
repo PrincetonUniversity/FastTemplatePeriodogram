@@ -408,7 +408,27 @@ def run_seed(templates, truth_pool, args, seed, log):
     # Each precompute is real work, so only the orders the stages consume are built.
     sparse = master.downsample(args.sparse_master_epochs, random_state=seed)
     greedy_dense = greedy_sparse = None
-    if stages & {'k_sparse', 'k_dense', 'n_sweep'}:
+    if args.greedy_order:
+        # Per-N shard path (WP B8-closure arm b): the N4 shard of each
+        # (universe, seed) job computes the dense greedy order once and records
+        # it in results.json; sibling shards inject it here and skip the
+        # selection-scorer precompute (7-42 core-hr, template-count linear --
+        # the whole reason per-N sharding is affordable).  The order is a pure
+        # function of (universe, seed, selection args), so injection reproduces
+        # what this shard would have computed; it is recorded in the config
+        # block for audit.  Only legal for n_sweep-only runs: K-sweep greedy
+        # CURVES must derive their own order or they'd be mislabeled.
+        if stages != {'n_sweep'}:
+            raise SystemExit("--greedy-order is only valid with --stages "
+                             "n_sweep (got %s)" % sorted(stages))
+        greedy_dense = _ints(args.greedy_order)
+        if (len(set(greedy_dense)) != len(greedy_dense)
+                or any(not 0 <= i < len(library) for i in greedy_dense)):
+            raise SystemExit("--greedy-order has duplicate or out-of-range "
+                             "library indices (library size %d)" % len(library))
+        log("  greedy order INJECTED (%d indices; selection precompute skipped)"
+            % len(greedy_dense))
+    elif stages & {'k_sparse', 'k_dense', 'n_sweep'}:
         t0 = time.time()
         sel_dense, sel_sparse = selection_scorers(truth, args, seed, obs_bands,
                                                   err_model, band_amps)
@@ -479,6 +499,10 @@ def run_seed(templates, truth_pool, args, seed, log):
         result['n_epochs_sweep'] = {'n_epochs_values': n_epochs_values,
                                     'k': int(fixed_k),
                                     'n_sources': master.n_sources,
+                                    # recorded so per-N sibling shards can
+                                    # --greedy-order-inject the SAME vocabulary
+                                    'greedy_order_dense': [int(i) for i in
+                                                           greedy_dense],
                                     'mcnemar_vs_ftp_pam': contrasts, **n_curves}
         log("  N-sweep@K=%d %.0fs  FTP=%s  GLS=%s  MHLS=%s"
             % (fixed_k, time.time() - t0,
@@ -649,6 +673,13 @@ def parse_args(argv=None):
     p.add_argument('--band-amp-ratio', type=float, default=1.0,
                    help="robustness arm: first-to-last band amplitude ratio "
                         "(e.g. 1.4 for g/r); 1.0 = shared shape across bands")
+    p.add_argument('--greedy-order', default=None,
+                   help="comma-separated library indices: inject a precomputed "
+                        "dense greedy selection order and SKIP the selection "
+                        "precompute (per-N shard path, WP B8-closure arm b; "
+                        "take it from the sibling N4 shard's results.json "
+                        "n_epochs_sweep.greedy_order_dense).  Only valid with "
+                        "--stages n_sweep")
     p.add_argument('--refine', action='store_true',
                    help="grid-closure arm (WP B8-closure b): wrap every scored "
                         "estimator (K-sweeps + N-sweep; never the cost panel) "
@@ -756,7 +787,7 @@ def main(argv=None):
             'library_holdout_frac', 'truth_universe', 'band_amp_ratio',
             'greedy_select_sources', 'greedy_select_nfreq', 'stages',
             'with_ce', 'fixed_k', 'refine', 'refine_top_m', 'refine_window',
-            'refine_factor')},
+            'refine_factor', 'greedy_order')},
         'grid_df': (args.f_max - args.f_min) / (args.n_freq - 1),
         'grid_points_per_rayleigh': round(rayleigh_pts, 3),
         'n_universe': len(templates), 'seeds': seeds,
