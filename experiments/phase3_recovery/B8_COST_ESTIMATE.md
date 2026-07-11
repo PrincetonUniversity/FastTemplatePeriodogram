@@ -107,3 +107,60 @@ total). Running B8 now costs ~$25–30 more but (i) decouples the consolidated s
 rerun from a brand-new numerical path (C2's gate is ≤1e-12 identical powers, so B8
 results remain valid regardless), and (ii) runs overnight in parallel with local
 C-track work. Either order is defensible under the cap.
+
+## B8-closure canary (2026-07-10/11)
+
+**Outcome: NO timing data — the canary pod never booted.** Measured facts only:
+
+- Pod `kc626ub1i8b9zk` (`b8c-e2-jitter-0`, cpu3c/32 SECURE, $0.96/h ⇒ $0.030/core-hr
+  list), rented 04:35:26 UTC 2026-07-11 on machine `aehmymvwnx01`. RunPod telemetry
+  read `uptimeInSeconds: 0`, CPU 0 %, mem 0 % for the pod's entire 50-minute life;
+  zero beacons (no START/PROG/RESULT) on the fresh webhook token, while a supervisor
+  test POST to the same token returned 200 (ingest path proven good). Conclusion: the
+  container never started — stuck host/image-pull, billing anyway.
+- Supervisor DELETEd the pod at 05:26:17 UTC (before the 2h40m deadline; flat
+  telemetry made waiting pure burn). **Wall 50.9 min ⇒ $0.81 spent, 0 core-hr of
+  science.** GET /pods after teardown: account has zero pods.
+- The second canary job **g-refine-sesar-0 was never launched** — `state.json` still
+  shows it `pending` (no pod, no create attempt recorded). Only 1 of the 2 canary
+  pods ever existed. So BOTH canary gates (e2 family and g-refine family) remain
+  **unvalidated**.
+- Consequence: the B8E-2 headline check — assignment_accuracy share of wall vs the
+  old ~87 % — is **unmeasured**. The internal self-bound (`sleep 9000`) never armed
+  either; an external watchdog was the only kill path. (New failure mode for the
+  protocol list: pods that bill while never booting emit NO beacon at all, which
+  `killstale <hours>` catches only after `<hours>`; a boot watchdog should kill any
+  pod with no START beacon within ~20 min.)
+
+### Extrapolation (falls back to the job-table estimates — NOT canary-validated)
+
+16 jobs pending per `fleet_b8_closure.py`/state: arm (a) = 12 e2 jobs
+(4 scenarios × 3 seeds, incl. `--amplitude 0.1`) × est 10 core-hr; arm (b) = all 4
+g-refine jobs (3 sesar × 45 + 1 bv × 68). At the June effective $0.041/core-hr:
+
+| | core-hr | est. cost |
+|---|---|---|
+| arm (a) e2 relaunch | 120 | **$4.92** |
+| arm (b) grid-refine | 203 | **$8.32** |
+| total | 323 | **$13.24** |
+| total ×1.5 safety | 484 | **$19.86** |
+
+$19.9 ≤ $25 cap **nominally**, but the ×1.5 does not cover the e2 estimate risk the
+canary was supposed to retire: the 10 core-hr/job figure assumes the B8E-1/B8E-2
+de-risks (re-grid + parallel assignment_accuracy + C4 scan transfer) deliver ~13×
+vs the June-measured 134.6 core-hr e-canary. Sensitivity:
+- **cap-breach threshold**: e2 > ~34 core-hr/job (3.4× est) breaches $25 (given
+  arm (b) at table value);
+- **mid** (only assignment-parallelization delivers, June decision-log arithmetic
+  ≈ 21.5 core-hr/job): total ≈ $18.9, ×1.5 ≈ $28.4 — over cap with safety margin;
+- **worst** (June repeat, 134.6): arm (a) alone ≈ $66 — 2.6× over cap.
+Arm (b)'s ×1.4 `--refine` overhead is likewise unmeasured (June a-sesar-0 anchor
+covers only the unrefined N-sweep), and cpu3c silicon is the June fleet's known-slow
+flavor.
+
+**Recommendation: do NOT release the full batch.** Re-run the canary pair (both
+jobs this time), with a boot watchdog (no START beacon within ~20 min → kill + retry
+next flavor, skip machine `aehmymvwnx01`), and hold the release behind the
+protocol's within-~2× gate per family. Canary retry cost ≈ $2–3.
+
+Ledger to date for B8-closure: $0.81 burned, nothing measured.
