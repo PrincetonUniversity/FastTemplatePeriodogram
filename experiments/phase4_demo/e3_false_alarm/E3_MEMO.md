@@ -77,7 +77,7 @@ or confirmed signal, i.e. the screen and the periodogram agree:
 
 | object/band | screen flags | peak identification (`check_hits.py`) |
 |---|---|---|
-| g00017 g (Chen+2020 EW, P=0.46366 d; amplitude-flagged g) | cat_K8 = 0.688, GLS = 0.672 (d1-p ≈ 3e-4–7e-4) | full-N peak f=4.31343 = 2·f_orb to 1e-4 cyc/day (EW half-period harmonic); N=40 peak at 3.31073 = 2·f_orb − 1.0028, a 1-day alias of the same signal |
+| g00017 g (Chen+2020 EW, P=0.46366 d; amplitude-flagged g) | cat_K8 = 0.686, GLS = 0.672 (d1-p ≈ 3e-4–7e-4) | full-N peak f=4.31343 = 2·f_orb to 1e-4 cyc/day (EW half-period harmonic); N=40 peak at 3.31073 = 2·f_orb − 1.0028, a 1-day alias of the same signal |
 | g00015 g (Chen+2020 EW, P=1.2068 d; Gaia ECL; amplitude-flagged g+r) | GLS = 0.577, cat = 0.566 (d1-p ≈ 2e-3) | full-N peak f=1.65726 = 2·f_orb to 2e-5 cyc/day; N=40 peak at 3.65997 = 2·f_orb + 2.0027, an alias family member |
 | g00052 r (Gaia DR3 AGN candidate, score 0.92; amplitude-marginal r) | cat_K8 = 0.688 (d1-p ≈ 7e-4) | peak f=2.00220 cyc/day (P≈0.4995 d), i.e. sitting on the 2 cyc/day diurnal-alias comb — consistent with stochastic AGN variability aliased through the ZTF window function, not a coherent period |
 
@@ -107,7 +107,7 @@ N/T/grid-matched synthetic null per band stratum (never to the N=40 D1 null).
 
 **Reading:** at full N (median 626/947 epochs), essentially the whole real sample —
 clean included — sits far above a homoscedastic-Gaussian synthetic null with the
-pipeline error bars (96–98% of clean g LCs and 82–84% of clean r LCs exceed the
+pipeline error bars (94–98% of clean g LCs and 82–84% of clean r LCs exceed the
 null p99; expected 1%). This is the known excess-variance property of real ZTF
 photometry (empirical errors 1.6–3.5x the synthetic model at these magnitudes;
 low-level correlated systematics), not a defect of the statistic: the absolute
