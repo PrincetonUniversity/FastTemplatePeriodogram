@@ -683,3 +683,45 @@ outside the diff). No verifier subagent: D2 carries no marked verifier in
 EXECUTION_PLAN.md and every quoted number was recomputed in-session directly from the
 committed artifacts above. Commit `768b36f` pushed to `h-vs-accuracy`; `master` untouched
 in both repos.
+
+## WP E2-acquisition — sample verification (`66e5dd3`) — VERIFIED 2026-07-10
+
+Independent verifier (this session, artifacts-only — fetch agent's reasoning not read).
+Verdict: **PASS** (minor findings only). Checks:
+
+1. **Manifest vs approved spec — PASS.** 58 science / 15 controls; per-field 486=22
+   (20–25), 686=18 (15–20), 786=18 (15–20); RRab/RRc 11-11 / 9-9 / 10-8 (balanced to
+   availability). Every science star has Chen `period_truth_days` + Type
+   (`period_source: chen2020_Per`); every control has `control: true`, a Gaia period
+   (`gaia_dr3_pf` for RRab, `gaia_dr3_p1_o` for RRc), and a `chen_overlap` key.
+   `rejects[]` = 5, all with reasons (0-epoch prescreen, no r-match <1", <40 epochs);
+   `n_failed_promoted` = 5; `problems` = [].
+2. **Manifest vs disk — PASS.** 73/73 npz exist, 0 orphans, 0 missing; per-band npz
+   epoch counts == manifest `ngoodobs` for all 73×2; all ≥40; all `sep_arcsec` < 1;
+   all `{g,r}_{mjd,hjd,mag,magerr}` keys present and finite.
+3. **Data quality (seed 42; 4 sci + 2 ctl) — PASS.** Spans 7.1–7.6 yr both bands;
+   magerr ∈ [0.011, 0.028] (inside 0.005–0.3); median mags match manifest within
+   0.04 mag; zero duplicate timestamps.
+4. **Truth sanity (seed 43; 3 sci + 2 ctl) — PASS 5/5 exact.** Hand-rolled
+   floating-mean GLS, g band, 20k freqs over explicit [1,5] c/d (no nyquist_factor):
+   every top peak = truth fundamental within tolerance (~7e-4 c/d); no alias needed,
+   RRab included (2f subdominant). Per-star: f_truth/f_found (c/d) 3.158057/3.158108,
+   2.015496/2.015251, 1.561889/1.562028, 4.041174/4.041152, 1.627180/1.627231.
+5. **Circularity guard — PASS.** Controls come from a genuine ESA TAP ADQL query
+   (`gaiadr3.vari_rrlyrae JOIN gaiadr3.gaia_source_lite`), raw CSVs cached on disk
+   (651/958/32 rows for 486/686/786); selection brightest-first by `phot_g_mean_mag`
+   from the Gaia list; truth is Gaia's, with `chen_per` + `chen_sep_arcsec` recorded
+   for the 12 overlap stars; all 12 Gaia-vs-Chen periods agree to <0.1%.
+6. **Git — PASS.** `66e5dd3` on `dev`, contained in `origin/dev`, exactly the 3
+   claimed files; no phase4 LC npz anywhere in git history.
+
+**Minor findings (no action required):**
+- The 12 `chen_overlap` controls are exactly the 12 controls sharing ZTF oids with
+  science-sample stars — same physical stars, byte-identical npz under two `star_id`s
+  (verified on one pair). The 73 manifest entries cover **61 unique stars**. Expected
+  from dual brightest-first selection in the same fields and flagged in the manifest,
+  but downstream analyses must dedupe by oid (or use overlap controls for
+  truth-validation only) — never treat the 73 as independent.
+- Field 786 Gaia SOS pool is thin (31 candidates vs 651/958); 5/5 controls still filled.
+- Reject reason `"prescreen ngoodobsrel g=45 r=39 < 40"` reads loosely (only r fails);
+  behaviour is correct.
