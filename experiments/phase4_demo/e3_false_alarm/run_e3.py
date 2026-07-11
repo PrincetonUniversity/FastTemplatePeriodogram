@@ -478,7 +478,7 @@ def stage_aggregate():
         cpu_seconds=dict(real=elapsed_real, null=elapsed_null,
                          total=elapsed_real + elapsed_null),
         caveats=[
-            'n=99 objects (155 band-LCs) -> per-object FAP floor ~1%;'
+            'n=99 objects (155 band-LCs) -> per-object FAP floor ~1%%;'
             ' D1-null empirical thresholds from n=%d realizations.'
             % int(np.asarray(d1[STAT_KEYS[0]]).size),
             'Primary comparison: real subsampled baseline (~2730 d) > D1 null'
