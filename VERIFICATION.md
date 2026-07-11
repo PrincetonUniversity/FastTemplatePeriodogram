@@ -550,3 +550,25 @@ bare "32×" round-up) both FIXED this session; no measured number changed. C5 SI
 ESCALATE trigger fired (acceptance gate passed first attempt; no headline shift — the re-run
 reproduced the prior interrupted run to within timing noise; no paid compute; branches
 `h-vs-accuracy`/`dev`, `master` untouched). Suite unaffected (paper-only + docs).
+
+**Addendum 2026-07-10 — reconciling 28.3×@H8 (this WP) vs 19.8–20.2×@H8 (C2 gate / C4
+smoke) at the nominally identical H=8 / Nf=20000 / N_obs=300 cell.** Both numbers are
+correct; they measure different fixtures. Re-measured back-to-back this session (same venv,
+min-of-3 per method, 1-min loadavg 1.9–2.5 throughout — mildly contended, flagged):
+the C4-smoke fixture (`benchmark_scan_polish.py`: random N(0,1)-coefficient template,
+seed 0, 10-d baseline, heteroskedastic dy 0.05–0.10) gave eigvals 15.16 s / scan 0.743 s =
+**20.4×** (scan min-of-10 floor 0.699 s → 21.7×), while the `timing_c5.py` block-D fixture
+(1/n-decaying template cos(0.6n)/n, 250-d baseline, dy = 0.02, spp = 5) gave eigvals
+15.45 s / scan 0.599 s = **25.8×** (scan min-of-10 floor 0.559 s → 27.7×, vs the committed
+28.3× — residual is scan-side scheduling noise on a ~0.55 s denominator). The eigvals
+reference cost is fixture-independent (15.16–15.48 s, i.e. ±1%, across all four cells
+measured); the entire ratio difference lives in the template-dependent scan cost. Isolation
+toggle confirms: fitting the C5 1/n template on the C4 fixture's own data+grid moves the
+ratio 20.4× → **26.1×** (eigvals 15.48 s / scan 0.594 s), and the reverse swap (C4 random
+template on C5 data) drops it to 22.6× — the fitted template's harmonic spectrum is the
+dominant knob (flat-spectrum random coefficients make the scanned objective more oscillatory
+and the scan+polish stage ~1.25× slower), with the data/grid contributing a small secondary
+effect (≲10%). The reps asymmetry (eigvals min-of-2 in timing_c5.py vs min-of-3 in the smoke
+benchmark) and BLAS threading (env unset in both) were checked and are immaterial. **Quote
+~20× for the C2/C4 random-template smoke fixture and ≈28× for the paper's timing_c5 config;
+neither supersedes the other.**
