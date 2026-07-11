@@ -937,3 +937,78 @@ production grid".
 **Leftover (non-blocking):** the +/-2/day-beat cosmetic omission in app:aliases prose (zero in
 every cell, so no number is wrong); "p ~ 1e-29" for the N=4 McNemar is conservative
 (recomputed 6.4e-30); sesar K1->K8 "at most ~0.03" is a bound on +0.0247 (fair).
+
+## WP E4 — known-period recovery on the Phase-4 ZTF RRL sample (`experiments/phase4_demo/e4_recovery/`) — VERIFIED 2026-07-11
+
+**Independent adversarial verification (artifacts only — writer scripts not consulted for the
+recomputation; scorer, PDM/χ² refold, and Newcombe/Wilson implemented from scratch from the stated
+criterion).** Inputs judged: `e4_results.npz` (438 = 73×6 rows), `e4_adjudication.json`,
+`e4_adjudication_evidence.json`, `folds/*.png`, `E4_MEMO.md`, `e4_scores.csv` (comparison only),
+manifest + raw `~/.ftperiodogram_data/phase4_rrl_sample/lc/*.npz`.
+
+**What ran (writer):** phase 1 prep `7117955`, phase 2 full run `cbd7422`, phase 3
+score/adjudication/memo `7be3fd6` — all on `dev`, `dev == origin/dev` at `7be3fd6` (pushed ✓).
+All E4 artifacts are tracked; only raw per-block `output/` is untracked (by design).
+
+**(1) Rate recomputation (own scorer: |f−f_t|/f_t < 1% AND |Δf|·T_grid < 0.5, class order
+exact → 2f → f/2 → ±1, ±1/365.25, ±1/354.37 c/d → miss; truth = Chen for science, Gaia for
+controls; Wilson 95%).** EVERY cell of the memo's pre-adjudication table (§1), post-adjudication
+table (§1), class-breakdown table (§4), strata table (§3, with r-medians and joint-epoch counts
+recomputed from the RAW LC npz, tercile edges 14.43/15.20 and 1497/1826 reproduced), exact-only
+note (mhls 42/58), dual-truth section (§5: median |ΔP|/P 3.61e−5, max 4.79e−4, the 12-value
+|Δf|·T list 0.04…3.64, 11/12 < 0.5, 18/72 flips in exactly 3 stars with the stated directions:
+181921 0/6→6/6, 095443 0/6→6/6, 100903 6/6→0/6, 094954 both-miss) and both Newcombe intervals
+(§2: pre +4.6 pp [−11.5, +33.4]; post +8.3 pp [−0.9, +35.4]) reproduce EXACTLY.
+**Per-row comparison vs `e4_scores.csv`: 0 disagreements in 438 verdicts/classes.**
+Post-adjudication rule ambiguity (re-score-vs-adjudicated vs additive credit) is moot: both
+readings give identical cells everywhere. Fractional-only 1% cross-check confirmed
+(ftp_mb 58/58, 11/12, 72/73 pre-adjudication = its post-adjudication cells; ce 72/73, mbls 71/73).
+All 438 truth frequencies inside [1,5] ✓. Miss decomposition confirmed: 9 ftp_mb non-recovered
+rows = exactly the 9-star adjudication queue (8 near-truth, frac 1.1e−4–4.7e−4; 1 depth failure
+frac 0.335); mhls extra subharmonics = 4 non-queued science (3× f/3, 1× f/4); outside-queue
+wrong peaks gls ×1 (0.57 cyc), ftp_1band ×3, mbls_h1 ×1, ce ×0; CE's extra science recovery is
+0.4983 cyc on ZTFJ194003 (threshold luck, as stated).
+
+**(2) Science vs anti-join** re-derived (above, exact). Hardness claims verified from raw LCs:
+anti-join median joint epochs 118 vs science 1758; anti-join r_med max 20.2; science r_med
+12.9–17.8; failure star g/r = 20.4/20.2. Manifest dedupe verified independently: 85 entries,
+73 unique byte-contents, exactly 12 byte-identical control↔science pairs (md5), science types
+30 RRab/28 RRc, anti-join 11 RRab/1 RRc, 55/58 science Gaia cross-periods.
+
+**(3) Adjudication spot-checks (4 calls; the record contains 8 lawful + 1 failure, so 3 lawful +
+the single failure were checked — a 2nd failure does not exist):**
+* `chen_f486_ZTFJ180708.63+013433.4` (lawful, Chen-error-Gaia-confirmed) — **refolded from the raw
+  npz by the verifier**: own weighted 25-bin PDM θ = 0.7272 (Chen) / 0.0387 (recovered) / 0.0451
+  (Gaia pf) and fold χ²_red = 56.83 / 3.03 / 3.52 match the writer's evidence to every quoted
+  digit; own fold figure reproduces the committed one (truth smeared, recovered = textbook RRab,
+  recovered ≡ Gaia pf within 0.007 cyc). Call sound.
+* `chen_f786_ZTFJ094954.90+514422.2` (lawful, Blazhko/period-change) — top-5 close-pair
+  Δf = 5.37e−4 c/d → P_mod ≈ 5.07 yr recomputed from npz top-5 ✓; fold plot shows clean RRab at
+  the consensus period with max-light scatter vs both catalog folds smeared (θ 0.249 vs
+  0.916/0.898); Chen–Gaia mutually 0.31 cyc but both ~0.86 cyc from consensus ✓. Call sound.
+* `gaia_f486_4276113046713707904` (lawful, Gaia-truth precision) — 6-method best-freq spread
+  7.3e−5 c/d (unanimous) ✓; fold contrast θ 0.368 vs 0.860 evident in the committed plot. Sound.
+* `gaia_f786_1020098816344918656` (failure, photometric depth) — all 6 methods on the window comb
+  (best freqs 1.0002–1.0025; top-5 = 1.0002/1.0025/2.0030/1.0031/2.0025) ✓; truth fold pure noise
+  (θ 0.922); mags 20.4/20.2 verified from raw LC. Correctly charged as a genuine failure.
+
+**(4) Grid metadata** — f_min = 1, f_max = 5 on all 438 rows (explicit bounds, never
+nyquist_factor); df = 1/ceil(1/(0.2/T_grid)) EXACTLY on all rows (snap ≤ 0.2/T everywhere);
+df ∈ [7.22e−5, 1.115e−4] (memo's 1.11e−4 = correct 3-s.f. rounding of max 1.1148e−4);
+T_grid ∈ [1794, 2769] d; pts/Rayleigh ∈ [3.66, 5.00] with ppr = 1/(df·T_band) on single-band rows
+and 1/(df·T_joint) on joint rows ✓; worst df·T_joint = 0.273 cyc < 0.5 ✓. T_grid (per-band /
+shorter-band), T_joint (union span) and n_obs verified against the raw LC npz for **all 73 stars /
+438 rows: 0 mismatches** after accounting for the sample's single non-finite epoch (one NaN-HJD
+r-band point in ZTFJ181921.70+032211.3, correctly dropped by the runner; not mentioned in the
+memo — harmless).
+
+**(5) Commits** — `7117955` / `cbd7422` / `7be3fd6` on `dev`, pushed (dev == origin/dev) ✓.
+
+**ESCALATE rule outcome:** recomputed pre-adjudication best multiband on science = CE 89.7%
+(ftp_mb & mbls_h1 87.9%, all joint g+r methods) ≥ 85% ⇒ **no escalation**, matching the writer.
+
+**Scoring disagreements: NONE (0/438).** **Verdict: CONFIRMED.** Non-blocking notes: (a) the
+verification brief's "2 failure spot-checks" was unsatisfiable (1 failure exists); (b) the NaN-HJD
+epoch drop above; (c) memo intro says baselines "T ≈ 4.9–7.6 yr" (grid T range) while the sample
+doc quotes 7.1–7.6 yr joint spans — both true, different definitions (shortest single-band grid
+baseline vs joint span).
