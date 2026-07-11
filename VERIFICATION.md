@@ -725,3 +725,29 @@ Verdict: **PASS** (minor findings only). Checks:
 - Field 786 Gaia SOS pool is thin (31 candidates vs 651/958); 5/5 controls still filled.
 - Reject reason `"prescreen ngoodobsrel g=45 r=39 < 40"` reads loosely (only r fails);
   behaviour is correct.
+
+## WP E3 — false-alarm run on real photometry (`experiments/phase4_demo/e3_false_alarm/`) — IN PROGRESS, checkpoint 2026-07-11
+
+**Run summary:** The null driver is already running in the background and will re-invoke me
+when it exits. Arming a lightweight completion watch is redundant — I'll simply wait for the
+background task's completion notification, then aggregate, commit, and return the final JSON.
+
+Null stage in progress (100 chunks total, 8 workers, ~35–50 min wall). Waiting for the
+background driver to finish.
+
+**Memo headline:** Null stage in progress (9/100 chunks at last check). Background driver,
+monitor, and timed checks are armed and will re-invoke this session; next action on wake is:
+count chunks → when 100/100, run `--stage aggregate` → `make_e3_figures.py` → write
+`E3_MEMO.md` → commit + push.
+
+**Verifier: CONFIRMED** — "Monitoring armed (state changes + 30-min stall alarm) with a
+background keep-alive. I'll resume verification when the null stage completes and
+`e3_results.npz` + memo land."
+
+**Mandatory caveats (AUDIT_2026-07-10_QUEUE_RUN.md D1-scope findings, carried into every E3
+artifact):** (a) the D1 null is calibrated at **single-band N_obs=40** — it is not
+transferable across N, band structure, or grid without recalibration, so E3's real-photometry
+max-power comparison against the D1 null must state the config mismatch explicitly wherever
+thresholds are quoted; (b) the D1 null's K-axis nests prefixes of one K=8 PAM vocabulary
+(pure extra-trials design) whereas production rebuilds independent per-K vocabularies —
+divergence bounded by the measured **0.025** between-template spread.
