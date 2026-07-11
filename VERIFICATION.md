@@ -639,3 +639,47 @@ notation-consistency check against the paper's own macro definitions.
   $N_{\rm obs}=250$, an advantage that grows without bound".
 
 Both commits pushed to `h-vs-accuracy`; `master` untouched in both repos.
+
+## WP D2 — significance/FAP paper subsection (paper repo `768b36f`) — DONE 2026-07-10
+
+New subsection **3.2 "Significance and false-alarm calibration"** (`\label{sec:fap}`) in
+`paper_v5.tex`, placed in §3 (Implementation) after the non-linear-optimization comparison
+and before the Discussion. **Every number in the TeX was recomputed in THIS session from
+committed artifacts** — never quoted from SUMMARY.md, memory, or the superseded
+`headline_full/`:
+
+- From `experiments/fap/output_null/null_maxpower.npz` (D1; copied into paper repo
+  `fap_v1/`): FTP H=1 == GLS max|diff| **1.2e-9** over 3000 pure-noise maxima; null-max
+  means 0.4075/0.4404/0.4425/0.4426 (H=1/3/6/12) → TeX 0.408/0.440/0.443/0.443; empirical
+  FAP=0.01 thresholds 0.535/0.551/0.551/0.553 (inflation < +0.02, saturating at H≥3);
+  catalog-max means 0.4219→0.4666 and FAP=0.01 thresholds 0.540/0.561/0.570/0.576 for
+  K=1/2/4/8; single-template FAP at the K=8 threshold 0.0030 → Bonferroni (0.024)
+  conservative by ×2.4; between-template spread of per-template null-max means **0.0251**
+  (the "~0.025" bound in caveat b).
+- From `experiments/phase3_recovery/rerun_202606/raw/a-sesar-*/out/per_source/
+  seed*__ftp_pam__ksweep-sparse-K{1,2,4,8}.npz` (B8 rerun, NOT headline_full): pooled
+  recovery 550/549/567/569 of 768 → 0.716/0.715/0.738/0.741 with Wilson 95% intervals
+  [0.683,0.747]/[0.682,0.746]/[0.706,0.768]/[0.709,0.771] (recomputed from raw
+  `recovered` arrays; matches `aggregate_sesar.json` lo/hi). K-sweep wobble (range 0.026,
+  overlapping intervals) framed as comparable to the measured extra-trials cost.
+- V0-per-sharing-mode sentences verified against `ftperiodogram/multiband.py` ground truth
+  (`_prepare_bands`: `YY_global` on λ-subtracted data for `sesar`, else
+  `YY_combined = Σ_k W_k YY^(k)`; used at the `template_periodogram` power normalisation
+  and the `independent`/`shared_phase` paths), consistent with Table 2's V0 column.
+
+**Figures**: fresh `fap_v1/make_fap_figures.py` (paper repo; deterministic from the
+committed npz, no seed needed; CVD-validated fixed-order palette) regenerates
+`plots/fap_vs_threshold.pdf` + `plots/nullmax_vs_K.pdf`; both included as Fig. 7.
+
+**Mandatory audit caveats (AUDIT_2026-07-10_QUEUE_RUN.md d1-scope findings) are in the
+TeX**: (a) single-band N_obs=40 null is not transferable across N/band structure/grid
+without recalibration; (b) nested-prefix null K-axis vs production per-K vocabulary
+rebuild, bounded by the 0.025 between-template spread. **Scope guard**: significance
+calibration only — no completeness/purity sweep (Paper-2 territory).
+
+**Acceptance gate (EXECUTION_PLAN D2 = "PDF builds") — PASS**: `make all` exit 0,
+**20 pages, 0 undefined references, no new overfull boxes** (3 pre-existing only, all
+outside the diff). No verifier subagent: D2 carries no marked verifier in
+EXECUTION_PLAN.md and every quoted number was recomputed in-session directly from the
+committed artifacts above. Commit `768b36f` pushed to `h-vs-accuracy`; `master` untouched
+in both repos.
