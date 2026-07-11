@@ -808,5 +808,81 @@ fig:nsweep caption) — written to be updated in place by the B8-closure rerun.
    n_tau*N_obs argument + cross-ref to the C5-measured single-band timings.
 4. `EMPIRICAL_ERROR_REVALIDATION.md` says ratio "1.6-3.5x"; recomputation from the committed
    `ztf_error_curve.json` vs `exp_mag_error` gives 1.35-3.54x -> paper quotes "1.4-3.5".
+   [Superseded by numbers-lens finding N2 below: fixed to "1.3-3.5" in `25d1fd1`.]
 5. Baseline PDF was already 20 pp before F2; the WP's "~19-20pp" gate figure is stale — F2's
    required content adds 4 pp (24 pp total).
+
+**Adversarial verification (three lenses, sign-off delegated per 2026-06-12 policy):**
+
+*Lens 1 — methods-vs-code (independent agent, journal `wf_11877fc6-7ae`): ISSUES, all fixed.*
+Verified against `catalog_builder.py`/`recovery.py`/`template.py`/`validation.py`/
+`baselines.py`/`multiband.py`/`simulate.py`: orbit metric (CC of z_k = c_k - i s_k, FFT grid
+>= 8H+1 -> power of two, Newton polish of every cyclic local max, reflections not identified),
+normalization/ingestion, PAM objective/seeding/restarts, greedy selection seam (tie-break,
+stop rules, union-as-signal + end-to-end re-score, disjoint split seed offset 100003), catalog
+argmax-over-stack consumption, all harness flags vs committed JSONs, grid-caveat direction.
+Findings: (V1, moderate) "g,r subset ... 98 shapes" mis-described the Sesar library — the run
+used the FULL ugriz 98 (n_library=98 in `raw/a-sesar-0/out/seed_0.json`; a true g,r subset
+would be 45), observations simulated in g,r only; (V2, minor) norm clause "unit-energy shape
+has ||f|| = 1" contradicted d^2 = 1 - max CC (plain L^2([0,1]) norm has ||f||^2 = 1/2; the
+equation matches the code); (V3, moderate) the paper described the library's farthest-point
+saturation padding, but the production K-sweep driver (`run_production_matrix.greedy_order`)
+pads post-saturation greedy picks by ASCENDING INDEX (committed greedy_order arrays prove
+saturation at 2-3 picks), affecting only the greedy K>knee points of fig:ksweep; plus two
+notes (grid-caveat scope slightly narrow — MBLS also gained a cell; +/-2/day beats tested but
+unmentioned, zero everywhere — cosmetic, not fixed).
+
+*Lens 2 — completeness-vs-F2-brief (independent agent, same journal): COMPLETE, no gaps.*
+All nine required F2 elements present (N-sweep+Wilson+McNemar, K-sweep, robustness arms,
+A4-compliant cost wording with the "we quote only the like-for-like in-harness ratio as a
+measured result" injunction honored, alias appendix, points-per-Rayleigh, MHLS cap formula,
+CE + VdP&I bracketing, isolated grid caveat). Notes: cost is a prose subsection (exceeds a
+panel); ~2.4x vs A4's verbatim ~2.5x documented as discrepancy 3 above; 24 pp documented as
+discrepancy 5 above.
+
+*Lens 3 — numbers (this session, 2026-07-11; the interrupted verifier re-run from scratch).*
+EVERY quantitative claim in the F2 diff recomputed with fresh scripts directly from
+`rerun_202606/raw/*/out/per_source/*.npz` + `results.json`/`seed_0.json` (NOT via
+`derived_numbers.json`, NOT from `headline_full/` — the paper figure script reads
+`rerun_202606` exclusively; its only headline_full mention is the "supersedes" docstring).
+Confirmed exact: all pooled N-sweep rates and the five quoted Wilson CIs; McNemar 392/19
+p=9.9e-92, 169/21 p=6.4e-30, 5/0 p=0.0625, PAM-vs-greedy 124/43 p=2.7e-10 (and N=8 45/20
+p=0.0026, supporting the plural "sparsest cells"); MHLS==GLS at N=4 mask- AND period-identical;
+K-sweep 0.716/0.715/0.738/0.741 (34/33 p=1.0; smallest-CI-overlap K=1; 98%-rule K=4; K1->K8
+gain +0.0247 <= "~0.03"), BV 0.512/0.703/0.727/0.719 (+0.1914, 13/62 p=8.4e-9, flat after:
+p=0.24/0.54), sparse baselines 0.171/0.197/0.090 + BV GLS 0.422; all 27 robustness-table
+values exact at 3dp + xuniv N=16 one-source exception (0.9961 vs 1.0000); empirical arm
+0.215/0.918/0.988 at fixed_k=4; cost 23.5398/56.2464 s = 2.3894x, recovery 0.34375 both,
+32 src/1500 freq/n_tau=128, N_obs<=120 = 60-epoch dense master x 2 bands, "<1e-6" backed by
+`ftperiodogram/tests/test_baselines.py:311` (atol=1e-6); grid caveat 8/30 cells (FTP=PAM
+counting) significant all gaining, MHLS max +0.168 at N=12, FTP N=8 0.9258->0.9727 +17/-5
+p=0.0169, CE 2 / MBLS 1 / GLS 0 (min p=0.1337), margins 0.199->0.246 (N=4) and 0.5391 both
+(N=8), grid arithmetic 4.0004e-4 / 2.2813 / 4.5629 / 0.285; MHLS cap formula == 
+`ftperiodogram/baselines.py:200-201` exactly; all 18 rows of tab:aliases reproduced exactly
+by an independent phase-coherence re-scorer (|df| T < 0.5, named-alias assignment), incl.
+689/768 = 0.8971, 0 aliased among FTP's 79 N=8 phase-coherent misses, MHLS N=40 2P+3P =
+99/768 and 0.868 -> 0.9974 if credited, |df| T = 3.000 for the year beat.
+Findings beyond honest rounding: (N1, minor claim-scope) "year-beat contamination is at most
+one source per cell" is FALSE at N=4 — GLS and MHLS each have 3 year-beat recoveries there
+(ftp_greedy 1; day beats: 1 at N=4, 0 at N>=8); holds at N>=8. (N2, minor rounding) empirical
+error ratio quoted "1.4-3.5" but the committed-curve minimum is 1.3475 (m=16.30) -> "1.3-3.5".
+(N3, nit bound-direction) year-beat fractional period error "at most 0.27%" — true sup is
+0.2745% at f=1 -> bumped to 0.28% (a stated bound must not round down).
+
+*Fixes:* paper commit `25d1fd1` (h-vs-accuracy, pushed): V1 (full-ugriz library sentence),
+V2 (CC(0)=1 normalisation + ||f||^2 = 1/2 clause), V3 (production index-padding disclosed in
+sec:simval-ksweep, knee + PAM points unaffected), the lens-1 scope note (grid-caveat lower
+bounds "for every method except GLS"), N1 (year-beat claim scoped: <=1 at N>=8, <=3 at N=4),
+N2 (1.3-3.5), N3 (0.28%). Rebuild: `make all` exit 0, 24 pp, 0 undefined refs, same 3
+pre-existing overfull boxes (none new), all 7 edits render exactly once.
+
+**Grid-caveat anchor (pending B8-closure):** the single point of update remains the
+comment-fenced "Grid-resolution caveat" paragraph at the end of sec:simval-nsweep (banner
+`% GRID-RESOLUTION CAVEAT -- single point of update`), plus the one cross-reference sentence
+in the fig:nsweep caption. The B8-closure dense-grid rerun must update the numbers in that
+paragraph only; every absolute sparse-cell rate in sec:simval is quoted "at the 10^4-frequency
+production grid".
+
+**Leftover (non-blocking):** the +/-2/day-beat cosmetic omission in app:aliases prose (zero in
+every cell, so no number is wrong); "p ~ 1e-29" for the N=4 McNemar is conservative
+(recomputed 6.4e-30); sesar K1->K8 "at most ~0.03" is a bound on +0.0247 (fair).
