@@ -54,3 +54,26 @@ FastTemplatePeriodogram/.venv/bin/python \
 ```
 
 Resumable: raw HTTP payloads cached under `~/.ftperiodogram_data/phase4_rrl_sample/raw/`; a rerun refetches nothing already on disk. Per-star LCs: `~/.ftperiodogram_data/phase4_rrl_sample/lc/<star_id>.npz` (keys `{g,r}_{mjd,hjd,mag,magerr}`).
+
+## Control top-up (Chen-missed anti-join)
+
+Added 2026-07-11T04:59:43Z by `fetch_rrl_sample.py --topup-controls`.
+
+**Why:** 12 of the 15 original controls are `chen_overlap` — the same physical stars as science members (brightest-first Gaia selection in the same fields re-found Chen's stars), so they cannot measure the Chen-selection effect. This top-up keeps only Gaia SOS RRL with NO Chen+2020 RRL within 2.0" (anti-join against the full per-field Chen tables), brightest-first, through the identical g+r xmatch / catflags==0 / >=40-epochs pipeline. New entries carry `"control_antijoin": true`, `"chen_overlap": false`.
+
+**Dedupe note for downstream:** manifest entries are per catalog row, not per physical star — the original 73 entries span 61 unique stars (12 controls duplicate science members). Dedupe by ZTF `oid` before per-star statistics. After this top-up: 85 entries, 73 unique stars (+12 new, all non-Chen).
+
+### Chen-missed selection funnel (a measurement, not bookkeeping)
+
+The pass rate of Chen-missed stars through the ZTF quality cuts quantifies the Chen selection function:
+
+| Field | Anti-join pool | Attempted | Pass g+r xmatch (1") | Pass epoch cut | Fetched |
+|---|---|---|---|---|---|
+| 486 | 274 | 18 | 17 | 5 | 5 |
+| 686 | 824 | 7 | 6 | 6 | 6 |
+| 786 | 4 | 4 | 3 | 1 | 1 |
+| **total** | **1102** | 29 | 26 | 12 | **12** |
+
+- "Attempted" = brightest-first prefix of the anti-join pool (until per-field target {"486": 5, "686": 6, "786": 4} or pool exhausted); pass rates are measured over that prefix, pool sizes over the whole field.
+- "Pass epoch cut" = >=40 catflags==0 epochs in BOTH bands (includes the DR23 `ngoodobsrel` prescreen). Per-candidate failure stages/reasons: `manifest.json` `control_topup.rejects[]`.
+- Cost this run: 10 HTTP requests (budget 150), 0.1 MB, 49 cache hits, 42 s.

@@ -74,6 +74,13 @@ CHEN_OVERLAP_ARCSEC = 1.5            # control-vs-Chen overlap flag radius
 REQUEST_BUDGET = 480
 BYTE_BUDGET = 90 * 1024 * 1024
 
+# --topup-controls knobs (2026-07-10; see main_topup docstring for WHY)
+TOPUP_ANTIJOIN_ARCSEC = 2.0          # "Chen-missed" = no Chen RRL within this
+TOPUP_TARGET = {486: 5, 686: 6, 786: 4}   # ~10-12 new; 786 pool is thin
+# (686 gets the largest share: its anti-join pool is by far the deepest --
+#  824 Chen-missed Gaia RRL, i.e. the strongest Chen-selection signal.)
+TOPUP_REQUEST_BUDGET = 150
+
 DATA_DIR = os.path.expanduser("~/.ftperiodogram_data/phase4_rrl_sample")
 RAW_DIR = os.path.join(DATA_DIR, "raw")
 LC_DIR = os.path.join(DATA_DIR, "lc")
@@ -310,22 +317,26 @@ def make_star_id(prefix, field, ident, ra, dec):
 
 
 def process_star(cand, star_id):
-    """Crossmatch -> LC fetch -> cuts -> npz.  Returns (ok, record|reason)."""
+    """Crossmatch -> LC fetch -> cuts -> npz.
+
+    Returns (ok, record|reason, stage) with stage in {"ok", "xmatch",
+    "prescreen", "epochs"} naming the pipeline stage that failed (or "ok").
+    """
     ra, dec, field = cand["_ra"], cand["_dec"], cand["_field"]
     best = xmatch_gr(ra, dec, field)
     if not (best.get("g") and best.get("r")):
         missing = [b for b in ("g", "r") if not best.get(b)]
         return False, "no %s match within %.1f arcsec" % (
-            "+".join(missing), XMATCH_RADIUS_ARCSEC)
+            "+".join(missing), XMATCH_RADIUS_ARCSEC), "xmatch"
     if any(best[b]["ngoodobsrel"] < MIN_EPOCHS for b in ("g", "r")):
         return False, ("prescreen ngoodobsrel g=%d r=%d < %d"
                        % (best["g"]["ngoodobsrel"], best["r"]["ngoodobsrel"],
-                          MIN_EPOCHS))
+                          MIN_EPOCHS)), "prescreen"
     lc = fetch_lc_pair(best["g"]["oid"], best["r"]["oid"])
     ngood = {b: len(lc[b]) for b in ("g", "r")}
     if any(ngood[b] < MIN_EPOCHS for b in ("g", "r")):
         return False, ("good epochs g=%d r=%d < %d after catflags==0 cut"
-                       % (ngood["g"], ngood["r"], MIN_EPOCHS))
+                       % (ngood["g"], ngood["r"], MIN_EPOCHS)), "epochs"
     arrays = {}
     for b in ("g", "r"):
         arr = np.asarray(sorted(lc[b]), dtype=np.float64)
@@ -347,7 +358,7 @@ def process_star(cand, star_id):
                   for b in ("g", "r")},
         "lc_file": os.path.relpath(lc_path, DATA_DIR),
     }
-    return True, record
+    return True, record, "ok"
 
 
 # ---------------------------------------------------------------- selection
@@ -365,7 +376,7 @@ def run_selection(cands_by_type, quota_by_type, field, id_prefix,
         print("  [%s f%d %s] %s ra=%.5f dec=%.5f Per=%.5f ..."
               % (id_prefix, field, t, sid, cand["_ra"], cand["_dec"],
                  cand["_per"]), flush=True)
-        ok, payload = process_star(cand, sid)
+        ok, payload, _stage = process_star(cand, sid)
         if ok:
             decorate(payload, cand)
             picked.append(payload)
@@ -655,5 +666,211 @@ def main():
         print("PROBLEM: %s" % p, flush=True)
 
 
+# ------------------------------------------------------------- control top-up
+def _nearest_chen_sep(cand, chen_rows):
+    return min((sep_arcsec(cand["_ra"], cand["_dec"], c["_ra"], c["_dec"])
+                for c in chen_rows), default=1e9)
+
+
+def main_topup():
+    """--topup-controls: append "Chen-missed" (anti-join) Gaia SOS controls.
+
+    WHY (2026-07-10): 12/15 of the original controls are the SAME physical
+    stars as Chen science members -- brightest-first Gaia selection in the
+    same fields simply re-found Chen's stars.  The control's purpose is to
+    measure the Chen-selection effect, which needs stars Gaia found but Chen
+    did NOT.  This mode selects additional controls from the cached per-field
+    Gaia SOS tables keeping only candidates with NO Chen+2020 RRL within
+    TOPUP_ANTIJOIN_ARCSEC (anti-join against the FULL per-field Chen tables,
+    not just sampled stars), brightest-first by G, then runs the identical
+    xmatch/LC/cuts pipeline.  New entries carry "control": true,
+    "chen_overlap": false, "control_antijoin": true.
+
+    SELECTION-FUNCTION RECORD: the per-field funnel (anti-join pool size /
+    attempted / pass g+r xmatch / pass epoch cut / fetched) is itself a
+    measurement -- if Chen-missed stars mostly fail ZTF quality cuts, that
+    quantifies the Chen selection function -- and is written to
+    manifest.json ("control_topup") and SUMMARY.md.  Few passes = a finding,
+    not a failure.
+
+    Resumable like the main mode (raw payload cache; killed runs refetch
+    nothing).  NOTE: a rerun AFTER a completed top-up would select the
+    next-brightest candidates (i.e. top up again); the previous funnel is
+    preserved under "control_topup_history".
+    """
+    global REQUEST_BUDGET
+    REQUEST_BUDGET = TOPUP_REQUEST_BUDGET
+    t_start = time.time()
+    for d in (DATA_DIR, RAW_DIR, LC_DIR):
+        os.makedirs(d, exist_ok=True)
+    man_path = os.path.join(OUT_DIR, "manifest.json")
+    with open(man_path) as fh:
+        man = json.load(fh)
+    have_ids = {s["catalog_id"] for s in man["stars"]}
+
+    funnel, new_stars, rejects = {}, [], []
+    for field in FIELD_CENTERS:
+        chen_rows, _ = fetch_chen_field(field)     # cached: 0 new requests
+        gaia = fetch_gaia_field(field)             # cached: 0 new requests
+        pool = [c for c in gaia
+                if c["_id"] not in have_ids
+                and _nearest_chen_sep(c, chen_rows) > TOPUP_ANTIJOIN_ARCSEC]
+        pool.sort(key=lambda c: (c["_gmag"], c["_ra"]))
+        fun = {"antijoin_candidates": len(pool), "attempted": 0,
+               "pass_xmatch": 0, "pass_epochs": 0, "fetched": 0}
+        funnel[str(field)] = fun
+        print("\n=== TOPUP field %d: %d anti-join candidates, target %d ==="
+              % (field, len(pool), TOPUP_TARGET[field]), flush=True)
+        for cand in pool:
+            if fun["fetched"] >= TOPUP_TARGET[field]:
+                break
+            fun["attempted"] += 1
+            sid = make_star_id("gaia", field, cand["_id"],
+                               cand["_ra"], cand["_dec"])
+            print("  [topup f%d %s] %s G=%.2f ra=%.5f dec=%.5f ..."
+                  % (field, cand["_type"], sid, cand["_gmag"],
+                     cand["_ra"], cand["_dec"]), flush=True)
+            ok, payload, stage = process_star(cand, sid)
+            if stage != "xmatch":
+                fun["pass_xmatch"] += 1
+            if ok:
+                fun["pass_epochs"] += 1
+                fun["fetched"] += 1
+                near = _nearest_chen_sep(cand, chen_rows)
+                payload.update({
+                    "catalog": "gaia_dr3_sos", "control": True,
+                    "period_source": cand["_per_source"],
+                    "catalog_id": cand["_id"],
+                    "phot_g_mean_mag": cand["_gmag"],
+                    "chen_overlap": False, "chen_sep_arcsec": None,
+                    "chen_per": None, "control_antijoin": True,
+                    "chen_nearest_sep_arcsec": (round(near, 3)
+                                                if near < 1e8 else None)})
+                new_stars.append(payload)
+                print("      OK  ng=%d nr=%d sep g=%.2f\" r=%.2f\""
+                      % (payload["bands"]["g"]["ngoodobs"],
+                         payload["bands"]["r"]["ngoodobs"],
+                         payload["bands"]["g"]["sep_arcsec"],
+                         payload["bands"]["r"]["sep_arcsec"]), flush=True)
+            else:
+                rejects.append({"star_id": sid, "field": field,
+                                "type": cand["_type"], "ra": cand["_ra"],
+                                "dec": cand["_dec"],
+                                "phot_g_mean_mag": cand["_gmag"],
+                                "stage": stage, "reason": payload})
+                print("      REJECT (%s): %s" % (stage, payload), flush=True)
+
+    # ---- manifest update --------------------------------------------------
+    man["stars"].extend(new_stars)
+    man["counts"]["control"] += len(new_stars)
+    man["counts"]["control_antijoin"] = sum(
+        1 for s in man["stars"] if s.get("control_antijoin"))
+    for f, fun in funnel.items():
+        man["counts"]["per_field"][f]["control"] += fun["fetched"]
+    topup = {
+        "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "reason": ("12/15 original controls are chen_overlap (same physical "
+                   "stars as science); measuring the Chen-selection effect "
+                   "needs Chen-missed stars"),
+        "antijoin_radius_arcsec": TOPUP_ANTIJOIN_ARCSEC,
+        "selection_rule": ("Gaia SOS RRab/RRc in field box with NO Chen+2020 "
+                           "RRL within %.1f arcsec (full per-field Chen "
+                           "tables), not already in manifest; brightest-first "
+                           "by phot_g_mean_mag, ties by RA; identical "
+                           "xmatch/LC/cuts pipeline" % TOPUP_ANTIJOIN_ARCSEC),
+        "targets": {str(k): v for k, v in TOPUP_TARGET.items()},
+        "funnel": funnel,
+        "rejects": rejects,
+        "http": dict(STATS),
+        "wall_time_s": round(time.time() - t_start, 1),
+    }
+    if "control_topup" in man:
+        man.setdefault("control_topup_history", []).append(
+            man["control_topup"])
+    man["control_topup"] = topup
+    with open(man_path, "w") as fh:
+        json.dump(man, fh, indent=1)
+
+    # ---- SUMMARY.md: replace-or-append the top-up section -----------------
+    n_entries = len(man["stars"])
+    n_unique = len({s["bands"]["g"]["oid"] for s in man["stars"]})
+    sum_path = os.path.join(OUT_DIR, "SUMMARY.md")
+    with open(sum_path) as fh:
+        txt = fh.read()
+    marker = "## Control top-up (Chen-missed anti-join)"
+    if marker in txt:
+        txt = txt[:txt.index(marker)]
+    lines = [
+        marker,
+        "",
+        "Added %s by `fetch_rrl_sample.py --topup-controls`."
+        % topup["created_utc"],
+        "",
+        "**Why:** 12 of the 15 original controls are `chen_overlap` — the "
+        "same physical stars as science members (brightest-first Gaia "
+        "selection in the same fields re-found Chen's stars), so they cannot "
+        "measure the Chen-selection effect. This top-up keeps only Gaia SOS "
+        "RRL with NO Chen+2020 RRL within %.1f\" (anti-join against the full "
+        "per-field Chen tables), brightest-first, through the identical g+r "
+        "xmatch / catflags==0 / >=%d-epochs pipeline. New entries carry "
+        "`\"control_antijoin\": true`, `\"chen_overlap\": false`."
+        % (TOPUP_ANTIJOIN_ARCSEC, MIN_EPOCHS),
+        "",
+        "**Dedupe note for downstream:** manifest entries are per catalog "
+        "row, not per physical star — the original 73 entries span 61 unique "
+        "stars (12 controls duplicate science members). Dedupe by ZTF `oid` "
+        "before per-star statistics. After this top-up: %d entries, %d "
+        "unique stars (+%d new, all non-Chen)."
+        % (n_entries, n_unique, len(new_stars)),
+        "",
+        "### Chen-missed selection funnel (a measurement, not bookkeeping)",
+        "",
+        "The pass rate of Chen-missed stars through the ZTF quality cuts "
+        "quantifies the Chen selection function:",
+        "",
+        "| Field | Anti-join pool | Attempted | Pass g+r xmatch (1\") "
+        "| Pass epoch cut | Fetched |",
+        "|---|---|---|---|---|---|",
+    ]
+    for f in sorted(funnel):
+        fun = funnel[f]
+        lines.append("| %s | %d | %d | %d | %d | %d |"
+                     % (f, fun["antijoin_candidates"], fun["attempted"],
+                        fun["pass_xmatch"], fun["pass_epochs"],
+                        fun["fetched"]))
+    tot = {k: sum(f[k] for f in funnel.values())
+           for k in ("antijoin_candidates", "attempted", "pass_xmatch",
+                     "pass_epochs", "fetched")}
+    lines += [
+        "| **total** | **%d** | %d | %d | %d | **%d** |"
+        % (tot["antijoin_candidates"], tot["attempted"], tot["pass_xmatch"],
+           tot["pass_epochs"], tot["fetched"]),
+        "",
+        "- \"Attempted\" = brightest-first prefix of the anti-join pool "
+        "(until per-field target %s or pool exhausted); pass rates are "
+        "measured over that prefix, pool sizes over the whole field."
+        % json.dumps({str(k): v for k, v in TOPUP_TARGET.items()}),
+        "- \"Pass epoch cut\" = >=%d catflags==0 epochs in BOTH bands "
+        "(includes the DR23 `ngoodobsrel` prescreen). Per-candidate failure "
+        "stages/reasons: `manifest.json` `control_topup.rejects[]`."
+        % MIN_EPOCHS,
+        "- Cost this run: %d HTTP requests (budget %d), %.1f MB, "
+        "%d cache hits, %.0f s."
+        % (STATS["requests"], TOPUP_REQUEST_BUDGET, STATS["bytes"] / 2**20,
+           STATS["cache_hits"], topup["wall_time_s"]),
+        "",
+    ]
+    with open(sum_path, "w") as fh:
+        fh.write(txt.rstrip() + "\n\n" + "\n".join(lines))
+
+    print("\n=== TOPUP DONE ===", flush=True)
+    print("new_controls=%d attempted=%d requests=%d bytes=%.1fMB wall=%.0fs"
+          % (len(new_stars), tot["attempted"], STATS["requests"],
+             STATS["bytes"] / 2**20, topup["wall_time_s"]), flush=True)
+    print("funnel=%s" % json.dumps(funnel), flush=True)
+
+
 if __name__ == "__main__":
+    if "--topup-controls" in sys.argv[1:]:
+        sys.exit(main_topup())
     sys.exit(main())

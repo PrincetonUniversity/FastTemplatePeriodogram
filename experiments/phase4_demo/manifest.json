@@ -84,7 +84,7 @@
  },
  "counts": {
   "science": 58,
-  "control": 15,
+  "control": 27,
   "rejected": 5,
   "n_failed_promoted": 5,
   "per_field": {
@@ -92,21 +92,22 @@
     "science": 22,
     "RRab": 11,
     "RRc": 11,
-    "control": 5
+    "control": 10
    },
    "686": {
     "science": 18,
     "RRab": 9,
     "RRc": 9,
-    "control": 5
+    "control": 11
    },
    "786": {
     "science": 18,
     "RRab": 10,
     "RRc": 8,
-    "control": 5
+    "control": 6
    }
-  }
+  },
+  "control_antijoin": 12
  },
  "http": {
   "requests": 28,
@@ -2555,6 +2556,450 @@
    "chen_overlap": true,
    "chen_sep_arcsec": 0.005,
    "chen_per": 0.6979211
+  },
+  {
+   "star_id": "gaia_f486_4477560241400315136",
+   "field": 486,
+   "ra": 276.16286136545915,
+   "dec": 7.623225882910914,
+   "type": "RRab",
+   "period_truth_days": 0.5593085703996635,
+   "bands": {
+    "g": {
+     "oid": "1533108200024045",
+     "sep_arcsec": 0.08,
+     "ngoodobs": 47,
+     "ngoodobsrel_dr23": 47,
+     "medianmag": 16.120945,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1532205100024092",
+     "sep_arcsec": 0.076,
+     "ngoodobs": 49,
+     "ngoodobsrel_dr23": 41,
+     "medianmag": 15.7841663,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f486_4477560241400315136.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4477560241400315136",
+   "phot_g_mean_mag": 15.670426,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 1100.969
+  },
+  {
+   "star_id": "gaia_f486_4471655692153837824",
+   "field": 486,
+   "ra": 273.5951667632121,
+   "dec": 5.52515956261891,
+   "type": "RRab",
+   "period_truth_days": 0.4447907583803584,
+   "bands": {
+    "g": {
+     "oid": "486111400083963",
+     "sep_arcsec": 0.108,
+     "ngoodobs": 139,
+     "ngoodobsrel_dr23": 105,
+     "medianmag": 16.2080536,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "1532202100038483",
+     "sep_arcsec": 0.042,
+     "ngoodobs": 47,
+     "ngoodobsrel_dr23": 40,
+     "medianmag": 15.4690447,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f486_4471655692153837824.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4471655692153837824",
+   "phot_g_mean_mag": 15.670844,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 592.571
+  },
+  {
+   "star_id": "gaia_f486_4470511478511585792",
+   "field": 486,
+   "ra": 274.17003061935793,
+   "dec": 4.448928699138862,
+   "type": "RRab",
+   "period_truth_days": 0.5981311715287205,
+   "bands": {
+    "g": {
+     "oid": "486107100045946",
+     "sep_arcsec": 0.088,
+     "ngoodobs": 399,
+     "ngoodobsrel_dr23": 338,
+     "medianmag": 16.2343864,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486207100001569",
+     "sep_arcsec": 0.098,
+     "ngoodobs": 623,
+     "ngoodobsrel_dr23": 524,
+     "medianmag": 15.7749319,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4470511478511585792.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4470511478511585792",
+   "phot_g_mean_mag": 15.701065,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 331.908
+  },
+  {
+   "star_id": "gaia_f486_4276113046713707904",
+   "field": 486,
+   "ra": 272.6689660454348,
+   "dec": 1.8211954590768977,
+   "type": "RRab",
+   "period_truth_days": 0.5091168863349941,
+   "bands": {
+    "g": {
+     "oid": "486103200036883",
+     "sep_arcsec": 0.123,
+     "ngoodobs": 456,
+     "ngoodobsrel_dr23": 395,
+     "medianmag": 16.3990593,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486203200044444",
+     "sep_arcsec": 0.109,
+     "ngoodobs": 1017,
+     "ngoodobsrel_dr23": 914,
+     "medianmag": 15.8160696,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4276113046713707904.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4276113046713707904",
+   "phot_g_mean_mag": 15.706691,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 134.63
+  },
+  {
+   "star_id": "gaia_f486_4276158298490514816",
+   "field": 486,
+   "ra": 272.5578173618908,
+   "dec": 2.168398643187764,
+   "type": "RRab",
+   "period_truth_days": 0.4913275944435673,
+   "bands": {
+    "g": {
+     "oid": "486103200019318",
+     "sep_arcsec": 0.144,
+     "ngoodobs": 44,
+     "ngoodobsrel_dr23": 44,
+     "medianmag": 16.2276268,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486203200023709",
+     "sep_arcsec": 0.109,
+     "ngoodobs": 75,
+     "ngoodobsrel_dr23": 68,
+     "medianmag": 15.8804016,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4276158298490514816.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4276158298490514816",
+   "phot_g_mean_mag": 15.7583475,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 559.392
+  },
+  {
+   "star_id": "gaia_f686_2047862641808092032",
+   "field": 686,
+   "ra": 296.04087362976037,
+   "dec": 36.1154684976544,
+   "type": "RRab",
+   "period_truth_days": 0.4366360350487394,
+   "bands": {
+    "g": {
+     "oid": "1727107100042031",
+     "sep_arcsec": 0.073,
+     "ngoodobs": 57,
+     "ngoodobsrel_dr23": 54,
+     "medianmag": 14.7750359,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1727207100046663",
+     "sep_arcsec": 0.066,
+     "ngoodobs": 63,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 14.1204691,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2047862641808092032.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2047862641808092032",
+   "phot_g_mean_mag": 14.073963,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 939.874
+  },
+  {
+   "star_id": "gaia_f686_2033046275972983040",
+   "field": 686,
+   "ra": 295.4072408715035,
+   "dec": 31.39017791584685,
+   "type": "RRab",
+   "period_truth_days": 0.6317552710999964,
+   "bands": {
+    "g": {
+     "oid": "1683109100006131",
+     "sep_arcsec": 0.113,
+     "ngoodobs": 55,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 15.6153889,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1683209100006240",
+     "sep_arcsec": 0.072,
+     "ngoodobs": 58,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 15.1471958,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2033046275972983040.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2033046275972983040",
+   "phot_g_mean_mag": 15.134438,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 903.157
+  },
+  {
+   "star_id": "gaia_f686_2034389191980002688",
+   "field": 686,
+   "ra": 299.621643454174,
+   "dec": 33.288445044722764,
+   "type": "RRab",
+   "period_truth_days": 0.5769163139077633,
+   "bands": {
+    "g": {
+     "oid": "1684114200007432",
+     "sep_arcsec": 0.03,
+     "ngoodobs": 51,
+     "ngoodobsrel_dr23": 51,
+     "medianmag": 16.2386894,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1727201300042591",
+     "sep_arcsec": 0.014,
+     "ngoodobs": 60,
+     "ngoodobsrel_dr23": 50,
+     "medianmag": 15.5587683,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2034389191980002688.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2034389191980002688",
+   "phot_g_mean_mag": 15.429605,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 1235.271
+  },
+  {
+   "star_id": "gaia_f686_2033031810522004096",
+   "field": 686,
+   "ra": 295.69772234768436,
+   "dec": 31.342448781102913,
+   "type": "RRab",
+   "period_truth_days": 0.48479715708740306,
+   "bands": {
+    "g": {
+     "oid": "1683109100053407",
+     "sep_arcsec": 0.083,
+     "ngoodobs": 55,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 16.4441643,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1683209100057622",
+     "sep_arcsec": 0.048,
+     "ngoodobs": 58,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 15.7259922,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2033031810522004096.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2033031810522004096",
+   "phot_g_mean_mag": 15.717319,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 1481.585
+  },
+  {
+   "star_id": "gaia_f686_2047160053888845184",
+   "field": 686,
+   "ra": 295.9869015919756,
+   "dec": 34.691145278083425,
+   "type": "RRc",
+   "period_truth_days": 0.3121674118368833,
+   "bands": {
+    "g": {
+     "oid": "1727103100014891",
+     "sep_arcsec": 0.062,
+     "ngoodobs": 56,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 16.2880573,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1727203100015135",
+     "sep_arcsec": 0.07,
+     "ngoodobs": 61,
+     "ngoodobsrel_dr23": 51,
+     "medianmag": 15.8442211,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2047160053888845184.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_p1_o",
+   "catalog_id": "2047160053888845184",
+   "phot_g_mean_mag": 15.858868,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 578.109
+  },
+  {
+   "star_id": "gaia_f686_2071709708991604736",
+   "field": 686,
+   "ra": 298.2597914647057,
+   "dec": 36.29498685280595,
+   "type": "RRab",
+   "period_truth_days": 0.5457993852760762,
+   "bands": {
+    "g": {
+     "oid": "1727106100031464",
+     "sep_arcsec": 0.085,
+     "ngoodobs": 56,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 16.6724281,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1727206100032494",
+     "sep_arcsec": 0.032,
+     "ngoodobs": 58,
+     "ngoodobsrel_dr23": 48,
+     "medianmag": 16.1806259,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2071709708991604736.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2071709708991604736",
+   "phot_g_mean_mag": 16.0435,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 1540.174
+  },
+  {
+   "star_id": "gaia_f786_1020098816344918656",
+   "field": 786,
+   "ra": 145.55708497200644,
+   "dec": 51.910054680569054,
+   "type": "RRab",
+   "period_truth_days": 0.6648564984691379,
+   "bands": {
+    "g": {
+     "oid": "786103300000706",
+     "sep_arcsec": 0.111,
+     "ngoodobs": 471,
+     "ngoodobsrel_dr23": 416,
+     "medianmag": 20.3770256,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786203300014050",
+     "sep_arcsec": 0.068,
+     "ngoodobs": 802,
+     "ngoodobsrel_dr23": 717,
+     "medianmag": 20.1718063,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f786_1020098816344918656.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "1020098816344918656",
+   "phot_g_mean_mag": 20.311419,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null,
+   "control_antijoin": true,
+   "chen_nearest_sep_arcsec": 1728.843
   }
  ],
  "rejects": [
@@ -2599,5 +3044,217 @@
    "reason": "prescreen ngoodobsrel g=36 r=46 < 40"
   }
  ],
- "problems": []
+ "problems": [],
+ "control_topup": {
+  "created_utc": "2026-07-11T04:59:43Z",
+  "reason": "12/15 original controls are chen_overlap (same physical stars as science); measuring the Chen-selection effect needs Chen-missed stars",
+  "antijoin_radius_arcsec": 2.0,
+  "selection_rule": "Gaia SOS RRab/RRc in field box with NO Chen+2020 RRL within 2.0 arcsec (full per-field Chen tables), not already in manifest; brightest-first by phot_g_mean_mag, ties by RA; identical xmatch/LC/cuts pipeline",
+  "targets": {
+   "486": 5,
+   "686": 6,
+   "786": 4
+  },
+  "funnel": {
+   "486": {
+    "antijoin_candidates": 274,
+    "attempted": 18,
+    "pass_xmatch": 17,
+    "pass_epochs": 5,
+    "fetched": 5
+   },
+   "686": {
+    "antijoin_candidates": 824,
+    "attempted": 7,
+    "pass_xmatch": 6,
+    "pass_epochs": 6,
+    "fetched": 6
+   },
+   "786": {
+    "antijoin_candidates": 4,
+    "attempted": 4,
+    "pass_xmatch": 3,
+    "pass_epochs": 1,
+    "fetched": 1
+   }
+  },
+  "rejects": [
+   {
+    "star_id": "gaia_f486_4476806350068793344",
+    "field": 486,
+    "type": "RRc",
+    "ra": 276.18854761945465,
+    "dec": 6.092064920521062,
+    "phot_g_mean_mag": 12.5564165,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=45 r=39 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4474931240368573312",
+    "field": 486,
+    "type": "RRc",
+    "ra": 271.7340455497686,
+    "dec": 6.463433871191591,
+    "phot_g_mean_mag": 14.279466,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=35 r=40 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4477718845946264448",
+    "field": 486,
+    "type": "RRab",
+    "ra": 274.29748357389866,
+    "dec": 6.303667369637651,
+    "phot_g_mean_mag": 14.472403,
+    "stage": "xmatch",
+    "reason": "no g+r match within 1.0 arcsec"
+   },
+   {
+    "star_id": "gaia_f486_4471534574074139648",
+    "field": 486,
+    "type": "RRab",
+    "ra": 272.49571657690603,
+    "dec": 5.051868468103348,
+    "phot_g_mean_mag": 14.869273,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=34 r=41 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4471109990785468672",
+    "field": 486,
+    "type": "RRab",
+    "ra": 272.04302070229414,
+    "dec": 4.483748553600983,
+    "phot_g_mean_mag": 15.103733,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=34 r=41 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4471066624499352960",
+    "field": 486,
+    "type": "RRab",
+    "ra": 271.6365797390093,
+    "dec": 4.492315264577694,
+    "phot_g_mean_mag": 15.239998,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=33 r=41 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4470605761634395008",
+    "field": 486,
+    "type": "RRab",
+    "ra": 274.72320733020365,
+    "dec": 4.663807921047057,
+    "phot_g_mean_mag": 15.318445,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=39 r=40 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4277722491218330112",
+    "field": 486,
+    "type": "RRab",
+    "ra": 274.1200826025591,
+    "dec": 2.600664852247107,
+    "phot_g_mean_mag": 15.364435,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=19 r=22 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4471980078140502912",
+    "field": 486,
+    "type": "RRab",
+    "ra": 273.4374090730105,
+    "dec": 6.538935388662831,
+    "phot_g_mean_mag": 15.583902,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=35 r=40 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4470602531818797824",
+    "field": 486,
+    "type": "RRab",
+    "ra": 274.4055917072206,
+    "dec": 4.6361541902275665,
+    "phot_g_mean_mag": 15.588546,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=34 r=38 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4477090715573351296",
+    "field": 486,
+    "type": "RRab",
+    "ra": 275.1727540669562,
+    "dec": 6.539443224918366,
+    "phot_g_mean_mag": 15.603109,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=39 r=41 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4471386483600284672",
+    "field": 486,
+    "type": "RRab",
+    "ra": 271.5505379232378,
+    "dec": 5.1104657126306074,
+    "phot_g_mean_mag": 15.606178,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=33 r=41 < 40"
+   },
+   {
+    "star_id": "gaia_f486_4277644941289753088",
+    "field": 486,
+    "type": "RRab",
+    "ra": 273.84048303319565,
+    "dec": 2.6304651504422285,
+    "phot_g_mean_mag": 15.727437,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=20 r=21 < 40"
+   },
+   {
+    "star_id": "gaia_f686_2031118935151026048",
+    "field": 686,
+    "type": "RRc",
+    "ra": 301.03160417758295,
+    "dec": 32.685671452288815,
+    "phot_g_mean_mag": 13.655525,
+    "stage": "xmatch",
+    "reason": "no r match within 1.0 arcsec"
+   },
+   {
+    "star_id": "gaia_f786_828495278684213888",
+    "field": 786,
+    "type": "RRab",
+    "ra": 148.79055936742444,
+    "dec": 53.01407970073121,
+    "phot_g_mean_mag": 13.804801,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=36 r=46 < 40"
+   },
+   {
+    "star_id": "gaia_f786_1022285989786150656",
+    "field": 786,
+    "type": "RRab",
+    "ra": 147.23459780740095,
+    "dec": 56.87456056655799,
+    "phot_g_mean_mag": 15.878439,
+    "stage": "xmatch",
+    "reason": "no r match within 1.0 arcsec"
+   },
+   {
+    "star_id": "gaia_f786_1045043337859949568",
+    "field": 786,
+    "type": "RRc",
+    "ra": 152.03171943741782,
+    "dec": 56.072491386015315,
+    "phot_g_mean_mag": 20.792515,
+    "stage": "prescreen",
+    "reason": "prescreen ngoodobsrel g=9 r=264 < 40"
+   }
+  ],
+  "http": {
+   "requests": 10,
+   "bytes": 92084,
+   "cache_hits": 49
+  },
+  "wall_time_s": 42.0
+ }
 }
