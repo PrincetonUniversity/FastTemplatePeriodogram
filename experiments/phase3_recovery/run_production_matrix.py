@@ -61,6 +61,7 @@ from ftperiodogram.baselines import (GLSEstimator, MHLSEstimator,
                                      SesarOracleEstimator,
                                      ConditionalEntropyEstimator)
 import ztf_error_model as zerr             # sibling experiment module
+from refine_estimator import RefinedEstimator   # sibling module (arm b closure)
 
 
 # ----------------------------------------------------------------------
@@ -276,6 +277,20 @@ def ftp_est(scorer, vocab):
     return FTPEstimator(vocab, mode=scorer.mode)
 
 
+def _maybe_refine(args, est):
+    """Wrap a scored estimator with local peak refinement (``--refine``, WP
+    B8-closure arm b).  CE minimizes ``entropy_spectrum``; every other method
+    maximizes ``power_spectrum``.  The cost panel is never wrapped (the
+    FTP-vs-oracle timing must stay a pure like-for-like grid comparison), and
+    the greedy source_masks precompute is untouched (selection, not scoring)."""
+    if not getattr(args, 'refine', False):
+        return est
+    better = ('min' if isinstance(est, ConditionalEntropyEstimator) else 'max')
+    return RefinedEstimator(est, top_m=args.refine_top_m,
+                            window=args.refine_window,
+                            factor=args.refine_factor, better=better)
+
+
 # ----------------------------------------------------------------------
 # Vocabulary curves (PAM vs recovery-driven greedy)
 # ----------------------------------------------------------------------
@@ -312,16 +327,21 @@ def greedy_order(scorer, templates, max_k):
     return order
 
 
-def k_curves(scorer, templates, pam_vocabs, greedy_ord, k_values, baselines, save):
+def k_curves(scorer, templates, pam_vocabs, greedy_ord, k_values, baselines, save,
+             wrap=None):
     """All recovery-vs-K curves on one ``scorer``: FTP(PAM), FTP(greedy prefixes),
     and the K-independent baseline reference levels.  Every point is persisted
-    per-source through ``save`` (one npz per method and K; baselines once)."""
-    pam = [save('ftp_pam', 'K%d' % K, ftp_est(scorer, pam_vocabs[K]))[0]
+    per-source through ``save`` (one npz per method and K; baselines once).
+    ``wrap`` (optional) decorates every scored estimator -- the ``--refine``
+    peak-refinement hook."""
+    wrap = wrap if wrap is not None else (lambda est: est)
+    pam = [save('ftp_pam', 'K%d' % K, wrap(ftp_est(scorer, pam_vocabs[K])))[0]
            for K in k_values]
     grd = [save('ftp_greedy', 'K%d' % K,
-                ftp_est(scorer, [templates[i] for i in greedy_ord[:K]]))[0]
+                wrap(ftp_est(scorer, [templates[i] for i in greedy_ord[:K]])))[0]
            for K in k_values]
-    base = {name: save(name, 'ref', est)[0] for name, est in baselines.items()}
+    base = {name: save(name, 'ref', wrap(est))[0]
+            for name, est in baselines.items()}
     return pam, grd, base
 
 
@@ -409,7 +429,8 @@ def run_seed(templates, truth_pool, args, seed, log):
         t0 = time.time()
         save = make_saver(sc, args.outdir, seed, 'ksweep-%s' % regime)
         pam, grd, base = k_curves(sc, library, pam_vocabs, order, k_values,
-                                  baselines, save)
+                                  baselines, save,
+                                  wrap=lambda est: _maybe_refine(args, est))
         result['k_sweep_%s' % regime] = {
             'n_epochs': (args.sparse_master_epochs if regime == 'sparse'
                          else args.dense_master_epochs),
@@ -447,7 +468,8 @@ def run_seed(templates, truth_pool, args, seed, log):
             for method, est in (('ftp_pam', ftp_est(ds, pam_vocab)),
                                 ('ftp_greedy', ftp_est(ds, greedy_vocab)),
                                 *baselines.items()):
-                rate, masks[method] = save(method, 'N%d' % N, est)
+                rate, masks[method] = save(method, 'N%d' % N,
+                                           _maybe_refine(args, est))
                 n_curves[method].append(rate)
             # paired method contrasts on the identical sources (exact McNemar)
             for other in ('ftp_greedy', *baselines):
@@ -627,6 +649,17 @@ def parse_args(argv=None):
     p.add_argument('--band-amp-ratio', type=float, default=1.0,
                    help="robustness arm: first-to-last band amplitude ratio "
                         "(e.g. 1.4 for g/r); 1.0 = shared shape across bands")
+    p.add_argument('--refine', action='store_true',
+                   help="grid-closure arm (WP B8-closure b): wrap every scored "
+                        "estimator (K-sweeps + N-sweep; never the cost panel) "
+                        "with local peak refinement so rates are continuum-"
+                        "limit, not grid-limited (SUMMARY_c-grid20k.md)")
+    p.add_argument('--refine-top-m', type=int, default=32,
+                   help="coarse-grid local extrema refined per source")
+    p.add_argument('--refine-window', type=float, default=2.0,
+                   help="refinement half-window in coarse-df units")
+    p.add_argument('--refine-factor', type=int, default=32,
+                   help="fine grid spacing = coarse df / factor")
     p.add_argument('--smoke', action='store_true')
     return p.parse_args(argv)
 
@@ -722,7 +755,8 @@ def main(argv=None):
             'cost_n_freq', 'cost_k', 'oracle_n_tau', 'err_model',
             'library_holdout_frac', 'truth_universe', 'band_amp_ratio',
             'greedy_select_sources', 'greedy_select_nfreq', 'stages',
-            'with_ce', 'fixed_k')},
+            'with_ce', 'fixed_k', 'refine', 'refine_top_m', 'refine_window',
+            'refine_factor')},
         'grid_df': (args.f_max - args.f_min) / (args.n_freq - 1),
         'grid_points_per_rayleigh': round(rayleigh_pts, 3),
         'n_universe': len(templates), 'seeds': seeds,
