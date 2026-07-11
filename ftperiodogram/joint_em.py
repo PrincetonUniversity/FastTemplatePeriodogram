@@ -24,7 +24,10 @@ Design (``phase3_vocab_design.md`` S.A.4)
   multiband solve (one NFFT per source, reused across the bank -- the
   :func:`ftperiodogram.validation.RecoveryScorer.source_masks` fast path), yielding
   its best-matching template, recovered frequency, and fit quality (periodogram
-  power = explained-variance fraction at the peak).
+  power = explained-variance fraction at the peak).  The per-band NFFT summations
+  depend only on the data and ``(freqs, mode, H)`` -- never on the templates or
+  the EM iteration -- so they are additionally cached **across iterations** (and
+  across the val-margin scorer) by :class:`_SumsExecutor`, which is exact.
 * **Gated, robust M-step.**  A template is updated only from the sources assigned to
   it whose fit quality clears a gate (a relative power quantile, optionally an
   absolute floor) -- a mis-estimated period (the dominant astronomical failure mode)
@@ -51,6 +54,8 @@ the same :class:`~ftperiodogram.baselines.FTPEstimator` seam, so the only differ
 the joint-minus-pipeline comparison sees is the vocabulary itself.
 """
 from collections import namedtuple
+import multiprocessing as _mp
+import os
 
 import numpy as np
 
@@ -61,7 +66,7 @@ from .catalog_builder import (build_template_catalog, _complex_coeffs, _pad,
                               _max_cross_correlation, _orbit_distance_matrix)
 from .multiband import (build_template_set, compute_band_summations,
                         solve_over_frequencies)
-from .validation import _parallel_map
+from .validation import _BLAS_THREAD_VARS
 
 
 #: Per-iteration trace returned by :func:`build_joint_em_catalog` with
@@ -72,11 +77,13 @@ from .validation import _parallel_map
 #: ``min_pairwise_distance`` the orbit distance of the closest template pair each
 #: iteration (collapse monitor), ``n_gated`` the per-iteration gated source count,
 #: ``n_reverted`` the per-iteration count of anti-collapse reverts, and
-#: ``stop_reason`` why the loop ended.
+#: ``stop_reason`` why the loop ended.  ``estep`` is a dict tracing the E-step
+#: itself: per-iteration ``assign_hist`` / ``freq_hist`` / ``power_hist`` arrays
+#: and the sums-cache counters (``cache_hits`` / ``cache_misses``).
 EMDiagnostics = namedtuple(
     'EMDiagnostics',
     ['n_iter', 'best_iter', 'val_signal', 'val_signal_name', 'mean_fit_quality',
-     'min_pairwise_distance', 'n_gated', 'n_reverted', 'stop_reason'])
+     'min_pairwise_distance', 'n_gated', 'n_reverted', 'stop_reason', 'estep'])
 
 
 # ----------------------------------------------------------------------
@@ -123,17 +130,18 @@ def _template_from_coeffs(z):
 # ----------------------------------------------------------------------
 # E-step: assign each source to its best template (+ recovered freq, fit quality)
 # ----------------------------------------------------------------------
-def _estep_one(source, templates, freqs, mode, H):
-    """Best ``(assignment, recovered_frequency, fit_quality)`` for one source.
-
-    Computes the per-band NFFT summations once and reuses them across the whole
-    bank (template-independent), exactly the ``source_masks`` fast path; the fit
-    quality is the periodogram power (explained-variance fraction) at the best
-    template's peak frequency.
-    """
+def _compute_source_sums(source, freqs, mode, H):
+    """One source's ``(per_band_sumlists, stats)`` -- iteration-invariant."""
     t, y, bands, dy = source[0], source[1], source[2], source[3]
-    sumlists, stats = compute_band_summations(t, y, bands, freqs, H, dy=dy,
-                                              mode=mode, fast=True)
+    return compute_band_summations(t, y, bands, freqs, H, dy=dy,
+                                   mode=mode, fast=True)
+
+
+def _estep_one_cached(source, sums, templates, freqs, mode, H):
+    """Best ``(assignment, recovered_frequency, fit_quality)`` for one source,
+    from precomputed per-band summations ``sums = (sumlists, stats)``."""
+    bands = source[2]
+    sumlists, stats = sums
     best_power, best_k, best_i = -np.inf, 0, 0
     for k, tmpl in enumerate(templates):
         template_dict = build_template_set(tmpl, bands)
@@ -145,33 +153,197 @@ def _estep_one(source, templates, freqs, mode, H):
     return best_k, float(freqs[best_i]), best_power
 
 
-_EM_PAR = {}                                 # per-worker fixed data for the E-step
+def _estep_one(source, templates, freqs, mode, H):
+    """Best ``(assignment, recovered_frequency, fit_quality)`` for one source.
+
+    Computes the per-band NFFT summations once and reuses them across the whole
+    bank (template-independent), exactly the ``source_masks`` fast path; the fit
+    quality is the periodogram power (explained-variance fraction) at the best
+    template's peak frequency.
+    """
+    sums = _compute_source_sums(source, freqs, mode, H)
+    return _estep_one_cached(source, sums, templates, freqs, mode, H)
 
 
-def _em_par_init(templates, freqs, mode, H, sources):
-    _EM_PAR.update(templates=templates, freqs=freqs, mode=mode, H=H,
-                   sources=sources)
+def _margin_one_cached(source, p_true, sums, templates, freqs, mode, H):
+    """:func:`_margin_one` from precomputed ``sums = (sumlists, stats)``."""
+    bands = source[2]
+    sumlists, stats = sums
+    best = None
+    for tmpl in templates:
+        template_dict = build_template_set(tmpl, bands)
+        powers, _ = solve_over_frequencies(template_dict, sumlists, stats,
+                                           freqs.size, mode=mode)
+        best = powers if best is None else np.maximum(best, powers)
+    i_true = int(np.argmin(np.abs(freqs - 1.0 / p_true)))
+    return float(best[i_true] - best.max())
 
 
-def _em_par_worker(i):
-    return _estep_one(_EM_PAR['sources'][i], _EM_PAR['templates'],
-                      _EM_PAR['freqs'], _EM_PAR['mode'], _EM_PAR['H'])
+def _margin_one(source, p_true, templates, freqs, mode, H):
+    """Mean-max periodogram-power margin at the true period for ONE source.
+
+    ``max_k P_k(f_nearest_truth) - max_f max_k P_k(f)`` -- continuous, <= 0,
+    exactly 0 when the bank's global peak sits in the truth frequency bin.  The
+    per-band summations are computed once and reused across the bank (the
+    ``source_masks`` fast path)."""
+    sums = _compute_source_sums(source, freqs, mode, H)
+    return _margin_one_cached(source, p_true, sums, templates, freqs, mode, H)
+
+
+# ----------------------------------------------------------------------
+# Sums-cache executor: the E-step / val-margin fan-out with per-source
+# band summations computed once and reused across EM iterations (FIX: the
+# sums depend only on the data and (freqs, mode, H), never on the templates)
+# ----------------------------------------------------------------------
+_EXEC = {}                       # per-worker fixed data + sums cache
+
+
+def _exec_init(sources, freqs, mode, H, cache_sums):
+    _EXEC.update(sources=sources, freqs=freqs, mode=mode, H=H,
+                 cache_sums=bool(cache_sums), sums={})
+
+
+def _exec_get_sums(state, i):
+    """``(sums, cache_hit)`` for source ``i`` against ``state``'s cache."""
+    cache = state['sums']
+    if state['cache_sums'] and i in cache:
+        return cache[i], True
+    sums = _compute_source_sums(state['sources'][i], state['freqs'],
+                                state['mode'], state['H'])
+    if state['cache_sums']:
+        cache[i] = sums
+    return sums, False
+
+
+def _exec_task(state, task):
+    kind, i, payload = task
+    sums, hit = _exec_get_sums(state, i)
+    source = state['sources'][i]
+    if kind == 'estep':
+        templates, = payload
+        k, f, p = _estep_one_cached(source, sums, templates, state['freqs'],
+                                    state['mode'], state['H'])
+        return k, f, p, hit
+    if kind == 'margin':
+        templates, p_true_i = payload
+        m = _margin_one_cached(source, p_true_i, sums, templates,
+                               state['freqs'], state['mode'], state['H'])
+        return m, hit
+    raise ValueError("unknown executor task kind %r" % (kind,))
+
+
+def _exec_worker(task):
+    return _exec_task(_EXEC, task)
+
+
+class _SumsExecutor(object):
+    """Per-population E-step / val-margin runner with cached band summations.
+
+    The per-band NFFT summations of a source are **iteration-invariant** (they
+    depend only on ``(t, y, bands, dy)`` and ``(freqs, mode, H)``), so an EM run
+    that re-fits the same frozen population every iteration can compute them
+    once per source and reuse them -- exactly, to the bit, since caching skips
+    a recomputation of the identical value.
+
+    Serial (``n_jobs == 1``): the cache is an in-process dict keyed by source
+    index.  Parallel: ONE persistent ``spawn`` pool is created for the whole EM
+    run (instead of a fresh pool per iteration) and each worker lazily computes
+    and caches the sums of the source indices it processes, so a source's sums
+    are computed at most once per worker that touches it.  Sources are
+    independent and the map preserves order, so the fan-out is bit-for-bit the
+    serial loop.
+
+    Memory: the cached sums cost ~1-2 MB per source per band at ~2000 grid
+    frequencies and H=8 (linear in both), held for the executor's lifetime
+    (per worker, in parallel mode).  Callers with very large grids or
+    populations can disable the cache with ``cache_sums=False`` (identical
+    results; the sums are then recomputed per task as before).
+    """
+
+    def __init__(self, sources, freqs, mode, H, n_jobs=1, cache_sums=True):
+        self.sources = list(sources)
+        self.freqs = freqs
+        self.n_freq = int(np.asarray(freqs).size)
+        self.cache_hits = 0
+        self.cache_misses = 0
+        n_jobs = int(n_jobs)
+        if n_jobs < 0:
+            n_jobs = _mp.cpu_count()
+        self.n_jobs = max(1, min(n_jobs, len(self.sources)))
+        self._pool = None
+        if self.n_jobs > 1:
+            # BLAS pinned to one thread per worker (no oversubscription); the
+            # children inherit the env at spawn, the parent env is restored.
+            prev = {k: os.environ.get(k) for k in _BLAS_THREAD_VARS}
+            for k in _BLAS_THREAD_VARS:
+                os.environ[k] = '1'
+            try:
+                ctx = _mp.get_context('spawn')
+                self._pool = ctx.Pool(
+                    self.n_jobs, initializer=_exec_init,
+                    initargs=(self.sources, freqs, mode, H, cache_sums))
+            finally:
+                for k, v in prev.items():
+                    if v is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = v
+        else:
+            self._state = dict(sources=self.sources, freqs=freqs, mode=mode,
+                               H=H, cache_sums=bool(cache_sums), sums={})
+
+    def _run(self, tasks):
+        if self._pool is None:
+            return [_exec_task(self._state, t) for t in tasks]
+        return self._pool.map(_exec_worker, tasks)
+
+    def _count(self, hits):
+        for h in hits:
+            if h:
+                self.cache_hits += 1
+            else:
+                self.cache_misses += 1
+
+    def estep(self, templates):
+        """E-step over the population; ``(assign, freq_rec, power)`` arrays."""
+        templates = list(templates)
+        tasks = [('estep', i, (templates,))
+                 for i in range(len(self.sources))]
+        out = self._run(tasks)
+        self._count(o[3] for o in out)
+        assign = np.array([o[0] for o in out], dtype=int)
+        freq_rec = np.array([o[1] for o in out], dtype=float)
+        power = np.array([o[2] for o in out], dtype=float)
+        return assign, freq_rec, power
+
+    def margins(self, templates, p_true):
+        """Per-source power margins at truth (:func:`_margin_one`), in order."""
+        templates = list(templates)
+        tasks = [('margin', i, (templates, float(p_true[i])))
+                 for i in range(len(self.sources))]
+        out = self._run(tasks)
+        self._count(o[1] for o in out)
+        return [o[0] for o in out]
+
+    def close(self):
+        if self._pool is not None:
+            self._pool.close()
+            self._pool.join()
+            self._pool = None
 
 
 def _estep(sources, templates, freqs, mode, H, n_jobs):
     """E-step over the whole population; ``(assign, freq_rec, power)`` arrays.
 
-    Identical computation serial or parallel (sources are independent), so fanning
-    over a ``spawn`` pool is bit-for-bit the serial loop."""
-    if n_jobs == 1 or len(sources) <= 1:
-        out = [_estep_one(s, templates, freqs, mode, H) for s in sources]
-    else:
-        out = _parallel_map(n_jobs, len(sources), _em_par_init,
-                            (templates, freqs, mode, H, sources), _em_par_worker)
-    assign = np.array([o[0] for o in out], dtype=int)
-    freq_rec = np.array([o[1] for o in out], dtype=float)
-    power = np.array([o[2] for o in out], dtype=float)
-    return assign, freq_rec, power
+    Identical computation serial or parallel (sources are independent), so
+    fanning over a ``spawn`` pool is bit-for-bit the serial loop.  One-shot
+    (no cross-iteration sums cache); EM loops use :class:`_SumsExecutor`."""
+    executor = _SumsExecutor(sources, freqs, mode, H, n_jobs=n_jobs,
+                             cache_sums=False)
+    try:
+        return executor.estep(list(templates))
+    finally:
+        executor.close()
 
 
 # ----------------------------------------------------------------------
@@ -325,41 +497,7 @@ def _mstep(sources, assign, freq_rec, gated, vocab, H, m_step):
 # ----------------------------------------------------------------------
 # Continuous held-out early-stop signal (WP B6)
 # ----------------------------------------------------------------------
-def _margin_one(source, p_true, templates, freqs, mode, H):
-    """Mean-max periodogram-power margin at the true period for ONE source.
-
-    ``max_k P_k(f_nearest_truth) - max_f max_k P_k(f)`` -- continuous, <= 0,
-    exactly 0 when the bank's global peak sits in the truth frequency bin.  The
-    per-band summations are computed once and reused across the bank (the
-    ``source_masks`` fast path)."""
-    t, y, bands, dy = source[0], source[1], source[2], source[3]
-    sumlists, stats = compute_band_summations(t, y, bands, freqs, H, dy=dy,
-                                              mode=mode, fast=True)
-    best = None
-    for tmpl in templates:
-        template_dict = build_template_set(tmpl, bands)
-        powers, _ = solve_over_frequencies(template_dict, sumlists, stats,
-                                           freqs.size, mode=mode)
-        best = powers if best is None else np.maximum(best, powers)
-    i_true = int(np.argmin(np.abs(freqs - 1.0 / p_true)))
-    return float(best[i_true] - best.max())
-
-
-_VM_PAR = {}                       # per-worker fixed data for the margin signal
-
-
-def _vm_par_init(templates, freqs, mode, H, sources, p_true):
-    _VM_PAR.update(templates=templates, freqs=freqs, mode=mode, H=H,
-                   sources=sources, p_true=p_true)
-
-
-def _vm_par_worker(i):
-    return _margin_one(_VM_PAR['sources'][i], _VM_PAR['p_true'][i],
-                       _VM_PAR['templates'], _VM_PAR['freqs'],
-                       _VM_PAR['mode'], _VM_PAR['H'])
-
-
-def _val_margin(val_scorer, vocab, H, n_jobs):
+def _val_margin(val_scorer, vocab, H, n_jobs, executor=None):
     """Population-mean power margin at truth -- the CONTINUOUS early-stop signal.
 
     The held-out recovery rate is quantized at ``1/n_sources``, so on small val
@@ -367,18 +505,19 @@ def _val_margin(val_scorer, vocab, H, n_jobs):
     degenerates to the pipeline vocabulary verbatim.  The mean margin moves with
     every sub-threshold improvement, letting genuinely better vocabularies be
     accepted.  Supervised on the VAL truth only (training stays unsupervised);
-    identical serial or parallel."""
-    sources = val_scorer._sources
+    identical serial or parallel.  ``executor`` reuses an existing
+    :class:`_SumsExecutor` over the val population (the EM loop's cross-iteration
+    sums cache); otherwise a one-shot uncached executor is used."""
     p_true = np.asarray(val_scorer.p_true, dtype=float)
-    freqs = val_scorer.freqs
-    mode = val_scorer.mode
-    if n_jobs == 1 or len(sources) <= 1:
-        out = [_margin_one(s, p, vocab, freqs, mode, H)
-               for s, p in zip(sources, p_true)]
-    else:
-        out = _parallel_map(n_jobs, len(sources), _vm_par_init,
-                            (vocab, freqs, mode, H, sources, p_true),
-                            _vm_par_worker)
+    if executor is not None:
+        return float(np.mean(executor.margins(list(vocab), p_true)))
+    one_shot = _SumsExecutor(val_scorer._sources, val_scorer.freqs,
+                             val_scorer.mode, H, n_jobs=n_jobs,
+                             cache_sums=False)
+    try:
+        out = one_shot.margins(list(vocab), p_true)
+    finally:
+        one_shot.close()
     return float(np.mean(out))
 
 
@@ -401,7 +540,7 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
                            min_members=3, diversity_eps=1e-3, m_step='pooled',
                            n_harmonics=None, random_state=None,
                            catalog_kwargs=None, n_jobs=1,
-                           return_diagnostics=False):
+                           cache_sums=True, return_diagnostics=False):
     """Refine a ``K``-template vocabulary jointly against an observed population.
 
     Initializes from the pipeline vocabulary
@@ -463,6 +602,14 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
         Extra kwargs forwarded to ``build_template_catalog`` for the init.
     n_jobs : int
         Processes for the E-step source loop (1 = serial; <0 = all cores).
+    cache_sums : bool
+        Cache each source's per-band NFFT summations across EM iterations and
+        the val-margin scorer (default).  EXACT -- the sums are iteration- and
+        template-invariant, so the cache only skips recomputing identical
+        values; results are bit-for-bit those of ``cache_sums=False``.  Memory:
+        ~1-2 MB per source per band at ~2000 grid frequencies and H=8 (linear
+        in both, held per worker in parallel mode); callers with very large
+        grids/populations can set ``False`` to trade the recompute back.
     return_diagnostics : bool
         If ``True``, also return an :class:`EMDiagnostics`.
 
@@ -483,77 +630,110 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
     val = val_scorer if val_scorer is not None else train_scorer
     n_jobs = int(n_jobs)
 
-    if val_signal == 'power_margin':
-        def _val_signal_fn(v):
-            return _val_margin(val, v, H, n_jobs)
-    elif val_signal == 'recovery':
-        def _val_signal_fn(v):
-            return float(val(v))
-    else:
+    if val_signal not in ('power_margin', 'recovery'):
         raise ValueError("val_signal must be 'power_margin' or 'recovery'; "
                          "got %r" % (val_signal,))
 
-    best_vocab = [Template(t.c_n.copy(), t.s_n.copy(), t.template_id) for t in vocab]
-    best_val = _val_signal_fn(vocab)
-    best_iter = 0
-    val_hist = [best_val]
-    fq_hist, dist_hist, gated_hist, revert_hist = [], [], [], []
-    stop_reason = 'max_iter'
-    since_improved = 0
+    train_exec = _SumsExecutor(sources, freqs, mode, H, n_jobs=n_jobs,
+                               cache_sums=cache_sums)
+    val_exec = None
+    try:
+        if val_signal == 'power_margin':
+            # the val population is scored every iteration too -- share the
+            # train executor when validating transductively, else its own
+            if val is train_scorer:
+                val_exec = train_exec
+            else:
+                val_exec = _SumsExecutor(val._sources, val.freqs, val.mode, H,
+                                         n_jobs=n_jobs, cache_sums=cache_sums)
 
-    for it in range(1, max_iter + 1):
-        assign, freq_rec, power = _estep(sources, vocab, freqs, mode, H, n_jobs)
-        fq_hist.append(float(np.mean(power)))
-
-        thresh = max(float(fit_quality_floor),
-                     float(np.quantile(power, fit_quality_quantile)))
-        gated = power >= thresh
-        # Enforce a per-cluster minimum: ungate clusters too sparse to trust.
-        for k in range(len(vocab)):
-            in_k = (assign == k) & gated
-            if in_k.sum() < min_members:
-                gated = gated & (assign != k)
-        gated_hist.append(int(gated.sum()))
-
-        proposed, _ = _mstep(sources, assign, freq_rec, gated, vocab, H, m_step)
-
-        # Anti-collapse: revert any template whose update collapses a pair.
-        n_reverted = 0
-        prev_min = _min_pairwise_distance(vocab)
-        new_min = _min_pairwise_distance(proposed)
-        if new_min < diversity_eps and new_min < prev_min:
-            D = _orbit_distance_matrix(proposed)
-            np.fill_diagonal(D, np.inf)
-            changed = [k for k in range(len(vocab))
-                       if not np.allclose(proposed[k].c_n, vocab[k].c_n)
-                       or not np.allclose(proposed[k].s_n, vocab[k].s_n)]
-            # revert the most-collapsed changed templates until the pair clears
-            for k in sorted(changed, key=lambda k: D[k].min()):
-                if _min_pairwise_distance(proposed) >= diversity_eps:
-                    break
-                proposed[k] = vocab[k]
-                n_reverted += 1
-        revert_hist.append(n_reverted)
-
-        vocab = proposed
-        dist_hist.append(_min_pairwise_distance(vocab))
-
-        cur_val = _val_signal_fn(vocab)
-        val_hist.append(cur_val)
-        if cur_val > best_val + 1e-12:
-            best_val = cur_val
-            best_iter = it
-            best_vocab = [Template(t.c_n.copy(), t.s_n.copy(), t.template_id)
-                          for t in vocab]
-            since_improved = 0
+            def _val_signal_fn(v):
+                return _val_margin(val, v, H, n_jobs, executor=val_exec)
         else:
-            since_improved += 1
-            if since_improved >= patience:
-                stop_reason = 'early_stop'
-                break
+            def _val_signal_fn(v):
+                return float(val(v))
+
+        best_vocab = [Template(t.c_n.copy(), t.s_n.copy(), t.template_id)
+                      for t in vocab]
+        best_val = _val_signal_fn(vocab)
+        best_iter = 0
+        val_hist = [best_val]
+        fq_hist, dist_hist, gated_hist, revert_hist = [], [], [], []
+        assign_hist, freq_hist, power_hist = [], [], []
+        stop_reason = 'max_iter'
+        since_improved = 0
+
+        for it in range(1, max_iter + 1):
+            assign, freq_rec, power = train_exec.estep(vocab)
+            assign_hist.append(assign)
+            freq_hist.append(freq_rec)
+            power_hist.append(power)
+            fq_hist.append(float(np.mean(power)))
+
+            thresh = max(float(fit_quality_floor),
+                         float(np.quantile(power, fit_quality_quantile)))
+            gated = power >= thresh
+            # Enforce a per-cluster minimum: ungate clusters too sparse to trust.
+            for k in range(len(vocab)):
+                in_k = (assign == k) & gated
+                if in_k.sum() < min_members:
+                    gated = gated & (assign != k)
+            gated_hist.append(int(gated.sum()))
+
+            proposed, _ = _mstep(sources, assign, freq_rec, gated, vocab, H,
+                                 m_step)
+
+            # Anti-collapse: revert any template whose update collapses a pair.
+            n_reverted = 0
+            prev_min = _min_pairwise_distance(vocab)
+            new_min = _min_pairwise_distance(proposed)
+            if new_min < diversity_eps and new_min < prev_min:
+                D = _orbit_distance_matrix(proposed)
+                np.fill_diagonal(D, np.inf)
+                changed = [k for k in range(len(vocab))
+                           if not np.allclose(proposed[k].c_n, vocab[k].c_n)
+                           or not np.allclose(proposed[k].s_n, vocab[k].s_n)]
+                # revert the most-collapsed changed templates until the pair clears
+                for k in sorted(changed, key=lambda k: D[k].min()):
+                    if _min_pairwise_distance(proposed) >= diversity_eps:
+                        break
+                    proposed[k] = vocab[k]
+                    n_reverted += 1
+            revert_hist.append(n_reverted)
+
+            vocab = proposed
+            dist_hist.append(_min_pairwise_distance(vocab))
+
+            cur_val = _val_signal_fn(vocab)
+            val_hist.append(cur_val)
+            if cur_val > best_val + 1e-12:
+                best_val = cur_val
+                best_iter = it
+                best_vocab = [Template(t.c_n.copy(), t.s_n.copy(),
+                                       t.template_id) for t in vocab]
+                since_improved = 0
+            else:
+                since_improved += 1
+                if since_improved >= patience:
+                    stop_reason = 'early_stop'
+                    break
+    finally:
+        if val_exec is not None and val_exec is not train_exec:
+            val_exec.close()
+        train_exec.close()
 
     if not return_diagnostics:
         return best_vocab
+
+    cache_hits = train_exec.cache_hits
+    cache_misses = train_exec.cache_misses
+    if val_exec is not None and val_exec is not train_exec:
+        cache_hits += val_exec.cache_hits
+        cache_misses += val_exec.cache_misses
+    estep_diag = dict(
+        cache_sums=bool(cache_sums),
+        cache_hits=int(cache_hits), cache_misses=int(cache_misses),
+        assign_hist=assign_hist, freq_hist=freq_hist, power_hist=power_hist)
 
     diagnostics = EMDiagnostics(
         n_iter=len(val_hist) - 1, best_iter=best_iter,
@@ -563,5 +743,6 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
         min_pairwise_distance=np.asarray(dist_hist, dtype=float),
         n_gated=np.asarray(gated_hist, dtype=int),
         n_reverted=np.asarray(revert_hist, dtype=int),
-        stop_reason=stop_reason)
+        stop_reason=stop_reason,
+        estep=estep_diag)
     return best_vocab, diagnostics
