@@ -1,0 +1,471 @@
+{
+ "cells": {
+  "RRab|N15|ftp_mb": {
+   "N_per_band": 15,
+   "band_used": "g+r",
+   "config": "FTPEstimator(K=8,H=8,pam,seed=0,floating_offsets,catalog-max)",
+   "loadavg": [
+    [
+     2.56201171875,
+     3.7001953125,
+     4.2578125
+    ],
+    [
+     2.73828125,
+     3.681640625,
+     4.2412109375
+    ],
+    [
+     2.5859375,
+     3.59912109375,
+     4.20166015625
+    ],
+    [
+     2.78125,
+     3.5869140625,
+     4.185546875
+    ]
+   ],
+   "method": "ftp_mb",
+   "n_obs": 30,
+   "s_per_freq_min": 0.0072751069585,
+   "star_type": "RRab",
+   "uid": "chen_f686_ZTFJ194248.05+333430.0",
+   "wall_s_all": [
+    14.550213916999999,
+    14.647323167,
+    14.735284042000004
+   ],
+   "wall_s_min_of_3": 14.550213916999999
+  },
+  "RRab|N15|slow": {
+   "N_per_band": 15,
+   "band_used": "r",
+   "config": "SlowTemplatePeriodogram(vocab medoid 0, nguesses=10), primary band",
+   "loadavg": [
+    [
+     2.78125,
+     3.5869140625,
+     4.185546875
+    ],
+    [
+     2.5810546875,
+     3.47412109375,
+     4.126953125
+    ],
+    [
+     2.494140625,
+     3.39404296875,
+     4.08203125
+    ],
+    [
+     2.52392578125,
+     3.32861328125,
+     4.03857421875
+    ]
+   ],
+   "method": "slow",
+   "n_obs": 15,
+   "s_per_freq_min": 0.0114692589375,
+   "star_type": "RRab",
+   "uid": "chen_f686_ZTFJ194248.05+333430.0",
+   "wall_s_all": [
+    23.005590666999993,
+    22.938517875000002,
+    23.132375624999995
+   ],
+   "wall_s_min_of_3": 22.938517875000002
+  },
+  "RRab|N40|ftp_mb": {
+   "N_per_band": 40,
+   "band_used": "g+r",
+   "config": "FTPEstimator(K=8,H=8,pam,seed=0,floating_offsets,catalog-max)",
+   "loadavg": [
+    [
+     2.52392578125,
+     3.32861328125,
+     4.03857421875
+    ],
+    [
+     2.744140625,
+     3.349609375,
+     4.03759765625
+    ],
+    [
+     2.6962890625,
+     3.32080078125,
+     4.01904296875
+    ],
+    [
+     3.279296875,
+     3.4189453125,
+     4.041015625
+    ]
+   ],
+   "method": "ftp_mb",
+   "n_obs": 80,
+   "s_per_freq_min": 0.0056387958329999965,
+   "star_type": "RRab",
+   "uid": "chen_f686_ZTFJ194248.05+333430.0",
+   "wall_s_all": [
+    11.277591665999992,
+    11.317049334000004,
+    11.279838667000007
+   ],
+   "wall_s_min_of_3": 11.277591665999992
+  },
+  "RRab|N40|slow": {
+   "N_per_band": 40,
+   "band_used": "r",
+   "config": "SlowTemplatePeriodogram(vocab medoid 0, nguesses=10), primary band",
+   "loadavg": [
+    [
+     3.279296875,
+     3.4189453125,
+     4.041015625
+    ],
+    [
+     3.0869140625,
+     3.35986328125,
+     4.00390625
+    ],
+    [
+     2.76708984375,
+     3.2646484375,
+     3.95068359375
+    ],
+    [
+     2.283203125,
+     3.11279296875,
+     3.87548828125
+    ]
+   ],
+   "method": "slow",
+   "n_obs": 40,
+   "s_per_freq_min": 0.011888690478999991,
+   "star_type": "RRab",
+   "uid": "chen_f686_ZTFJ194248.05+333430.0",
+   "wall_s_all": [
+    23.786215457999987,
+    23.82529308299999,
+    23.77738095799998
+   ],
+   "wall_s_min_of_3": 23.77738095799998
+  },
+  "RRc|N15|ftp_mb": {
+   "N_per_band": 15,
+   "band_used": "g+r",
+   "config": "FTPEstimator(K=8,H=8,pam,seed=0,floating_offsets,catalog-max)",
+   "loadavg": [
+    [
+     2.283203125,
+     3.11279296875,
+     3.87548828125
+    ],
+    [
+     2.31201171875,
+     3.07470703125,
+     3.84765625
+    ],
+    [
+     2.32177734375,
+     3.0380859375,
+     3.8203125
+    ],
+    [
+     2.3916015625,
+     3.0185546875,
+     3.7998046875
+    ]
+   ],
+   "method": "ftp_mb",
+   "n_obs": 30,
+   "s_per_freq_min": 0.007331113187500009,
+   "star_type": "RRc",
+   "uid": "chen_f686_ZTFJ193825.40+352053.3",
+   "wall_s_all": [
+    14.949363540999997,
+    14.662226375000017,
+    14.717013874999992
+   ],
+   "wall_s_min_of_3": 14.662226375000017
+  },
+  "RRc|N15|slow": {
+   "N_per_band": 15,
+   "band_used": "r",
+   "config": "SlowTemplatePeriodogram(vocab medoid 0, nguesses=10), primary band",
+   "loadavg": [
+    [
+     2.3916015625,
+     3.0185546875,
+     3.7998046875
+    ],
+    [
+     2.55078125,
+     3.015625,
+     3.7802734375
+    ],
+    [
+     2.43017578125,
+     2.94921875,
+     3.73291015625
+    ],
+    [
+     2.787109375,
+     2.98583984375,
+     3.72705078125
+    ]
+   ],
+   "method": "slow",
+   "n_obs": 15,
+   "s_per_freq_min": 0.011478909250000014,
+   "star_type": "RRc",
+   "uid": "chen_f686_ZTFJ193825.40+352053.3",
+   "wall_s_all": [
+    22.95781850000003,
+    23.25555166700002,
+    23.141702082999984
+   ],
+   "wall_s_min_of_3": 22.95781850000003
+  },
+  "RRc|N40|ftp_mb": {
+   "N_per_band": 40,
+   "band_used": "g+r",
+   "config": "FTPEstimator(K=8,H=8,pam,seed=0,floating_offsets,catalog-max)",
+   "loadavg": [
+    [
+     2.787109375,
+     2.98583984375,
+     3.72705078125
+    ],
+    [
+     2.69189453125,
+     2.95361328125,
+     3.7021484375
+    ],
+    [
+     2.65869140625,
+     2.93798828125,
+     3.6875
+    ],
+    [
+     2.7041015625,
+     2.939453125,
+     3.6787109375
+    ]
+   ],
+   "method": "ftp_mb",
+   "n_obs": 80,
+   "s_per_freq_min": 0.005647849291499995,
+   "star_type": "RRc",
+   "uid": "chen_f686_ZTFJ193825.40+352053.3",
+   "wall_s_all": [
+    11.322549042000048,
+    11.303325874999985,
+    11.29569858299999
+   ],
+   "wall_s_min_of_3": 11.29569858299999
+  },
+  "RRc|N40|slow": {
+   "N_per_band": 40,
+   "band_used": "r",
+   "config": "SlowTemplatePeriodogram(vocab medoid 0, nguesses=10), primary band",
+   "loadavg": [
+    [
+     2.7041015625,
+     2.939453125,
+     3.6787109375
+    ],
+    [
+     2.74169921875,
+     2.927734375,
+     3.65234375
+    ],
+    [
+     2.67626953125,
+     2.89990234375,
+     3.61328125
+    ],
+    [
+     2.95068359375,
+     2.939453125,
+     3.609375
+    ]
+   ],
+   "method": "slow",
+   "n_obs": 40,
+   "s_per_freq_min": 0.011876343125,
+   "star_type": "RRc",
+   "uid": "chen_f686_ZTFJ193825.40+352053.3",
+   "wall_s_all": [
+    24.05485812500001,
+    23.949666500000035,
+    23.75268625
+   ],
+   "wall_s_min_of_3": 23.75268625
+  },
+  "faint|N15|ftp_mb": {
+   "N_per_band": 15,
+   "band_used": "g+r",
+   "config": "FTPEstimator(K=8,H=8,pam,seed=0,floating_offsets,catalog-max)",
+   "loadavg": [
+    [
+     2.95068359375,
+     2.939453125,
+     3.609375
+    ],
+    [
+     2.73291015625,
+     2.892578125,
+     3.580078125
+    ],
+    [
+     2.6435546875,
+     2.86474609375,
+     3.55810546875
+    ],
+    [
+     2.7216796875,
+     2.87060546875,
+     3.5478515625
+    ]
+   ],
+   "method": "ftp_mb",
+   "n_obs": 30,
+   "s_per_freq_min": 0.007219825479499999,
+   "star_type": "RRc",
+   "uid": "chen_f786_ZTFJ092825.79+535045.1",
+   "wall_s_all": [
+    14.644842707999999,
+    14.439650958999998,
+    14.458876125000003
+   ],
+   "wall_s_min_of_3": 14.439650958999998
+  },
+  "faint|N15|slow": {
+   "N_per_band": 15,
+   "band_used": "r",
+   "config": "SlowTemplatePeriodogram(vocab medoid 0, nguesses=10), primary band",
+   "loadavg": [
+    [
+     2.7216796875,
+     2.87060546875,
+     3.5478515625
+    ],
+    [
+     3.34033203125,
+     2.99462890625,
+     3.57177734375
+    ],
+    [
+     3.4658203125,
+     3.04345703125,
+     3.57568359375
+    ],
+    [
+     3.06591796875,
+     2.9892578125,
+     3.541015625
+    ]
+   ],
+   "method": "slow",
+   "n_obs": 15,
+   "s_per_freq_min": 0.011386802999999994,
+   "star_type": "RRc",
+   "uid": "chen_f786_ZTFJ092825.79+535045.1",
+   "wall_s_all": [
+    22.891368708,
+    22.831857917000008,
+    22.773605999999987
+   ],
+   "wall_s_min_of_3": 22.773605999999987
+  },
+  "faint|N40|ftp_mb": {
+   "N_per_band": 40,
+   "band_used": "g+r",
+   "config": "FTPEstimator(K=8,H=8,pam,seed=0,floating_offsets,catalog-max)",
+   "loadavg": [
+    [
+     3.06591796875,
+     2.9892578125,
+     3.541015625
+    ],
+    [
+     2.748046875,
+     2.92333984375,
+     3.5107421875
+    ],
+    [
+     2.77978515625,
+     2.92529296875,
+     3.50390625
+    ],
+    [
+     2.666015625,
+     2.89453125,
+     3.48583984375
+    ]
+   ],
+   "method": "ftp_mb",
+   "n_obs": 80,
+   "s_per_freq_min": 0.0055269286045,
+   "star_type": "RRc",
+   "uid": "chen_f786_ZTFJ092825.79+535045.1",
+   "wall_s_all": [
+    11.109774625,
+    11.067385833000003,
+    11.053857209
+   ],
+   "wall_s_min_of_3": 11.053857209
+  },
+  "faint|N40|slow": {
+   "N_per_band": 40,
+   "band_used": "r",
+   "config": "SlowTemplatePeriodogram(vocab medoid 0, nguesses=10), primary band",
+   "loadavg": [
+    [
+     2.666015625,
+     2.89453125,
+     3.48583984375
+    ],
+    [
+     2.7275390625,
+     2.88671875,
+     3.46533203125
+    ],
+    [
+     2.7392578125,
+     2.87744140625,
+     3.44482421875
+    ],
+    [
+     2.669921875,
+     2.85205078125,
+     3.42138671875
+    ]
+   ],
+   "method": "slow",
+   "n_obs": 40,
+   "s_per_freq_min": 0.011776083333000002,
+   "star_type": "RRc",
+   "uid": "chen_f786_ZTFJ092825.79+535045.1",
+   "wall_s_all": [
+    23.761544125,
+    23.566639209000016,
+    23.552166666000005
+   ],
+   "wall_s_min_of_3": 23.552166666000005
+  }
+ },
+ "comparability": "ftp_mb = K=8 templates, g+r joint (2N epochs), scan default (C4); slow = 1 template (vocab medoid 0), primary band (N epochs), nguesses=10. Divide ftp_mb by 8 for per-template view.",
+ "f_max": 5.0,
+ "f_min": 1.0,
+ "label": "TIMING-ONLY reduced grid: 2000 evenly spaced freqs, df=0.002 on [1, 4.998] cyc/day (F_MIN integer multiple of df for the NFFT path); NOT the production df<=0.2/T science grid (~53k freqs; full-grid Slow infeasible). Per-freq scan cost is grid-stable (WP C5) so s/freq extrapolates.",
+ "n_freq": 2000,
+ "protocol": "min-of-3 reps, perf_counter over construction+fit+power, BLAS pinned to 1 thread, np.random seeded per (cell,rep), E5 seeded random subsample rep=0",
+ "stars": {
+  "RRab": "chen_f686_ZTFJ194248.05+333430.0",
+  "RRc": "chen_f686_ZTFJ193825.40+352053.3",
+  "faint": "chen_f786_ZTFJ092825.79+535045.1"
+ }
+}

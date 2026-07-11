@@ -148,9 +148,41 @@ def task_stem(uid, N, rep, mode, method):
 
 
 # ------------------------------------------------------------------ the task
+MAX_ATTEMPTS = 2                      # failures recorded; skipped after 2
+
+
+def fail_path(stem):
+    return os.path.join(OUTDIR, stem + '.fail')
+
+
+def n_failures(stem):
+    """Number of recorded failed attempts for a task (lines in .fail)."""
+    fp = fail_path(stem)
+    if not os.path.exists(fp):
+        return 0
+    with open(fp) as fh:
+        return sum(1 for line in fh if line.startswith('ATTEMPT'))
+
+
 def run_task(args):
     """One (star, N, rep, mode, method) unit with block checkpointing.
-    Same contract as run_e4.run_task."""
+    Same contract as run_e4.run_task; exceptions are recorded to
+    output/<stem>.fail (one ATTEMPT line + traceback per failure) and
+    reported as status 'failed' instead of killing the pool."""
+    star, method, N, rep, mode, deadline, block = args
+    stem = task_stem(star['uid'], N, rep, mode, method)
+    try:
+        return _run_task_inner(args)
+    except Exception:
+        import traceback
+        with open(fail_path(stem), 'a') as fh:
+            fh.write('ATTEMPT %s\n%s\n'
+                     % (time.strftime('%Y-%m-%d %H:%M:%S'),
+                        traceback.format_exc()))
+        return stem, 'failed', 0, 0, 0.0
+
+
+def _run_task_inner(args):
     star, method, N, rep, mode, deadline, block = args
     uid = star['uid']
     stem = task_stem(uid, N, rep, mode, method)
@@ -288,7 +320,7 @@ def main():
                 if by_uid[u]['bands'][b]['n_epochs'] < N:
                     raise SystemExit('%s band %s has < %d epochs' % (u, b, N))
 
-    tasks, n_exists = [], 0
+    tasks, n_exists, failed_skipped = [], 0, []
     for uid in wanted:
         for N in Ns:
             for rep in reps:
@@ -296,10 +328,17 @@ def main():
                     stem = task_stem(uid, N, rep, args.mode, m)
                     if os.path.exists(os.path.join(OUTDIR, stem + '.npz')):
                         n_exists += 1
+                    elif n_failures(stem) >= MAX_ATTEMPTS:
+                        failed_skipped.append(stem)
                     else:
                         tasks.append((uid, N, rep, m))
-    print('tasks: %d pending, %d complete (of %d requested)'
-          % (len(tasks), n_exists, len(tasks) + n_exists), flush=True)
+    print('tasks: %d pending, %d complete, %d failed-skipped '
+          '(of %d requested)'
+          % (len(tasks), n_exists, len(failed_skipped),
+             len(tasks) + n_exists + len(failed_skipped)), flush=True)
+    for stem in failed_skipped:
+        print('  FAILED_SKIPPED %s (%d attempts)' % (stem, n_failures(stem)),
+              flush=True)
     if args.list:
         for uid, N, rep, m in tasks:
             stem = task_stem(uid, N, rep, args.mode, m)
@@ -338,7 +377,8 @@ def main():
             results.append(res)
             print('  %s %s %d/%d %.1fs' % res, flush=True)
 
-    n_left = sum(1 for r in results if r[1] in ('partial', 'skipped')) \
+    n_left = sum(1 for r in results
+                 if r[1] in ('partial', 'skipped', 'failed')) \
         + len(payloads) - len(results)
     print('BUDGET_HIT rerun to resume (%d unfinished)' % n_left
           if n_left else 'ALL_DONE', flush=True)
