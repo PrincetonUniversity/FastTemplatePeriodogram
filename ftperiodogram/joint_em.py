@@ -53,7 +53,7 @@ interchangeable with a ``build_template_catalog`` result: both are scored throug
 the same :class:`~ftperiodogram.baselines.FTPEstimator` seam, so the only difference
 the joint-minus-pipeline comparison sees is the vocabulary itself.
 """
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 import multiprocessing as _mp
 import os
 
@@ -78,8 +78,13 @@ from .validation import _BLAS_THREAD_VARS
 #: iteration (collapse monitor), ``n_gated`` the per-iteration gated source count,
 #: ``n_reverted`` the per-iteration count of anti-collapse reverts, and
 #: ``stop_reason`` why the loop ended.  ``estep`` is a dict tracing the E-step
-#: itself: per-iteration ``assign_hist`` / ``freq_hist`` / ``power_hist`` arrays
-#: and the sums-cache counters (``cache_hits`` / ``cache_misses``).
+#: itself: per-iteration ``assign_hist`` / ``freq_hist`` / ``power_hist`` arrays,
+#: the sums-cache counters (``cache_hits`` / ``cache_misses``), and -- with
+#: ``estep_refine`` -- the per-iteration ``solve_fraction`` (solved grid points /
+#: full-grid points), ``windowed_pairs``, ``edge_escapes``, ``fallbacks``,
+#: ``refine_used`` flags, and ``final_full_grid_rerun`` (whether the stopped
+#: iteration's E-step was re-run full-grid after an early stop so the last
+#: recorded assignments/freqs/powers never come from a stale window).
 EMDiagnostics = namedtuple(
     'EMDiagnostics',
     ['n_iter', 'best_iter', 'val_signal', 'val_signal_name', 'mean_fit_quality',
@@ -130,6 +135,17 @@ def _template_from_coeffs(z):
 # ----------------------------------------------------------------------
 # E-step: assign each source to its best template (+ recovered freq, fit quality)
 # ----------------------------------------------------------------------
+#: Warm-start (``estep_refine``) window geometry: windows are centered on the
+#: previous iteration's top ``_REFINE_TOP_K`` peaks of each (source, template)
+#: pair, half-width ``_REFINE_HALF_WIDTH_RAYLEIGH`` Rayleigh widths (1/T, with T
+#: the source's observed time span); an argmax landing on a window edge expands
+#: that window once by ``_REFINE_EXPAND_FACTOR`` before falling back to the
+#: full grid.
+_REFINE_TOP_K = 4
+_REFINE_HALF_WIDTH_RAYLEIGH = 3.0
+_REFINE_EXPAND_FACTOR = 3.0
+
+
 def _compute_source_sums(source, freqs, mode, H):
     """One source's ``(per_band_sumlists, stats)`` -- iteration-invariant."""
     t, y, bands, dy = source[0], source[1], source[2], source[3]
@@ -137,20 +153,181 @@ def _compute_source_sums(source, freqs, mode, H):
                                    mode=mode, fast=True)
 
 
-def _estep_one_cached(source, sums, templates, freqs, mode, H):
+def _subset_sumlists(sumlists, idx):
+    """Per-band sums restricted to grid indices ``idx`` (band order preserved --
+    the per-frequency solve accumulates over bands in dict order)."""
+    return OrderedDict((b, [sl[i] for i in idx]) for b, sl in sumlists.items())
+
+
+def _top_peak_indices(idx, powers, top_k):
+    """Grid indices of the top-``top_k`` local maxima of ``powers``.
+
+    ``powers`` is sampled at the sorted (possibly non-contiguous) grid positions
+    ``idx``; a point is a peak when its power is >= each solved neighbor within
+    its contiguous segment (segment endpoints qualify on their single inner
+    neighbor, so the global argmax is always a candidate).  Returned sorted by
+    power descending."""
+    idx = np.asarray(idx)
+    powers = np.asarray(powers)
+    n = idx.size
+    if n == 0:
+        return np.empty(0, dtype=int)
+    if n == 1:
+        return idx.astype(int).copy()
+    gap = np.diff(idx) > 1
+    ge_left = np.empty(n, dtype=bool)
+    ge_left[0] = True
+    ge_left[1:] = (powers[1:] >= powers[:-1]) | gap
+    ge_right = np.empty(n, dtype=bool)
+    ge_right[-1] = True
+    ge_right[:-1] = (powers[:-1] >= powers[1:]) | gap
+    peaks = np.flatnonzero(ge_left & ge_right)
+    order = peaks[np.argsort(-powers[peaks], kind='stable')]
+    return idx[order[:top_k]].astype(int)
+
+
+def _window_mask(freqs, centers, half_width):
+    """Boolean grid mask covering ``[c - half_width, c + half_width]`` for each
+    center, implicitly clipped to the explicit ``[freqs[0], freqs[-1]]`` band
+    (windows entirely outside the grid are dropped)."""
+    mask = np.zeros(freqs.size, dtype=bool)
+    for fc in centers:
+        lo = np.searchsorted(freqs, fc - half_width, side='left')
+        hi = np.searchsorted(freqs, fc + half_width, side='right')
+        if hi > lo:
+            mask[lo:hi] = True
+    return mask
+
+
+def _on_window_edge(mask, g):
+    """True when grid index ``g`` sits on the edge of its solved window -- an
+    unsolved neighbor on either side.  The physical grid boundaries are NOT
+    window edges (there is nothing beyond them to escape into)."""
+    if g > 0 and not mask[g - 1]:
+        return True
+    if g < mask.size - 1 and not mask[g + 1]:
+        return True
+    return False
+
+
+def _refine_pair_solve(freqs, T, prev_peaks, prev_best, solve_fn,
+                       top_k=_REFINE_TOP_K,
+                       half_width_rayleigh=_REFINE_HALF_WIDTH_RAYLEIGH,
+                       expand_factor=_REFINE_EXPAND_FACTOR):
+    """Warm-started local re-solve for one (source, template) pair.
+
+    Solves only on windows of +- ``half_width_rayleigh`` Rayleigh widths
+    (``half_width_rayleigh / T``) around the previous iteration's ``prev_peaks``
+    (grid indices) of THIS pair, plus windows at ``2 f`` and ``f / 2`` of the
+    previous best ``prev_best`` (grid index), clipped to the explicit grid band.
+    If the window argmax lands on a window edge, that window is expanded once
+    (``expand_factor`` x) and the new points solved; a second edge landing falls
+    back to the full grid for this pair.  ``solve_fn(idx) -> powers`` evaluates
+    the periodogram at grid indices ``idx`` (injectable for unit tests).
+
+    Returns ``(best_index, best_power, new_peaks, diag)`` with ``diag`` counting
+    ``n_solved`` grid points actually solved (accumulated across the escape /
+    fallback stages), ``edge_escape`` and ``fallback`` flags.
+    """
+    nf = freqs.size
+    diag = dict(n_solved=0, edge_escape=0, fallback=0)
+
+    def _full():
+        idx = np.arange(nf)
+        powers = solve_fn(idx)
+        diag['n_solved'] += nf
+        i = int(np.argmax(powers))
+        return i, float(powers[i]), _top_peak_indices(idx, powers, top_k), diag
+
+    prev_peaks = np.asarray(prev_peaks, dtype=int)
+    if not (T > 0) or prev_peaks.size == 0:
+        diag['fallback'] = 1
+        return _full()
+
+    w = half_width_rayleigh / float(T)
+    f_best = float(freqs[int(prev_best)])
+    centers = list(freqs[prev_peaks]) + [2.0 * f_best, 0.5 * f_best]
+    mask = _window_mask(freqs, centers, w)
+    idx = np.flatnonzero(mask)
+    if idx.size == 0:                       # unreachable (peaks are grid points)
+        diag['fallback'] = 1
+        return _full()
+
+    powers = solve_fn(idx)
+    diag['n_solved'] += idx.size
+    j = int(np.argmax(powers))
+    g = int(idx[j])
+    if _on_window_edge(mask, g):
+        # expand the offending window once (x expand_factor) and re-solve the
+        # newly-uncovered points only (the already-solved points are exact)
+        diag['edge_escape'] = 1
+        mask_new = _window_mask(freqs, [float(freqs[g])], expand_factor * w)
+        new_idx = np.flatnonzero(mask_new & ~mask)
+        mask = mask | mask_new
+        if new_idx.size:
+            new_powers = solve_fn(new_idx)
+            diag['n_solved'] += new_idx.size
+            order = np.argsort(np.concatenate([idx, new_idx]), kind='stable')
+            idx = np.concatenate([idx, new_idx])[order]
+            powers = np.concatenate([powers, new_powers])[order]
+        j = int(np.argmax(powers))
+        g = int(idx[j])
+        if _on_window_edge(mask, g):
+            diag['fallback'] = 1
+            return _full()
+    return g, float(powers[j]), _top_peak_indices(idx, powers, top_k), diag
+
+
+def _estep_one_cached(source, sums, templates, freqs, mode, H,
+                      prev_state=None, refine=False, top_k=_REFINE_TOP_K,
+                      want_state=False):
     """Best ``(assignment, recovered_frequency, fit_quality)`` for one source,
-    from precomputed per-band summations ``sums = (sumlists, stats)``."""
+    from precomputed per-band summations ``sums = (sumlists, stats)``.
+
+    With ``refine`` (and a ``prev_state``), each (source, template) pair is
+    re-solved only on warm-start windows via :func:`_refine_pair_solve`; the
+    default is the exact full-grid solve per template.  ``want_state`` also
+    returns the per-template ``(top_peaks, best_index)`` state seeding the next
+    refined iteration.  Returns ``(best_k, best_freq, best_power, state, diag)``.
+    """
     bands = source[2]
     sumlists, stats = sums
+    nf = freqs.size
+    track = want_state or refine
+    state = [] if track else None
+    diag = dict(n_solved=0, windowed_pairs=0, edge_escapes=0, fallbacks=0)
+
     best_power, best_k, best_i = -np.inf, 0, 0
     for k, tmpl in enumerate(templates):
         template_dict = build_template_set(tmpl, bands)
-        powers, _ = solve_over_frequencies(template_dict, sumlists, stats,
-                                           freqs.size, mode=mode)
-        i = int(np.argmax(powers))
-        if powers[i] > best_power:
-            best_power, best_k, best_i = float(powers[i]), k, i
-    return best_k, float(freqs[best_i]), best_power
+        if refine and prev_state is not None:
+            def _solve(idx, _td=template_dict):
+                powers, _ = solve_over_frequencies(
+                    _td, _subset_sumlists(sumlists, idx), stats, len(idx),
+                    mode=mode)
+                return powers
+            t = np.asarray(source[0], dtype=float)
+            T = float(t.max() - t.min())
+            peaks_k, prev_best_k = prev_state[k]
+            i, p, new_peaks, pdiag = _refine_pair_solve(
+                freqs, T, peaks_k, prev_best_k, _solve, top_k=top_k)
+            diag['n_solved'] += pdiag['n_solved']
+            diag['windowed_pairs'] += 1
+            diag['edge_escapes'] += pdiag['edge_escape']
+            diag['fallbacks'] += pdiag['fallback']
+        else:
+            powers, _ = solve_over_frequencies(template_dict, sumlists, stats,
+                                               nf, mode=mode)
+            i = int(np.argmax(powers))
+            p = float(powers[i])
+            diag['n_solved'] += nf
+            new_peaks = (_top_peak_indices(np.arange(nf), powers, top_k)
+                         if track else None)
+        if track:
+            state.append((new_peaks, i))
+        if p > best_power:
+            best_power, best_k, best_i = p, k, i
+    return best_k, float(freqs[best_i]), best_power, state, diag
 
 
 def _estep_one(source, templates, freqs, mode, H):
@@ -162,7 +339,8 @@ def _estep_one(source, templates, freqs, mode, H):
     template's peak frequency.
     """
     sums = _compute_source_sums(source, freqs, mode, H)
-    return _estep_one_cached(source, sums, templates, freqs, mode, H)
+    k, f, p, _, _ = _estep_one_cached(source, sums, templates, freqs, mode, H)
+    return k, f, p
 
 
 def _margin_one_cached(source, p_true, sums, templates, freqs, mode, H):
@@ -220,10 +398,12 @@ def _exec_task(state, task):
     sums, hit = _exec_get_sums(state, i)
     source = state['sources'][i]
     if kind == 'estep':
-        templates, = payload
-        k, f, p = _estep_one_cached(source, sums, templates, state['freqs'],
-                                    state['mode'], state['H'])
-        return k, f, p, hit
+        templates, prev_state_i, refine, top_k, want_state = payload
+        k, f, p, st, diag = _estep_one_cached(
+            source, sums, templates, state['freqs'], state['mode'], state['H'],
+            prev_state=prev_state_i, refine=refine, top_k=top_k,
+            want_state=want_state)
+        return k, f, p, st, diag, hit
     if kind == 'margin':
         templates, p_true_i = payload
         m = _margin_one_cached(source, p_true_i, sums, templates,
@@ -304,17 +484,35 @@ class _SumsExecutor(object):
             else:
                 self.cache_misses += 1
 
-    def estep(self, templates):
-        """E-step over the population; ``(assign, freq_rec, power)`` arrays."""
+    def estep(self, templates, prev_states=None, refine=False,
+              top_k=_REFINE_TOP_K, want_state=False):
+        """E-step over the population; ``(assign, freq_rec, power, states, diag)``.
+
+        ``prev_states``/``refine`` select the warm-start windowed re-solve per
+        (source, template) pair (:func:`_refine_pair_solve`); the default is the
+        exact full-grid solve.  ``diag`` aggregates solved-point counts and the
+        refine guard counters over the population."""
         templates = list(templates)
-        tasks = [('estep', i, (templates,))
+        tasks = [('estep', i,
+                  (templates,
+                   None if prev_states is None else prev_states[i],
+                   refine, top_k, want_state))
                  for i in range(len(self.sources))]
         out = self._run(tasks)
-        self._count(o[3] for o in out)
+        self._count(o[5] for o in out)
         assign = np.array([o[0] for o in out], dtype=int)
         freq_rec = np.array([o[1] for o in out], dtype=float)
         power = np.array([o[2] for o in out], dtype=float)
-        return assign, freq_rec, power
+        states = [o[3] for o in out]
+        n_pairs = len(self.sources) * len(templates)
+        diag = dict(
+            n_pairs=n_pairs,
+            solved_points=int(sum(o[4]['n_solved'] for o in out)),
+            full_points=int(n_pairs * self.n_freq),
+            windowed_pairs=int(sum(o[4]['windowed_pairs'] for o in out)),
+            edge_escapes=int(sum(o[4]['edge_escapes'] for o in out)),
+            fallbacks=int(sum(o[4]['fallbacks'] for o in out)))
+        return assign, freq_rec, power, states, diag
 
     def margins(self, templates, p_true):
         """Per-source power margins at truth (:func:`_margin_one`), in order."""
@@ -341,9 +539,10 @@ def _estep(sources, templates, freqs, mode, H, n_jobs):
     executor = _SumsExecutor(sources, freqs, mode, H, n_jobs=n_jobs,
                              cache_sums=False)
     try:
-        return executor.estep(list(templates))
+        assign, freq_rec, power, _, _ = executor.estep(list(templates))
     finally:
         executor.close()
+    return assign, freq_rec, power
 
 
 # ----------------------------------------------------------------------
@@ -540,7 +739,9 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
                            min_members=3, diversity_eps=1e-3, m_step='pooled',
                            n_harmonics=None, random_state=None,
                            catalog_kwargs=None, n_jobs=1,
-                           cache_sums=True, return_diagnostics=False):
+                           cache_sums=True, estep_refine=False,
+                           refine_top_k=_REFINE_TOP_K,
+                           return_diagnostics=False):
     """Refine a ``K``-template vocabulary jointly against an observed population.
 
     Initializes from the pipeline vocabulary
@@ -610,6 +811,20 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
         ~1-2 MB per source per band at ~2000 grid frequencies and H=8 (linear
         in both, held per worker in parallel mode); callers with very large
         grids/populations can set ``False`` to trade the recompute back.
+    estep_refine : bool
+        GUARDED APPROXIMATION, default off.  From iteration 2 on, each
+        (source, template) pair is re-solved only on windows of +-3 Rayleigh
+        widths around the previous iteration's top-``refine_top_k`` peaks of
+        that pair (plus windows at ``2f`` and ``f/2`` of its previous best),
+        with a one-shot window expansion on an edge landing and a full-grid
+        fallback on a second (:func:`_refine_pair_solve`).  Iteration 1 is
+        always the full grid, and the FINAL E-step is always re-run on the
+        full grid (in-loop at ``max_iter``; after an early stop the stopped
+        iteration's E-step is re-run full-grid against the same input bank),
+        so reported assignments / recovered frequencies / powers never come
+        from a stale window.
+    refine_top_k : int
+        Number of previous-iteration peaks seeding the ``estep_refine`` windows.
     return_diagnostics : bool
         If ``True``, also return an :class:`EMDiagnostics`.
 
@@ -660,14 +875,38 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
         val_hist = [best_val]
         fq_hist, dist_hist, gated_hist, revert_hist = [], [], [], []
         assign_hist, freq_hist, power_hist = [], [], []
+        solved_hist, full_hist, winpair_hist = [], [], []
+        edge_hist, fb_hist, refine_used = [], [], []
         stop_reason = 'max_iter'
         since_improved = 0
+        prev_states = None
+        final_rerun = False
 
-        for it in range(1, max_iter + 1):
-            assign, freq_rec, power = train_exec.estep(vocab)
+        def _record_estep(assign, freq_rec, power, ediag, refined):
             assign_hist.append(assign)
             freq_hist.append(freq_rec)
             power_hist.append(power)
+            solved_hist.append(int(ediag['solved_points']))
+            full_hist.append(int(ediag['full_points']))
+            winpair_hist.append(int(ediag['windowed_pairs']))
+            edge_hist.append(int(ediag['edge_escapes']))
+            fb_hist.append(int(ediag['fallbacks']))
+            refine_used.append(bool(refined))
+
+        last_estep_vocab = vocab
+        for it in range(1, max_iter + 1):
+            # iteration 1 seeds the windows; the FINAL in-loop iteration
+            # (max_iter) is always the exact full grid
+            refine_it = (estep_refine and it >= 2 and it < max_iter
+                         and prev_states is not None)
+            last_estep_vocab = vocab                 # the E-step's input bank
+            assign, freq_rec, power, states, ediag = train_exec.estep(
+                vocab, prev_states=prev_states if refine_it else None,
+                refine=refine_it, top_k=refine_top_k,
+                want_state=estep_refine)
+            if estep_refine:
+                prev_states = states
+            _record_estep(assign, freq_rec, power, ediag, refine_it)
             fq_hist.append(float(np.mean(power)))
 
             thresh = max(float(fit_quality_floor),
@@ -717,6 +956,16 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
                 if since_improved >= patience:
                     stop_reason = 'early_stop'
                     break
+
+        # MANDATORY refine guard: if the loop ended on a windowed E-step (an
+        # early stop before max_iter), RE-RUN that final E-step on the exact
+        # full grid -- same input bank, no windows -- so the last recorded
+        # assignments/freqs/powers never come from a stale window.
+        if estep_refine and refine_used and refine_used[-1]:
+            assign, freq_rec, power, _, ediag = train_exec.estep(
+                last_estep_vocab)
+            _record_estep(assign, freq_rec, power, ediag, False)
+            final_rerun = True
     finally:
         if val_exec is not None and val_exec is not train_exec:
             val_exec.close()
@@ -731,9 +980,15 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
         cache_hits += val_exec.cache_hits
         cache_misses += val_exec.cache_misses
     estep_diag = dict(
-        cache_sums=bool(cache_sums),
+        cache_sums=bool(cache_sums), refine=bool(estep_refine),
         cache_hits=int(cache_hits), cache_misses=int(cache_misses),
-        assign_hist=assign_hist, freq_hist=freq_hist, power_hist=power_hist)
+        assign_hist=assign_hist, freq_hist=freq_hist, power_hist=power_hist,
+        solved_points=solved_hist, full_points=full_hist,
+        solve_fraction=[s / f if f else 1.0
+                        for s, f in zip(solved_hist, full_hist)],
+        windowed_pairs=winpair_hist, edge_escapes=edge_hist,
+        fallbacks=fb_hist, refine_used=refine_used,
+        final_full_grid_rerun=bool(final_rerun))
 
     diagnostics = EMDiagnostics(
         n_iter=len(val_hist) - 1, best_iter=best_iter,
