@@ -164,3 +164,53 @@ next flavor, skip machine `aehmymvwnx01`), and hold the release behind the
 protocol's within-~2× gate per family. Canary retry cost ≈ $2–3.
 
 Ledger to date for B8-closure: $0.81 burned, nothing measured.
+
+## B8-closure boot-failure post-mortem: root cause found + fixed (2026-07-11)
+
+**Overnight orphan spend.** The canary retry (launched 2026-07-10 evening) created
+pods `u4jeu6pyzbkiuy` (`b8c-g-refine-sesar-0`) and `z7khjh3glpht1e`
+(`b8c-e2-jitter-0`), both cpu5c/16 SECURE at $0.56/h, on two *different* machines
+(`3n7hlaf04ogy`, `qblpxryxs2k6`). Same signature as `kc626ub1i8b9zk`:
+`uptimeInSeconds: 0`, CPU 0 %, **zero beacons**, billed as RUNNING. The launching
+session was killed by a session limit before its foreground `bootwatch` loop could
+run, so both pods sat orphaned ~7.4 h overnight: **~$8.25 spent, zero science.**
+Both torn down next morning; GET /pods confirmed the account empty.
+
+**Root cause (diagnosed by diffing against the June fleet.py, which booted 10/10).**
+The pod-create payloads are field-for-field identical (same `imageName: python:3.11`,
+`computeType`/`cpuFlavorIds`/`vcpuCount`, `containerDiskInGb: 20`, `ports`,
+`cloudType`, `dockerStartCmd: ["bash", "-c", script]`). The difference is *inside
+the script*: `fleet_b8_closure.py`'s new `_prog_beacon()` returned a snippet ending
+in a bare `&`, and `_bootstrap()` joins its lines with `" ; "`, producing
+
+    ... ) >/dev/null 2>&1 & ; cd "$REPO/experiments/phase3_recovery" ...
+
+`cmd & ; next` is a **bash syntax error**, and `bash -c` aborts the *entire* command
+string at parse time — nothing executes, the container dies in milliseconds, RunPod
+restart-loops it at uptime ~0 while billing. Verified locally: `bash -n` on the
+generated script exits 2 with `syntax error near unexpected token ';'` (June
+fleet.py's script parses clean). This is host/flavor-independent, exactly matching
+3/3 failures on 3 different machines and 2 flavors. Machine `aehmymvwnx01` was
+innocent; the `BAD_MACHINES` blacklist has been cleared.
+
+**Fix (commit `620df98` on `dev`).**
+- `_prog_beacon` now terminates the backgrounded group with `& true` (join-safe:
+  `cmd & true ; next` is valid bash);
+- `plan` and `_create` both run `bash -n` on every generated bootstrap script and
+  refuse to proceed on a parse error — no pod can ever again be created with an
+  unparseable start command;
+- `_fleet_b8c/state.json` (gitignored): the two dead pods moved to job `history`,
+  `boot_attempts` reset to 0 (the failures were our bug, not boot flakiness, and
+  must not burn the jobs' retry budget or blacklist cpu5c).
+
+**Micro-test (2026-07-11, $0.04): PASS.** One minimal pod (`apl2fflwxobqhr`,
+cpu5c/32 SECURE via the fixed `_create` path, including the exact fixed
+`( ... ) >/dev/null 2>&1 & true` background pattern) posted its START beacon to the
+B8-closure webhook token **24 s** after create and its DONE beacon 60 s later — both
+well inside the 10-min gate. Pod deleted at t+1.7 min; GET /pods after: **account
+empty**. Containers boot and execute the fixed script structure end-to-end.
+
+**Ledger to date for B8-closure:** $0.81 (first canary) + ~$8.25 (overnight
+orphans) + $0.04 (micro-test) ≈ **$9.10 of the $25 cap; $15.90 remains.** Nothing
+scientific measured yet; the canary pair is still the next gate (est. $2–3), now
+unblocked.
