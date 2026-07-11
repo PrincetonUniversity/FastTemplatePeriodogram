@@ -118,7 +118,8 @@ def run(args):
         joint_vocab, diag = build_joint_em_catalog(
             library, args.k, train_N, val_scorer=val_N, max_iter=args.max_iter,
             n_harmonics=args.n_harmonics, random_state=args.seed,
-            n_jobs=args.n_jobs, return_diagnostics=True)
+            n_jobs=args.n_jobs, estep_refine=args.estep_refine,
+            return_diagnostics=True)
         t_em = time.perf_counter() - t0
 
         t0 = time.perf_counter()
@@ -152,6 +153,7 @@ def run(args):
                         ('assign_pipe', t_assign_pipe),
                         ('assign_joint', t_assign_joint)):
             phase_totals[key] += tv
+        es = diag.estep
         rows.append(dict(n_epochs=int(N), pipeline=pipe_rec, joint=joint_rec,
                          gls=gls_rec, gap=joint_rec - pipe_rec,
                          pipeline_assign=pipe_assign, joint_assign=joint_assign,
@@ -167,6 +169,14 @@ def run(args):
                          em_val_hist=[float(v) for v in diag.val_signal],
                          em_n_gated=[int(v) for v in diag.n_gated],
                          em_n_reverted=[int(v) for v in diag.n_reverted],
+                         em_cache_hits=int(es['cache_hits']),
+                         em_cache_misses=int(es['cache_misses']),
+                         em_solve_fraction=[round(float(v), 4)
+                                            for v in es['solve_fraction']],
+                         em_edge_escapes=[int(v) for v in es['edge_escapes']],
+                         em_fallbacks=[int(v) for v in es['fallbacks']],
+                         em_final_full_grid_rerun=bool(
+                             es['final_full_grid_rerun']),
                          **timers))
         print("N=%2d  rec pipe=%.3f joint=%.3f gap=%+.3f | assign pipe=%.3f "
               "joint=%.3f mech_gap=%+.3f (n=%d/%d null=%.2f/%.2f) | gls=%.3f "
@@ -193,7 +203,8 @@ def run(args):
                   grid_points_per_rayleigh=round(
                       (1.0 / args.baseline_days) /
                       ((args.f_max - args.f_min) / (args.n_freq - 1)), 3),
-                  max_iter=args.max_iter, seed=args.seed,
+                  max_iter=args.max_iter, estep_refine=bool(args.estep_refine),
+                  seed=args.seed,
                   phase_seconds={**{k: round(v, 3)
                                     for k, v in phase_totals.items()},
                                  'wall': round(time.perf_counter() - t_wall0, 3)},
@@ -301,6 +312,13 @@ def main():
                    help='cadence noise: synthetic exp_mag_error or empirical ZTF '
                         '(1.6-3.5x larger -> lower per-epoch SNR, MRA regime)')
     p.add_argument('--max-iter', type=int, default=10)
+    p.add_argument('--estep-refine', action='store_true',
+                   help='EM iterations >= 2 re-solve each (source, template) '
+                        'pair only on windows around its previous top-4 peaks '
+                        '(+2f, f/2 of its best), with edge-escape expansion and '
+                        'full-grid fallback guards; iteration 1 and the FINAL '
+                        'iteration are always full-grid. Guarded approximation, '
+                        'off by default (see joint_em.build_joint_em_catalog).')
     p.add_argument('--n-jobs', type=int, default=1)
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--out', default='experiments/phase3_recovery/joint_draft')
