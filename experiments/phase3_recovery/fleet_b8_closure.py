@@ -30,7 +30,12 @@ on RunPod CPU pods) with the B8-closure deltas:
   START beacon after ``BOOT_LIMIT_MIN`` minutes and relaunches the job ONCE on
   a different CPU flavor (``MAX_BOOT_ATTEMPTS`` pod creates per job, then the
   job is marked boot-dead).  Pods that land on a known-bad machine
-  (``BAD_MACHINES``) are deleted at create time and don't burn a boot attempt;
+  (``BAD_MACHINES``) are deleted at create time and don't burn a boot attempt.
+  POST-MORTEM 2026-07-11: all three never-booted pods (50 min + 2 x 7.4 h,
+  ~$9.1 total) were ONE bug -- ``_prog_beacon`` ended in a bare ``&`` and the
+  '' ; '' line join made the whole ``bash -c`` string a syntax error, so the
+  container died at parse time on every host/flavor.  Fixed; ``plan`` and
+  ``_create`` now ``bash -n`` every generated script before any pod exists;
 * canary-first: ``canary`` launches ONLY e2-jitter-0 + g-refine-sesar-0
   (~$2-3); ``report`` compares measured core-hr against the estimates; the
   FULL batch (cap $25) is released only after a human-approved estimate.
@@ -68,19 +73,23 @@ TGZ = ("https://github.com/PrincetonUniversity/FastTemplatePeriodogram/"
        "archive/refs/heads/dev.tar.gz")
 IMAGE = "python:3.11"
 RATE = 0.041                     # $/core-hr, measured on the 2026-06-02 fleet
-# cpu3c deprioritized to the tail: the June fleet measured it slow AND the
-# 2026-07-11 canary boot failure was a cpu3c host (machine aehmymvwnx01).
+# cpu3c deprioritized to the tail: the June fleet measured it slow.
 FALLBACKS = [("cpu5c", 32, "SECURE"), ("cpu5c", 16, "SECURE"), ("cpu5g", 16, "SECURE"),
              ("cpu3g", 16, "SECURE"), ("cpu5c", 32, "COMMUNITY"), ("cpu5c", 8, "SECURE"),
              ("cpu3c", 32, "SECURE"), ("cpu3c", 16, "SECURE")]
 
-# Boot watchdog (v3): boot failures bill but emit NO beacon (2026-07-11 canary:
-# 50 min at uptime 0 s, $0.81, zero science).  No START beacon within
-# BOOT_LIMIT_MIN of pod create => delete + relaunch on a different flavor;
-# at most MAX_BOOT_ATTEMPTS pod creates per job, then the job is boot-dead.
+# Boot watchdog (v3): boot failures bill but emit NO beacon (the 2026-07-10/11
+# pods: 50 min - 7.4 h at uptime 0 s, ~$9, zero science).  No START beacon
+# within BOOT_LIMIT_MIN of pod create => delete + relaunch on a different
+# flavor; at most MAX_BOOT_ATTEMPTS pod creates per job, then boot-dead.
+# ROOT CAUSE of those three failures (found 2026-07-11, machine-independent):
+# _prog_beacon ended in a bare '&', and the ' ; ' line join produced '& ;' --
+# a bash syntax error, so `bash -c` aborted the whole script before the first
+# statement.  Fixed in _prog_beacon; `plan` now runs `bash -n` as a guard.
 BOOT_LIMIT_MIN = 20
 MAX_BOOT_ATTEMPTS = 2
-BAD_MACHINES = {"aehmymvwnx01"}  # host of the 2026-07-11 never-booted pod
+BAD_MACHINES = set()  # 2026-07-11: cleared -- the never-booted pods were the
+                      # '& ;' script bug on 3 different hosts, not bad machines
 
 # The ONE pre-existing pod on the account (John's separate cuvarbase GPU
 # workstream).  NEVER stopped, deleted, or modified by this launcher.
@@ -207,13 +216,19 @@ def _post(token, job, suffix):
 def _prog_beacon(token, tag):
     """Backgrounded 15-min progress beacon (max 4 posts -- webhook.site free
     tokens store ~100 requests; 16 jobs x (START+RESULT+4 PROG) = 96).  Uses
-    its own payload file so it never clobbers /workspace/payload.b64."""
+    its own payload file so it never clobbers /workspace/payload.b64.
+
+    MUST NOT end in a bare ``&``: _bootstrap joins lines with '' ; '' and
+    ``cmd & ; next`` is a bash SYNTAX ERROR that aborts the ENTIRE -c string
+    before anything runs -- the root cause of the three 2026-07-10/11 pods
+    that billed at uptime 0 with zero beacons.  The trailing ``true`` makes
+    the join valid (``cmd & true ; next``)."""
     return ("( for i in 1 2 3 4; do sleep 900; "
             "tail -40 /workspace/run.log 2>/dev/null | gzip -c | base64 -w0 "
             ">/workspace/prog.b64; "
             "curl -sf --max-time 60 -X POST https://webhook.site/%s "
             "-H 'X-Job: %s-PROG' --data-binary @/workspace/prog.b64; "
-            "done ) >/dev/null 2>&1 &" % (token, tag))
+            "done ) >/dev/null 2>&1 & true" % (token, tag))
 
 
 def _bootstrap(tag, driver, token):
@@ -262,6 +277,7 @@ def _create(tag, driver, token, avoid=()):
     deleting-and-continuing if the pod lands on a BAD_MACHINES host (a bad
     host is RunPod's placement, not a boot attempt of ours)."""
     script = _bootstrap(tag, driver, token)
+    _check_script_syntax(script, tag)     # never POST a script bash can't parse
     last = ""
     for flav, vcpu, cloud in FALLBACKS:
         if flav in avoid:
@@ -352,11 +368,27 @@ def _new_job(j, pod=None, info="pending"):
 # ----------------------------------------------------------------------
 # Subcommands
 # ----------------------------------------------------------------------
+def _check_script_syntax(script, tag):
+    """`bash -n` the generated bootstrap script.  Guard added 2026-07-11: a
+    '& ;' join bug made every generated script a bash syntax error, so three
+    pods billed at uptime 0 with zero beacons.  Cheap, local, no network."""
+    import subprocess
+    p = subprocess.run(["bash", "-n", "-c", script],
+                       capture_output=True, text=True)
+    if p.returncode != 0:
+        raise SystemExit("BOOTSTRAP SYNTAX ERROR for %s -- refusing to plan/"
+                         "launch:\n%s" % (tag, p.stderr.strip()[:500]))
+
+
 def plan():
-    """Dry-run: the job table + full driver strings.  Zero network, zero paid."""
+    """Dry-run: the job table + full driver strings + a `bash -n` syntax check
+    of every generated bootstrap script.  Zero network, zero paid."""
     tags = [j["tag"] for j in JOBS]
     assert len(tags) == len(set(tags)), "duplicate job tags: %s" % tags
     assert all(t in tags for t in CANARY_TAGS), "canary tag not in JOBS"
+    for j in JOBS:
+        _check_script_syntax(_bootstrap(j["tag"], j["driver"], "TOKEN"), j["tag"])
+    print("bash -n: all %d bootstrap scripts parse clean\n" % len(JOBS))
     total = canary_total = 0
     for j in JOBS:
         mark = "  <-- CANARY" if j["tag"] in CANARY_TAGS else ""
