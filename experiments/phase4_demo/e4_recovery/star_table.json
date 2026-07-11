@@ -1,0 +1,4459 @@
+{
+ "created_utc": "2026-07-11T13:59:30Z",
+ "spec": {
+  "f_min_cpd": 1.0,
+  "f_max_cpd": 5.0,
+  "df_factor": 0.2,
+  "grid_rule": "df = F_MIN/ceil(F_MIN/(0.2/T)) per band (NFFT-snapped, <= 0.2/T); two-band methods use the joint grid at the shorter per-band T; explicit [f_min, f_max], never nyquist_factor; freqs = df * (i_min + arange(n_freq))",
+  "xmatch_radius_arcsec": 1.0,
+  "gaia_query": "vari_rrlyrae JOIN gaia_source_lite, ESA sync TAP, per-field box (pattern of fetch_rrl_sample.py)",
+  "time_column": "hjd"
+ },
+ "counts": {
+  "n_unique_stars": 73,
+  "n_science": 58,
+  "n_control_antijoin": 12,
+  "n_control_orig": 3,
+  "n_dual_truth": 12,
+  "n_gaia_periods_science": 55
+ },
+ "dual_truth_consistency": {
+  "n": 12,
+  "max_rel_period_diff": 0.00047873783505249093,
+  "median_rel_period_diff": 3.60761521110687e-05
+ },
+ "grid_summary": {
+  "median_nfreq_joint": 55017,
+  "nfreq_joint_range": [
+   35885,
+   55257
+  ],
+  "df_joint_range": [
+   7.239032865209208e-05,
+   0.00011147029316687103
+  ]
+ },
+ "http": {
+  "requests": 0,
+  "bytes": 0,
+  "cache_hits": 3
+ },
+ "stars": [
+  {
+   "uid": "chen_f486_ZTFJ180605.79+055454.2",
+   "field": 486,
+   "ra": 271.52414,
+   "dec": 5.91507,
+   "type": "RRab",
+   "oids": {
+    "g": "486112200017795",
+    "r": "486212200070702"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180605.79+055454.2.npz",
+   "dual_truth": false,
+   "chen_period": 0.6573202,
+   "gaia_period": 0.657302923227504,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4471882393403103232",
+   "gaia_xmatch_sep_arcsec": 0.078,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 469,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.64239070192
+    },
+    "r": {
+     "n_epochs": 986,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.613650208339
+    }
+   },
+   "joint": {
+    "n_epochs": 1455,
+    "T_days": 2764.64239070192
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.64239070192,
+     "pts_per_rayleigh": 5.000285044638342
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.613650208339,
+     "pts_per_rayleigh": 5.000338496090156
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.613650208339,
+     "pts_per_rayleigh": 4.9785824185765435
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f486_ZTFJ180625.92+054646.1",
+   "field": 486,
+   "ra": 271.60802,
+   "dec": 5.7795,
+   "type": "RRc",
+   "oids": {
+    "g": "486112100025437",
+    "r": "486212100030644"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180625.92+054646.1.npz",
+   "dual_truth": false,
+   "chen_period": 0.3610577,
+   "gaia_period": 0.36112103514108074,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4471493479826081152",
+   "gaia_xmatch_sep_arcsec": 0.12,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 459,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6424027998
+    },
+    "r": {
+     "n_epochs": 988,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6136606563814
+    }
+   },
+   "joint": {
+    "n_epochs": 1447,
+    "T_days": 2764.6424027998
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6424027998,
+     "pts_per_rayleigh": 5.0002850227574465
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6136606563814,
+     "pts_per_rayleigh": 5.000338477110468
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6136606563814,
+     "pts_per_rayleigh": 4.9785823967906175
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ180706.39+024803.4",
+   "field": 486,
+   "ra": 271.77665,
+   "dec": 2.80097,
+   "type": "RRc",
+   "oids": {
+    "g": "486108400054926",
+    "r": "486208400065388"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180706.39+024803.4.npz",
+   "dual_truth": false,
+   "chen_period": 0.3282091,
+   "gaia_period": 0.3279780443092855,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4468593036871552640",
+   "gaia_xmatch_sep_arcsec": 0.185,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 76,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2720.7446391549893
+    },
+    "r": {
+     "n_epochs": 178,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2727.620312775485
+    }
+   },
+   "joint": {
+    "n_epochs": 254,
+    "T_days": 2739.622546465136
+   },
+   "grid": {
+    "g": {
+     "df": 7.350779182593354e-05,
+     "i_min": 13604,
+     "n_freq": 54417,
+     "T_days": 2720.7446391549893,
+     "pts_per_rayleigh": 5.000101738406857
+    },
+    "r": {
+     "df": 7.331915829606276e-05,
+     "i_min": 13639,
+     "n_freq": 54557,
+     "T_days": 2727.620312775485,
+     "pts_per_rayleigh": 5.000329384598863
+    },
+    "joint": {
+     "df": 7.350779182593354e-05,
+     "i_min": 13604,
+     "n_freq": 54417,
+     "T_days": 2720.7446391549893,
+     "pts_per_rayleigh": 4.965647555190729
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ180708.63+013433.4",
+   "field": 486,
+   "ra": 271.78598,
+   "dec": 1.57595,
+   "type": "RRab",
+   "oids": {
+    "g": "486104400004619",
+    "r": "486204400006724"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180708.63+013433.4.npz",
+   "dual_truth": false,
+   "chen_period": 0.7950996,
+   "gaia_period": 0.7952526150126012,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4468169896696759552",
+   "gaia_xmatch_sep_arcsec": 0.141,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 433,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.690588040743
+    },
+    "r": {
+     "n_epochs": 903,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2732.651117668487
+    }
+   },
+   "joint": {
+    "n_epochs": 1336,
+    "T_days": 2746.690588040743
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.690588040743,
+     "pts_per_rayleigh": 5.000199170521306
+    },
+    "r": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.651117668487,
+     "pts_per_rayleigh": 5.000272413720416
+    },
+    "joint": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.651117668487,
+     "pts_per_rayleigh": 4.974713955584907
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181020.06+060208.2",
+   "field": 486,
+   "ra": 272.58362,
+   "dec": 6.03563,
+   "type": "RRc",
+   "oids": {
+    "g": "486111200015578",
+    "r": "486211200081814"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181020.06+060208.2.npz",
+   "dual_truth": false,
+   "chen_period": 0.3273953,
+   "gaia_period": 0.3273965665719009,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4471844705072242816",
+   "gaia_xmatch_sep_arcsec": 0.137,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 232,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.642594912555
+    },
+    "r": {
+     "n_epochs": 676,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.613851988688
+    }
+   },
+   "joint": {
+    "n_epochs": 908,
+    "T_days": 2764.642594912555
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.642594912555,
+     "pts_per_rayleigh": 5.000284675291726
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.613851988688,
+     "pts_per_rayleigh": 5.000338129540359
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.613851988688,
+     "pts_per_rayleigh": 4.978582050832994
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181029.87+035039.2",
+   "field": 486,
+   "ra": 272.6245,
+   "dec": 3.84424,
+   "type": "RRab",
+   "oids": {
+    "g": "486107200033761",
+    "r": "486207200036231"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181029.87+035039.2.npz",
+   "dual_truth": true,
+   "chen_period": 0.7010193,
+   "gaia_period": 0.7009706573969701,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4470264397625862272",
+   "gaia_xmatch_sep_arcsec": 0.028,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.7010193,
+   "also_manifest_id": "gaia_f486_4470264397625862272",
+   "bands": {
+    "g": {
+     "n_epochs": 460,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.690783572383
+    },
+    "r": {
+     "n_epochs": 1013,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2732.651327638421
+    }
+   },
+   "joint": {
+    "n_epochs": 1473,
+    "T_days": 2746.690783572383
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.690783572383,
+     "pts_per_rayleigh": 5.000198814566732
+    },
+    "r": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.651327638421,
+     "pts_per_rayleigh": 5.000272029512282
+    },
+    "joint": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.651327638421,
+     "pts_per_rayleigh": 4.974713601444578
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181046.84+015052.4",
+   "field": 486,
+   "ra": 272.69517,
+   "dec": 1.84789,
+   "type": "RRc",
+   "oids": {
+    "g": "486103200035523",
+    "r": "486203200042836"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181046.84+015052.4.npz",
+   "dual_truth": true,
+   "chen_period": 0.2474538,
+   "gaia_period": 0.2474528439193352,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4276113459030573184",
+   "gaia_xmatch_sep_arcsec": 0.007,
+   "role": "science",
+   "gaia_type": "RRc",
+   "chen_per_from_control_entry": 0.2474538,
+   "also_manifest_id": "gaia_f486_4276113459030573184",
+   "bands": {
+    "g": {
+     "n_epochs": 456,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.690773215145
+    },
+    "r": {
+     "n_epochs": 1017,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2734.6409744299017
+    }
+   },
+   "joint": {
+    "n_epochs": 1473,
+    "T_days": 2746.690773215145
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.690773215145,
+     "pts_per_rayleigh": 5.000198833421513
+    },
+    "r": {
+     "df": 7.313149041977475e-05,
+     "i_min": 13674,
+     "n_freq": 54697,
+     "T_days": 2734.6409744299017,
+     "pts_per_rayleigh": 5.000290761331351
+    },
+    "joint": {
+     "df": 7.313149041977475e-05,
+     "i_min": 13674,
+     "n_freq": 54697,
+     "T_days": 2734.6409744299017,
+     "pts_per_rayleigh": 4.978354364948723
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181112.81+065353.3",
+   "field": 486,
+   "ra": 272.80339,
+   "dec": 6.89816,
+   "type": "RRab",
+   "oids": {
+    "g": "486115300023226",
+    "r": "486215300027834"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181112.81+065353.3.npz",
+   "dual_truth": false,
+   "chen_period": 0.8125219,
+   "gaia_period": 0.8125366743453206,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4472065706911799168",
+   "gaia_xmatch_sep_arcsec": 0.056,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 476,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6426607235335
+    },
+    "r": {
+     "n_epochs": 1035,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6139258425683
+    }
+   },
+   "joint": {
+    "n_epochs": 1511,
+    "T_days": 2764.6426607235335
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6426607235335,
+     "pts_per_rayleigh": 5.000284556262373
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6139258425683,
+     "pts_per_rayleigh": 5.000337995379018
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6139258425683,
+     "pts_per_rayleigh": 4.978581932320261
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181122.94+034339.3",
+   "field": 486,
+   "ra": 272.84561,
+   "dec": 3.72759,
+   "type": "RRab",
+   "oids": {
+    "g": "486107200040005",
+    "r": "486207200042933"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181122.94+034339.3.npz",
+   "dual_truth": false,
+   "chen_period": 0.5650783,
+   "gaia_period": null,
+   "gaia_period_source": null,
+   "gaia_source_id": null,
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 460,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.690826309845
+    },
+    "r": {
+     "n_epochs": 1012,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2732.6513688545674
+    }
+   },
+   "joint": {
+    "n_epochs": 1472,
+    "T_days": 2746.690826309845
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.690826309845,
+     "pts_per_rayleigh": 5.000198736765546
+    },
+    "r": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.6513688545674,
+     "pts_per_rayleigh": 5.000271954093974
+    },
+    "joint": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.6513688545674,
+     "pts_per_rayleigh": 4.974713524039931
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181244.45+041935.6",
+   "field": 486,
+   "ra": 273.18522,
+   "dec": 4.32658,
+   "type": "RRab",
+   "oids": {
+    "g": "486107200007593",
+    "r": "486207200073470"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181244.45+041935.6.npz",
+   "dual_truth": false,
+   "chen_period": 0.5220891,
+   "gaia_period": 0.5220497260175969,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4470309993000256256",
+   "gaia_xmatch_sep_arcsec": 0.135,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 460,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.6909017018043
+    },
+    "r": {
+     "n_epochs": 1013,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2732.65144800907
+    }
+   },
+   "joint": {
+    "n_epochs": 1473,
+    "T_days": 2746.6909017018043
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.6909017018043,
+     "pts_per_rayleigh": 5.000198599518658
+    },
+    "r": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.65144800907,
+     "pts_per_rayleigh": 5.0002718092551435
+    },
+    "joint": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.65144800907,
+     "pts_per_rayleigh": 4.974713387492568
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181511.71+064702.4",
+   "field": 486,
+   "ra": 273.79881,
+   "dec": 6.78402,
+   "type": "RRab",
+   "oids": {
+    "g": "486115400029983",
+    "r": "486215400035016"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181511.71+064702.4.npz",
+   "dual_truth": true,
+   "chen_period": 0.6145806,
+   "gaia_period": 0.6145600232552472,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4477807180531896960",
+   "gaia_xmatch_sep_arcsec": 0.064,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.6145806,
+   "also_manifest_id": "gaia_f486_4477807180531896960",
+   "bands": {
+    "g": {
+     "n_epochs": 478,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6428468930535
+    },
+    "r": {
+     "n_epochs": 1028,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.614107835572
+    }
+   },
+   "joint": {
+    "n_epochs": 1506,
+    "T_days": 2764.6428468930535
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6428468930535,
+     "pts_per_rayleigh": 5.000284219545978
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614107835572,
+     "pts_per_rayleigh": 5.000337664774547
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614107835572,
+     "pts_per_rayleigh": 4.9785815970653085
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181547.86+061841.2",
+   "field": 486,
+   "ra": 273.94942,
+   "dec": 6.31146,
+   "type": "RRab",
+   "oids": {
+    "g": "486111100003248",
+    "r": "486211100004150"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181547.86+061841.2.npz",
+   "dual_truth": false,
+   "chen_period": 0.7726473,
+   "gaia_period": 0.7726683606411148,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4477727676399316224",
+   "gaia_xmatch_sep_arcsec": 0.143,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 475,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6428626026027
+    },
+    "r": {
+     "n_epochs": 982,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6141183152795
+    }
+   },
+   "joint": {
+    "n_epochs": 1457,
+    "T_days": 2764.6428626026027
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6428626026027,
+     "pts_per_rayleigh": 5.0002841911328275
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6141183152795,
+     "pts_per_rayleigh": 5.000337645737344
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6141183152795,
+     "pts_per_rayleigh": 4.97858156877548
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181624.38+013246.2",
+   "field": 486,
+   "ra": 274.10162,
+   "dec": 1.54618,
+   "type": "RRab",
+   "oids": {
+    "g": "486103400005810",
+    "r": "486203400008345"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181624.38+013246.2.npz",
+   "dual_truth": true,
+   "chen_period": 0.4520293,
+   "gaia_period": 0.45200840109402585,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4277318523772610432",
+   "gaia_xmatch_sep_arcsec": 0.012,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.4520293,
+   "also_manifest_id": "gaia_f486_4277318523772610432",
+   "bands": {
+    "g": {
+     "n_epochs": 437,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.691051520873
+    },
+    "r": {
+     "n_epochs": 1007,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2732.651574614458
+    }
+   },
+   "joint": {
+    "n_epochs": 1444,
+    "T_days": 2746.691051520873
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.691051520873,
+     "pts_per_rayleigh": 5.0001983267813594
+    },
+    "r": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.651574614458,
+     "pts_per_rayleigh": 5.000271577589548
+    },
+    "joint": {
+     "df": 7.318501170960187e-05,
+     "i_min": 13664,
+     "n_freq": 54657,
+     "T_days": 2732.651574614458,
+     "pts_per_rayleigh": 4.974713116145368
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181645.21+075749.8",
+   "field": 486,
+   "ra": 274.18839,
+   "dec": 7.96385,
+   "type": "RRc",
+   "oids": {
+    "g": "486115100012687",
+    "r": "486215100016986"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181645.21+075749.8.npz",
+   "dual_truth": false,
+   "chen_period": 0.2816771,
+   "gaia_period": 0.2816739716224126,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4478238640066776832",
+   "gaia_xmatch_sep_arcsec": 0.057,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 479,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6429541218095
+    },
+    "r": {
+     "n_epochs": 1032,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.614226300735
+    }
+   },
+   "joint": {
+    "n_epochs": 1511,
+    "T_days": 2764.6429541218095
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6429541218095,
+     "pts_per_rayleigh": 5.000284025606193
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614226300735,
+     "pts_per_rayleigh": 5.000337449573372
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614226300735,
+     "pts_per_rayleigh": 4.9785814039672776
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181815.87+075007.7",
+   "field": 486,
+   "ra": 274.56615,
+   "dec": 7.83549,
+   "type": "RRc",
+   "oids": {
+    "g": "486114200048483",
+    "r": "486214200025032"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181815.87+075007.7.npz",
+   "dual_truth": false,
+   "chen_period": 0.3360044,
+   "gaia_period": 0.33611129606766543,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4478188131250865024",
+   "gaia_xmatch_sep_arcsec": 0.101,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 479,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6430224794894
+    },
+    "r": {
+     "n_epochs": 1023,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6142922970466
+    }
+   },
+   "joint": {
+    "n_epochs": 1502,
+    "T_days": 2764.6430224794894
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6430224794894,
+     "pts_per_rayleigh": 5.000283901970769
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6142922970466,
+     "pts_per_rayleigh": 5.0003373296859515
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6142922970466,
+     "pts_per_rayleigh": 4.978581280868464
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ181921.70+032211.3",
+   "field": 486,
+   "ra": 274.84045,
+   "dec": 3.36981,
+   "type": "RRc",
+   "oids": {
+    "g": "486106300011883",
+    "r": "486206300013723"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181921.70+032211.3.npz",
+   "dual_truth": true,
+   "chen_period": 0.3617904,
+   "gaia_period": 0.36161719724716124,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4278168961661626752",
+   "gaia_xmatch_sep_arcsec": 0.097,
+   "role": "science",
+   "gaia_type": "RRc",
+   "chen_per_from_control_entry": 0.3617904,
+   "also_manifest_id": "gaia_f486_4278168961661626752",
+   "bands": {
+    "g": {
+     "n_epochs": 465,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6429561479017
+    },
+    "r": {
+     "n_epochs": 1003,
+     "n_dropped_nonfinite": 1,
+     "T_days": 2752.6141811050475
+    }
+   },
+   "joint": {
+    "n_epochs": 1468,
+    "T_days": 2764.6429561479017
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6429561479017,
+     "pts_per_rayleigh": 5.000284021941693
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6141811050475,
+     "pts_per_rayleigh": 5.000337531674849
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6141811050475,
+     "pts_per_rayleigh": 4.9785814003186815
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f486_ZTFJ182202.62+020906.8",
+   "field": 486,
+   "ra": 275.51094,
+   "dec": 2.15189,
+   "type": "RRc",
+   "oids": {
+    "g": "486102100016862",
+    "r": "486202100106196"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182202.62+020906.8.npz",
+   "dual_truth": false,
+   "chen_period": 0.2261538,
+   "gaia_period": 0.22615348097705487,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4276720492525476096",
+   "gaia_xmatch_sep_arcsec": 0.133,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 456,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6430551321246
+    },
+    "r": {
+     "n_epochs": 1025,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6142675355077
+    }
+   },
+   "joint": {
+    "n_epochs": 1481,
+    "T_days": 2764.6430551321246
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6430551321246,
+     "pts_per_rayleigh": 5.0002838429134355
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6142675355077,
+     "pts_per_rayleigh": 5.0003373746672075
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6142675355077,
+     "pts_per_rayleigh": 4.978581222067457
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ182236.75+061049.7",
+   "field": 486,
+   "ra": 275.65316,
+   "dec": 6.18048,
+   "type": "RRab",
+   "oids": {
+    "g": "486110100009806",
+    "r": "486210100056283"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182236.75+061049.7.npz",
+   "dual_truth": false,
+   "chen_period": 0.4332018,
+   "gaia_period": 0.4331829102224665,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4477007461925279744",
+   "gaia_xmatch_sep_arcsec": 0.101,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 478,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6431852956302
+    },
+    "r": {
+     "n_epochs": 1012,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6144353793934
+    }
+   },
+   "joint": {
+    "n_epochs": 1490,
+    "T_days": 2764.6431852956302
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6431852956302,
+     "pts_per_rayleigh": 5.000283607492648
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6144353793934,
+     "pts_per_rayleigh": 5.000337069765786
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6144353793934,
+     "pts_per_rayleigh": 4.978580987668461
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f486_ZTFJ182731.82+074345.6",
+   "field": 486,
+   "ra": 276.88261,
+   "dec": 7.72936,
+   "type": "RRc",
+   "oids": {
+    "g": "486113200029524",
+    "r": "486213200031894"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182731.82+074345.6.npz",
+   "dual_truth": false,
+   "chen_period": 0.2680869,
+   "gaia_period": 0.26806642868738195,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4477643391968661632",
+   "gaia_xmatch_sep_arcsec": 0.11,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 479,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6434629517607
+    },
+    "r": {
+     "n_epochs": 1018,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6147265089676
+    }
+   },
+   "joint": {
+    "n_epochs": 1497,
+    "T_days": 2764.6434629517607
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6434629517607,
+     "pts_per_rayleigh": 5.000283105308762
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6147265089676,
+     "pts_per_rayleigh": 5.0003365409064475
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6147265089676,
+     "pts_per_rayleigh": 4.978580487664193
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ182758.45+055314.9",
+   "field": 486,
+   "ra": 276.99356,
+   "dec": 5.88749,
+   "type": "RRc",
+   "oids": {
+    "g": "486109200025611",
+    "r": "486209200028334"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182758.45+055314.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.3923737,
+   "gaia_period": 0.39237370592937454,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4284611034652178816",
+   "gaia_xmatch_sep_arcsec": 0.087,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 477,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6434355713427
+    },
+    "r": {
+     "n_epochs": 991,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.6146799968556
+    }
+   },
+   "joint": {
+    "n_epochs": 1468,
+    "T_days": 2764.6434355713427
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6434355713427,
+     "pts_per_rayleigh": 5.000283154830462
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6146799968556,
+     "pts_per_rayleigh": 5.000336625399281
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.6146799968556,
+     "pts_per_rayleigh": 4.978580536970955
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f486_ZTFJ182802.45+054037.9",
+   "field": 486,
+   "ra": 277.01025,
+   "dec": 5.67722,
+   "type": "RRab",
+   "oids": {
+    "g": "486109200037425",
+    "r": "486209200041106"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182802.45+054037.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.5315145,
+   "gaia_period": 0.5315078922067124,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4284597393835911680",
+   "gaia_xmatch_sep_arcsec": 0.046,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 477,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.643433330115
+    },
+    "r": {
+     "n_epochs": 990,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.614675635472
+    }
+   },
+   "joint": {
+    "n_epochs": 1467,
+    "T_days": 2764.643433330115
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.643433330115,
+     "pts_per_rayleigh": 5.000283158884067
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614675635472,
+     "pts_per_rayleigh": 5.000336633322071
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614675635472,
+     "pts_per_rayleigh": 4.9785805410069655
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f486_ZTFJ183020.78+041109.5",
+   "field": 486,
+   "ra": 277.58659,
+   "dec": 4.18598,
+   "type": "RRc",
+   "oids": {
+    "g": "486105100012531",
+    "r": "486205100016611"
+   },
+   "lc_file": "lc/chen_f486_ZTFJ183020.78+041109.5.npz",
+   "dual_truth": false,
+   "chen_period": 0.2554271,
+   "gaia_period": 0.2554265723554241,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "4284096733781094656",
+   "gaia_xmatch_sep_arcsec": 0.152,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 475,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2764.6435067960992
+    },
+    "r": {
+     "n_epochs": 1010,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2752.614733674098
+    }
+   },
+   "joint": {
+    "n_epochs": 1485,
+    "T_days": 2764.6435067960992
+   },
+   "grid": {
+    "g": {
+     "df": 7.233796296296296e-05,
+     "i_min": 13824,
+     "n_freq": 55297,
+     "T_days": 2764.6435067960992,
+     "pts_per_rayleigh": 5.000283026009531
+    },
+    "r": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614733674098,
+     "pts_per_rayleigh": 5.000336527890437
+    },
+    "joint": {
+     "df": 7.265329845975008e-05,
+     "i_min": 13764,
+     "n_freq": 55057,
+     "T_days": 2752.614733674098,
+     "pts_per_rayleigh": 4.978580408709142
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "gaia_f486_4276113046713707904",
+   "field": 486,
+   "ra": 272.6689660454348,
+   "dec": 1.8211954590768977,
+   "type": "RRab",
+   "oids": {
+    "g": "486103200036883",
+    "r": "486203200044444"
+   },
+   "lc_file": "lc/gaia_f486_4276113046713707904.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.5091168863349941,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4276113046713707904",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 456,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.69076764863
+    },
+    "r": {
+     "n_epochs": 1017,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2734.6409687194973
+    }
+   },
+   "joint": {
+    "n_epochs": 1473,
+    "T_days": 2746.69076764863
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.69076764863,
+     "pts_per_rayleigh": 5.0001988435550455
+    },
+    "r": {
+     "df": 7.313149041977475e-05,
+     "i_min": 13674,
+     "n_freq": 54697,
+     "T_days": 2734.6409687194973,
+     "pts_per_rayleigh": 5.000290771772825
+    },
+    "joint": {
+     "df": 7.313149041977475e-05,
+     "i_min": 13674,
+     "n_freq": 54697,
+     "T_days": 2734.6409687194973,
+     "pts_per_rayleigh": 4.978354375037986
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f486_4276158298490514816",
+   "field": 486,
+   "ra": 272.5578173618908,
+   "dec": 2.168398643187764,
+   "type": "RRab",
+   "oids": {
+    "g": "486103200019318",
+    "r": "486203200023709"
+   },
+   "lc_file": "lc/gaia_f486_4276158298490514816.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.4913275944435673,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4276158298490514816",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 44,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2149.997629340738
+    },
+    "r": {
+     "n_epochs": 75,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2489.0521026314236
+    }
+   },
+   "joint": {
+    "n_epochs": 119,
+    "T_days": 2501.054344622884
+   },
+   "grid": {
+    "g": {
+     "df": 9.302325581395348e-05,
+     "i_min": 10750,
+     "n_freq": 43001,
+     "T_days": 2149.997629340738,
+     "pts_per_rayleigh": 5.000005513167154
+    },
+    "r": {
+     "df": 8.034709946970914e-05,
+     "i_min": 12446,
+     "n_freq": 49785,
+     "T_days": 2489.0521026314236,
+     "pts_per_rayleigh": 5.000297095766738
+    },
+    "joint": {
+     "df": 9.302325581395348e-05,
+     "i_min": 10750,
+     "n_freq": 43001,
+     "T_days": 2149.997629340738,
+     "pts_per_rayleigh": 4.298187291736324
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f486_4470511478511585792",
+   "field": 486,
+   "ra": 274.17003061935793,
+   "dec": 4.448928699138862,
+   "type": "RRab",
+   "oids": {
+    "g": "486107100045946",
+    "r": "486207100001569"
+   },
+   "lc_file": "lc/gaia_f486_4470511478511585792.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.5981311715287205,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4470511478511585792",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 399,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2746.6911001820117
+    },
+    "r": {
+     "n_epochs": 623,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2734.6413206229918
+    }
+   },
+   "joint": {
+    "n_epochs": 1022,
+    "T_days": 2746.6911001820117
+   },
+   "grid": {
+    "g": {
+     "df": 7.2811999417504e-05,
+     "i_min": 13734,
+     "n_freq": 54937,
+     "T_days": 2746.6911001820117,
+     "pts_per_rayleigh": 5.000198238196464
+    },
+    "r": {
+     "df": 7.313149041977475e-05,
+     "i_min": 13674,
+     "n_freq": 54697,
+     "T_days": 2734.6413206229918,
+     "pts_per_rayleigh": 5.000290128317399
+    },
+    "joint": {
+     "df": 7.313149041977475e-05,
+     "i_min": 13674,
+     "n_freq": 54697,
+     "T_days": 2734.6413206229918,
+     "pts_per_rayleigh": 4.978353772324045
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f486_4471655692153837824",
+   "field": 486,
+   "ra": 273.5951667632121,
+   "dec": 5.52515956261891,
+   "type": "RRab",
+   "oids": {
+    "g": "486111400083963",
+    "r": "1532202100038483"
+   },
+   "lc_file": "lc/gaia_f486_4471655692153837824.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.4447907583803584,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4471655692153837824",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 139,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2714.726263569668
+    },
+    "r": {
+     "n_epochs": 47,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2448.095706780441
+    }
+   },
+   "joint": {
+    "n_epochs": 186,
+    "T_days": 2722.6886444534175
+   },
+   "grid": {
+    "g": {
+     "df": 7.367025195226167e-05,
+     "i_min": 13574,
+     "n_freq": 54297,
+     "T_days": 2714.726263569668,
+     "pts_per_rayleigh": 5.000135808223691
+    },
+    "r": {
+     "df": 8.169267216730659e-05,
+     "i_min": 12241,
+     "n_freq": 48965,
+     "T_days": 2448.095706780441,
+     "pts_per_rayleigh": 5.000213008869037
+    },
+    "joint": {
+     "df": 8.169267216730659e-05,
+     "i_min": 12241,
+     "n_freq": 48965,
+     "T_days": 2448.095706780441,
+     "pts_per_rayleigh": 4.4959235515001
+    }
+   },
+   "primary_band": "g"
+  },
+  {
+   "uid": "gaia_f486_4477560241400315136",
+   "field": 486,
+   "ra": 276.16286136545915,
+   "dec": 7.623225882910914,
+   "type": "RRab",
+   "oids": {
+    "g": "1533108200024045",
+    "r": "1532205100024092"
+   },
+   "lc_file": "lc/gaia_f486_4477560241400315136.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.5593085703996635,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "4477560241400315136",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 47,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1794.063346693758
+    },
+    "r": {
+     "n_epochs": 49,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2448.105241360143
+    }
+   },
+   "joint": {
+    "n_epochs": 96,
+    "T_days": 2448.105241360143
+   },
+   "grid": {
+    "g": {
+     "df": 0.00011147029316687103,
+     "i_min": 8971,
+     "n_freq": 35885,
+     "T_days": 1794.063346693758,
+     "pts_per_rayleigh": 5.000380848609648
+    },
+    "r": {
+     "df": 8.169267216730659e-05,
+     "i_min": 12241,
+     "n_freq": 48965,
+     "T_days": 2448.105241360143,
+     "pts_per_rayleigh": 5.000193534653365
+    },
+    "joint": {
+     "df": 0.00011147029316687103,
+     "i_min": 8971,
+     "n_freq": 35885,
+     "T_days": 1794.063346693758,
+     "pts_per_rayleigh": 3.664466644830923
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f686_ZTFJ193825.40+352053.3",
+   "field": 686,
+   "ra": 294.60584,
+   "dec": 35.34815,
+   "type": "RRc",
+   "oids": {
+    "g": "686116300043491",
+    "r": "686216300049358"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193825.40+352053.3.npz",
+   "dual_truth": false,
+   "chen_period": 0.3186458,
+   "gaia_period": 0.31864957609712047,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2048179163706790144",
+   "gaia_xmatch_sep_arcsec": 0.12,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 740,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.6610258785076
+    },
+    "r": {
+     "n_epochs": 980,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.624106838368
+    }
+   },
+   "joint": {
+    "n_epochs": 1720,
+    "T_days": 2768.6583873224445
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6610258785076,
+     "pts_per_rayleigh": 5.000251522210272
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.624106838368,
+     "pts_per_rayleigh": 5.000317654464537
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6610258785076,
+     "pts_per_rayleigh": 4.989420169441508
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f686_ZTFJ193829.95+345130.9",
+   "field": 686,
+   "ra": 294.62481,
+   "dec": 34.85861,
+   "type": "RRc",
+   "oids": {
+    "g": "686112200085362",
+    "r": "686212200094795"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193829.95+345130.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.3166504,
+   "gaia_period": 0.3166537747273496,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2047306941759172096",
+   "gaia_xmatch_sep_arcsec": 0.168,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 790,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.6610295590945
+    },
+    "r": {
+     "n_epochs": 1013,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.62411465263
+    }
+   },
+   "joint": {
+    "n_epochs": 1803,
+    "T_days": 2768.658395111561
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6610295590945,
+     "pts_per_rayleigh": 5.00025151554863
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.62411465263,
+     "pts_per_rayleigh": 5.000317640351463
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6610295590945,
+     "pts_per_rayleigh": 4.989420155404682
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f686_ZTFJ193938.90+333216.6",
+   "field": 686,
+   "ra": 294.91211,
+   "dec": 33.53796,
+   "type": "RRab",
+   "oids": {
+    "g": "686112300041722",
+    "r": "686212300044448"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193938.90+333216.6.npz",
+   "dual_truth": false,
+   "chen_period": 0.5160509,
+   "gaia_period": 0.5160600580566972,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2046977260078087552",
+   "gaia_xmatch_sep_arcsec": 0.11,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 791,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.661077025812
+    },
+    "r": {
+     "n_epochs": 1010,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.624172451906
+    }
+   },
+   "joint": {
+    "n_epochs": 1801,
+    "T_days": 2768.658452847041
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661077025812,
+     "pts_per_rayleigh": 5.000251429636706
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.624172451906,
+     "pts_per_rayleigh": 5.000317535962163
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661077025812,
+     "pts_per_rayleigh": 4.98942005135914
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f686_ZTFJ193959.03+333556.0",
+   "field": 686,
+   "ra": 294.996,
+   "dec": 33.59889,
+   "type": "RRab",
+   "oids": {
+    "g": "686112400069316",
+    "r": "686212400132483"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193959.03+333556.0.npz",
+   "dual_truth": true,
+   "chen_period": 0.6508062,
+   "gaia_period": 0.6507950392786517,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2046983650989326848",
+   "gaia_xmatch_sep_arcsec": 0.094,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.6508062,
+   "also_manifest_id": "gaia_f686_2046983650989326848",
+   "bands": {
+    "g": {
+     "n_epochs": 800,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.6610905271955
+    },
+    "r": {
+     "n_epochs": 1004,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2750.6282936832868
+    }
+   },
+   "joint": {
+    "n_epochs": 1804,
+    "T_days": 2762.6610905271955
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6610905271955,
+     "pts_per_rayleigh": 5.00025140520001
+    },
+    "r": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.6282936832868,
+     "pts_per_rayleigh": 5.0003121219924695
+    },
+    "joint": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.6282936832868,
+     "pts_per_rayleigh": 4.978533214646079
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194003.35+301707.8",
+   "field": 686,
+   "ra": 295.01398,
+   "dec": 30.28551,
+   "type": "RRc",
+   "oids": {
+    "g": "686104300009168",
+    "r": "686204300093348"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194003.35+301707.8.npz",
+   "dual_truth": false,
+   "chen_period": 0.3568413,
+   "gaia_period": 0.356823186101753,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2032459239845552256",
+   "gaia_xmatch_sep_arcsec": 0.094,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 737,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2743.767845252063
+    },
+    "r": {
+     "n_epochs": 911,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2730.6631776592694
+    }
+   },
+   "joint": {
+    "n_epochs": 1648,
+    "T_days": 2743.767845252063
+   },
+   "grid": {
+    "g": {
+     "df": 7.289161017566878e-05,
+     "i_min": 13719,
+     "n_freq": 54877,
+     "T_days": 2743.767845252063,
+     "pts_per_rayleigh": 5.000058595970487
+    },
+    "r": {
+     "df": 7.323861139592794e-05,
+     "i_min": 13654,
+     "n_freq": 54617,
+     "T_days": 2730.6631776592694,
+     "pts_per_rayleigh": 5.000250529508454
+    },
+    "joint": {
+     "df": 7.323861139592794e-05,
+     "i_min": 13654,
+     "n_freq": 54617,
+     "T_days": 2730.6631776592694,
+     "pts_per_rayleigh": 4.976368545038343
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194143.55+353253.9",
+   "field": 686,
+   "ra": 295.43147,
+   "dec": 35.54831,
+   "type": "RRab",
+   "oids": {
+    "g": "686116400035763",
+    "r": "686216400038399"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194143.55+353253.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.6455768,
+   "gaia_period": 0.6455896817395042,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2047444208904479616",
+   "gaia_xmatch_sep_arcsec": 0.614,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 791,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.6611558026634
+    },
+    "r": {
+     "n_epochs": 1049,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.624232629314
+    }
+   },
+   "joint": {
+    "n_epochs": 1840,
+    "T_days": 2768.6585131189786
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6611558026634,
+     "pts_per_rayleigh": 5.000251287055318
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.624232629314,
+     "pts_per_rayleigh": 5.000317427277805
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6611558026634,
+     "pts_per_rayleigh": 4.989419942742634
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194212.82+344833.3",
+   "field": 686,
+   "ra": 295.55344,
+   "dec": 34.80927,
+   "type": "RRab",
+   "oids": {
+    "g": "686112100019104",
+    "r": "686212100020417"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194212.82+344833.3.npz",
+   "dual_truth": false,
+   "chen_period": 0.6402505,
+   "gaia_period": 0.640224919710655,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2047349753989742208",
+   "gaia_xmatch_sep_arcsec": 0.086,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 806,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.6611774172634
+    },
+    "r": {
+     "n_epochs": 1033,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.624260173645
+    }
+   },
+   "joint": {
+    "n_epochs": 1839,
+    "T_days": 2768.658540629316
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6611774172634,
+     "pts_per_rayleigh": 5.000251247934187
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.624260173645,
+     "pts_per_rayleigh": 5.000317377530933
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6611774172634,
+     "pts_per_rayleigh": 4.989419893166053
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194248.05+333430.0",
+   "field": 686,
+   "ra": 295.70023,
+   "dec": 33.575,
+   "type": "RRab",
+   "oids": {
+    "g": "686112400042800",
+    "r": "686212400041794"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194248.05+333430.0.npz",
+   "dual_truth": false,
+   "chen_period": 0.4825131,
+   "gaia_period": 0.4825582856043041,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2046948226097870592",
+   "gaia_xmatch_sep_arcsec": 0.09,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 806,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.6612041913904
+    },
+    "r": {
+     "n_epochs": 1014,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2750.628409440629
+    }
+   },
+   "joint": {
+    "n_epochs": 1820,
+    "T_days": 2762.6612041913904
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6612041913904,
+     "pts_per_rayleigh": 5.000251199474621
+    },
+    "r": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.628409440629,
+     "pts_per_rayleigh": 5.000311911559522
+    },
+    "joint": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.628409440629,
+     "pts_per_rayleigh": 4.9785330098142415
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194304.41+344437.1",
+   "field": 686,
+   "ra": 295.76838,
+   "dec": 34.74365,
+   "type": "RRc",
+   "oids": {
+    "g": "686112100057039",
+    "r": "686212100024778"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194304.41+344437.1.npz",
+   "dual_truth": false,
+   "chen_period": 0.3174614,
+   "gaia_period": 0.31746304113177687,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2047346077497377664",
+   "gaia_xmatch_sep_arcsec": 0.097,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 806,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.6612117853947
+    },
+    "r": {
+     "n_epochs": 1031,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.624294444453
+    }
+   },
+   "joint": {
+    "n_epochs": 1837,
+    "T_days": 2768.6585748959333
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6612117853947,
+     "pts_per_rayleigh": 5.000251185729928
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.624294444453,
+     "pts_per_rayleigh": 5.000317315635602
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.6612117853947,
+     "pts_per_rayleigh": 4.98941983141393
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194702.33+311521.0",
+   "field": 686,
+   "ra": 296.75972,
+   "dec": 31.25585,
+   "type": "RRab",
+   "oids": {
+    "g": "686103200005849",
+    "r": "686203200166615"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194702.33+311521.0.npz",
+   "dual_truth": false,
+   "chen_period": 0.6590951,
+   "gaia_period": null,
+   "gaia_period_source": null,
+   "gaia_source_id": null,
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 768,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2743.768103844952
+    },
+    "r": {
+     "n_epochs": 1025,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2733.6869716616347
+    }
+   },
+   "joint": {
+    "n_epochs": 1793,
+    "T_days": 2749.765492595732
+   },
+   "grid": {
+    "g": {
+     "df": 7.289161017566878e-05,
+     "i_min": 13719,
+     "n_freq": 54877,
+     "T_days": 2743.768103844952,
+     "pts_per_rayleigh": 5.000058124728185
+    },
+    "r": {
+     "df": 7.315824127587973e-05,
+     "i_min": 13669,
+     "n_freq": 54676,
+     "T_days": 2733.6869716616347,
+     "pts_per_rayleigh": 5.000206732408532
+    },
+    "joint": {
+     "df": 7.315824127587973e-05,
+     "i_min": 13669,
+     "n_freq": 54676,
+     "T_days": 2733.6869716616347,
+     "pts_per_rayleigh": 4.970969356043774
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194708.10+363849.5",
+   "field": 686,
+   "ra": 296.78376,
+   "dec": 36.6471,
+   "type": "RRc",
+   "oids": {
+    "g": "686115200022180",
+    "r": "686215200027032"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194708.10+363849.5.npz",
+   "dual_truth": false,
+   "chen_period": 0.222421,
+   "gaia_period": 0.22241637890861812,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2047980873666846848",
+   "gaia_xmatch_sep_arcsec": 0.051,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 789,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.661361352075
+    },
+    "r": {
+     "n_epochs": 1043,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.624424629379
+    }
+   },
+   "joint": {
+    "n_epochs": 1832,
+    "T_days": 2768.6587051739916
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661361352075,
+     "pts_per_rayleigh": 5.0002509150232175
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.624424629379,
+     "pts_per_rayleigh": 5.000317080513086
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661361352075,
+     "pts_per_rayleigh": 4.989419596638902
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f686_ZTFJ194813.09+322759.9",
+   "field": 686,
+   "ra": 297.05456,
+   "dec": 32.46665,
+   "type": "RRc",
+   "oids": {
+    "g": "686107200048006",
+    "r": "686207200048989"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194813.09+322759.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.384763,
+   "gaia_period": null,
+   "gaia_period_source": null,
+   "gaia_source_id": null,
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 789,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2742.7679368243553
+    },
+    "r": {
+     "n_epochs": 975,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2731.66382905934
+    }
+   },
+   "joint": {
+    "n_epochs": 1764,
+    "T_days": 2742.7679368243553
+   },
+   "grid": {
+    "g": {
+     "df": 7.291818579553741e-05,
+     "i_min": 13714,
+     "n_freq": 54857,
+     "T_days": 2742.7679368243553,
+     "pts_per_rayleigh": 5.000058450398253
+    },
+    "r": {
+     "df": 7.321180174244088e-05,
+     "i_min": 13659,
+     "n_freq": 54637,
+     "T_days": 2731.66382905934,
+     "pts_per_rayleigh": 5.000249245421804
+    },
+    "joint": {
+     "df": 7.321180174244088e-05,
+     "i_min": 13659,
+     "n_freq": 54637,
+     "T_days": 2731.66382905934,
+     "pts_per_rayleigh": 4.9800057148891455
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f686_ZTFJ195144.35+305335.1",
+   "field": 686,
+   "ra": 297.9348,
+   "dec": 30.8931,
+   "type": "RRab",
+   "oids": {
+    "g": "686103100067151",
+    "r": "686203100025402"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ195144.35+305335.1.npz",
+   "dual_truth": true,
+   "chen_period": 0.5530223,
+   "gaia_period": 0.5530320351857785,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2033498450132993280",
+   "gaia_xmatch_sep_arcsec": 0.101,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.5530223,
+   "also_manifest_id": "gaia_f686_2033498450132993280",
+   "bands": {
+    "g": {
+     "n_epochs": 758,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2743.768303477671
+    },
+    "r": {
+     "n_epochs": 997,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2729.6636342662387
+    }
+   },
+   "joint": {
+    "n_epochs": 1755,
+    "T_days": 2743.768303477671
+   },
+   "grid": {
+    "g": {
+     "df": 7.289161017566878e-05,
+     "i_min": 13719,
+     "n_freq": 54877,
+     "T_days": 2743.768303477671,
+     "pts_per_rayleigh": 5.000057760930995
+    },
+    "r": {
+     "df": 7.326544069162575e-05,
+     "i_min": 13649,
+     "n_freq": 54597,
+     "T_days": 2729.6636342662387,
+     "pts_per_rayleigh": 5.000249784867354
+    },
+    "joint": {
+     "df": 7.326544069162575e-05,
+     "i_min": 13649,
+     "n_freq": 54597,
+     "T_days": 2729.6636342662387,
+     "pts_per_rayleigh": 4.974545402649403
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f686_ZTFJ195904.82+363610.3",
+   "field": 686,
+   "ra": 299.77009,
+   "dec": 36.60287,
+   "type": "RRc",
+   "oids": {
+    "g": "686114100117279",
+    "r": "686214100071939"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ195904.82+363610.3.npz",
+   "dual_truth": false,
+   "chen_period": 0.2862044,
+   "gaia_period": 0.2862040222175967,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2059760349738485888",
+   "gaia_xmatch_sep_arcsec": 0.065,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 781,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.661820922978
+    },
+    "r": {
+     "n_epochs": 1005,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.6248747482896
+    }
+   },
+   "joint": {
+    "n_epochs": 1786,
+    "T_days": 2768.6591552910395
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661820922978,
+     "pts_per_rayleigh": 5.000250083227661
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.6248747482896,
+     "pts_per_rayleigh": 5.000316267568979
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661820922978,
+     "pts_per_rayleigh": 4.9894187854798915
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f686_ZTFJ195948.02+304951.8",
+   "field": 686,
+   "ra": 299.95011,
+   "dec": 30.83107,
+   "type": "RRc",
+   "oids": {
+    "g": "686102100026355",
+    "r": "686202100027377"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ195948.02+304951.8.npz",
+   "dual_truth": false,
+   "chen_period": 0.2172908,
+   "gaia_period": 0.21729425306966108,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2030483898489953280",
+   "gaia_xmatch_sep_arcsec": 0.07,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 795,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.661908074282
+    },
+    "r": {
+     "n_epochs": 1034,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2750.629085883964
+    }
+   },
+   "joint": {
+    "n_epochs": 1829,
+    "T_days": 2762.661908074282
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661908074282,
+     "pts_per_rayleigh": 5.000249925489099
+    },
+    "r": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.629085883964,
+     "pts_per_rayleigh": 5.000310681867129
+    },
+    "joint": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.629085883964,
+     "pts_per_rayleigh": 4.978531741362173
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f686_ZTFJ200017.37+343215.1",
+   "field": 686,
+   "ra": 300.0724,
+   "dec": 34.53753,
+   "type": "RRab",
+   "oids": {
+    "g": "686110100016089",
+    "r": "686210100030740"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ200017.37+343215.1.npz",
+   "dual_truth": false,
+   "chen_period": 0.4961557,
+   "gaia_period": 0.4961425492517094,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2058551509744089216",
+   "gaia_xmatch_sep_arcsec": 0.132,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 805,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2761.661718502175
+    },
+    "r": {
+     "n_epochs": 1064,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.6249626320787
+    }
+   },
+   "joint": {
+    "n_epochs": 1869,
+    "T_days": 2768.6592430728488
+   },
+   "grid": {
+    "g": {
+     "df": 7.241653993772178e-05,
+     "i_min": 13809,
+     "n_freq": 55237,
+     "T_days": 2761.661718502175,
+     "pts_per_rayleigh": 5.000250359225568
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.6249626320787,
+     "pts_per_rayleigh": 5.000316108845156
+    },
+    "joint": {
+     "df": 7.241653993772178e-05,
+     "i_min": 13809,
+     "n_freq": 55237,
+     "T_days": 2761.661718502175,
+     "pts_per_rayleigh": 4.987612699016662
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f686_ZTFJ200034.85+303459.6",
+   "field": 686,
+   "ra": 300.14522,
+   "dec": 30.58323,
+   "type": "RRab",
+   "oids": {
+    "g": "686102100095654",
+    "r": "686202100136672"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ200034.85+303459.6.npz",
+   "dual_truth": false,
+   "chen_period": 0.5760541,
+   "gaia_period": 0.5760658983653423,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2030276743616308480",
+   "gaia_xmatch_sep_arcsec": 0.138,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 794,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.66194184497
+    },
+    "r": {
+     "n_epochs": 1032,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2750.6291166055016
+    }
+   },
+   "joint": {
+    "n_epochs": 1826,
+    "T_days": 2762.66194184497
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.66194184497,
+     "pts_per_rayleigh": 5.00024986436621
+    },
+    "r": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.6291166055016,
+     "pts_per_rayleigh": 5.000310626019092
+    },
+    "joint": {
+     "df": 7.270612185546023e-05,
+     "i_min": 13754,
+     "n_freq": 55017,
+     "T_days": 2750.6291166055016,
+     "pts_per_rayleigh": 4.978531680504767
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f686_ZTFJ200132.73+340521.1",
+   "field": 686,
+   "ra": 300.38639,
+   "dec": 34.08921,
+   "type": "RRc",
+   "oids": {
+    "g": "686110400011034",
+    "r": "686210400012377"
+   },
+   "lc_file": "lc/chen_f686_ZTFJ200132.73+340521.1.npz",
+   "dual_truth": false,
+   "chen_period": 0.3234694,
+   "gaia_period": 0.32345645633071,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2058479560448773376",
+   "gaia_xmatch_sep_arcsec": 0.112,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 806,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2761.661772422958
+    },
+    "r": {
+     "n_epochs": 955,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.6250195764005
+    }
+   },
+   "joint": {
+    "n_epochs": 1761,
+    "T_days": 2768.659299994819
+   },
+   "grid": {
+    "g": {
+     "df": 7.241653993772178e-05,
+     "i_min": 13809,
+     "n_freq": 55237,
+     "T_days": 2761.661772422958,
+     "pts_per_rayleigh": 5.0002502615968805
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.6250195764005,
+     "pts_per_rayleigh": 5.000316006000022
+    },
+    "joint": {
+     "df": 7.241653993772178e-05,
+     "i_min": 13809,
+     "n_freq": 55237,
+     "T_days": 2761.661772422958,
+     "pts_per_rayleigh": 4.987612596474345
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "gaia_f686_2033031810522004096",
+   "field": 686,
+   "ra": 295.69772234768436,
+   "dec": 31.342448781102913,
+   "type": "RRab",
+   "oids": {
+    "g": "1683109100053407",
+    "r": "1683209100057622"
+   },
+   "lc_file": "lc/gaia_f686_2033031810522004096.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.48479715708740306,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2033031810522004096",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 55,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1912.85824212851
+    },
+    "r": {
+     "n_epochs": 58,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2139.098475425504
+    }
+   },
+   "joint": {
+    "n_epochs": 113,
+    "T_days": 2139.098475425504
+   },
+   "grid": {
+    "g": {
+     "df": 0.00010454783063251438,
+     "i_min": 9565,
+     "n_freq": 38261,
+     "T_days": 1912.85824212851,
+     "pts_per_rayleigh": 5.000370539406339
+    },
+    "r": {
+     "df": 9.349289454001496e-05,
+     "i_min": 10696,
+     "n_freq": 42785,
+     "T_days": 2139.098475425504,
+     "pts_per_rayleigh": 5.000237306920795
+    },
+    "joint": {
+     "df": 0.00010454783063251438,
+     "i_min": 9565,
+     "n_freq": 38261,
+     "T_days": 1912.85824212851,
+     "pts_per_rayleigh": 4.47150989535316
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2033046275972983040",
+   "field": 686,
+   "ra": 295.4072408715035,
+   "dec": 31.39017791584685,
+   "type": "RRab",
+   "oids": {
+    "g": "1683109100006131",
+    "r": "1683209100006240"
+   },
+   "lc_file": "lc/gaia_f686_2033046275972983040.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.6317552710999964,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2033046275972983040",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 55,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1912.8582100458443
+    },
+    "r": {
+     "n_epochs": 58,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2139.0984859270975
+    }
+   },
+   "joint": {
+    "n_epochs": 113,
+    "T_days": 2139.0984859270975
+   },
+   "grid": {
+    "g": {
+     "df": 0.00010454783063251438,
+     "i_min": 9565,
+     "n_freq": 38261,
+     "T_days": 1912.8582100458443,
+     "pts_per_rayleigh": 5.000370623273097
+    },
+    "r": {
+     "df": 9.349289454001496e-05,
+     "i_min": 10696,
+     "n_freq": 42785,
+     "T_days": 2139.0984859270975,
+     "pts_per_rayleigh": 5.000237282372856
+    },
+    "joint": {
+     "df": 0.00010454783063251438,
+     "i_min": 9565,
+     "n_freq": 38261,
+     "T_days": 1912.8582100458443,
+     "pts_per_rayleigh": 4.471509873400931
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2034389191980002688",
+   "field": 686,
+   "ra": 299.621643454174,
+   "dec": 33.288445044722764,
+   "type": "RRab",
+   "oids": {
+    "g": "1684114200007432",
+    "r": "1727201300042591"
+   },
+   "lc_file": "lc/gaia_f686_2034389191980002688.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.5769163139077633,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2034389191980002688",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 51,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1798.9329456901178
+    },
+    "r": {
+     "n_epochs": 60,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1973.787767388858
+    }
+   },
+   "joint": {
+    "n_epochs": 111,
+    "T_days": 1973.787767388858
+   },
+   "grid": {
+    "g": {
+     "df": 0.00011117287381878821,
+     "i_min": 8995,
+     "n_freq": 35981,
+     "T_days": 1798.9329456901178,
+     "pts_per_rayleigh": 5.0001863724549676
+    },
+    "r": {
+     "df": 0.0001013273887931908,
+     "i_min": 9869,
+     "n_freq": 39477,
+     "T_days": 1973.787767388858,
+     "pts_per_rayleigh": 5.000030987655674
+    },
+    "joint": {
+     "df": 0.00011117287381878821,
+     "i_min": 8995,
+     "n_freq": 35981,
+     "T_days": 1798.9329456901178,
+     "pts_per_rayleigh": 4.557227554358374
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2035406446387785088",
+   "field": 686,
+   "ra": 297.5512843328623,
+   "dec": 34.32402795159,
+   "type": "RRab",
+   "oids": {
+    "g": "1727102200037513",
+    "r": "1727202200037678"
+   },
+   "lc_file": "lc/gaia_f686_2035406446387785088.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.334337151558744,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2035406446387785088",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_orig",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 56,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1972.7165760938078
+    },
+    "r": {
+     "n_epochs": 60,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1973.7875647810288
+    }
+   },
+   "joint": {
+    "n_epochs": 116,
+    "T_days": 2001.7110225679353
+   },
+   "grid": {
+    "g": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.7165760938078,
+     "pts_per_rayleigh": 5.000211444226716
+    },
+    "r": {
+     "df": 0.0001013273887931908,
+     "i_min": 9869,
+     "n_freq": 39477,
+     "T_days": 1973.7875647810288,
+     "pts_per_rayleigh": 5.000031500905146
+    },
+    "joint": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.7165760938078,
+     "pts_per_rayleigh": 4.927784224990563
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2047160053888845184",
+   "field": 686,
+   "ra": 295.9869015919756,
+   "dec": 34.691145278083425,
+   "type": "RRc",
+   "oids": {
+    "g": "1727103100014891",
+    "r": "1727203100015135"
+   },
+   "lc_file": "lc/gaia_f686_2047160053888845184.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.3121674118368833,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2047160053888845184",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRc",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 56,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1972.7163404021412
+    },
+    "r": {
+     "n_epochs": 61,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1973.787381588947
+    }
+   },
+   "joint": {
+    "n_epochs": 117,
+    "T_days": 2001.7107964977622
+   },
+   "grid": {
+    "g": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.7163404021412,
+     "pts_per_rayleigh": 5.00021204163048
+    },
+    "r": {
+     "df": 0.0001013273887931908,
+     "i_min": 9869,
+     "n_freq": 39477,
+     "T_days": 1973.787381588947,
+     "pts_per_rayleigh": 5.000031964970418
+    },
+    "joint": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.7163404021412,
+     "pts_per_rayleigh": 4.927784781527019
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2047410467649416064",
+   "field": 686,
+   "ra": 294.92215297844814,
+   "dec": 35.17597131331111,
+   "type": "RRab",
+   "oids": {
+    "g": "1727107300045413",
+    "r": "1727207300047472"
+   },
+   "lc_file": "lc/gaia_f686_2047410467649416064.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.5955795079949058,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2047410467649416064",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_orig",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 45,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1891.8376859636046
+    },
+    "r": {
+     "n_epochs": 64,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1973.787281352561
+    }
+   },
+   "joint": {
+    "n_epochs": 109,
+    "T_days": 1973.787281352561
+   },
+   "grid": {
+    "g": {
+     "df": 0.00010570824524312896,
+     "i_min": 9460,
+     "n_freq": 37841,
+     "T_days": 1891.8376859636046,
+     "pts_per_rayleigh": 5.000428985101628
+    },
+    "r": {
+     "df": 0.0001013273887931908,
+     "i_min": 9869,
+     "n_freq": 39477,
+     "T_days": 1973.787281352561,
+     "pts_per_rayleigh": 5.00003221889096
+    },
+    "joint": {
+     "df": 0.00010570824524312896,
+     "i_min": 9460,
+     "n_freq": 37841,
+     "T_days": 1891.8376859636046,
+     "pts_per_rayleigh": 4.792816373564543
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2047488567341843840",
+   "field": 686,
+   "ra": 296.97865126585094,
+   "dec": 34.694715857920144,
+   "type": "RRc",
+   "oids": {
+    "g": "686111200029254",
+    "r": "686211200028847"
+   },
+   "lc_file": "lc/gaia_f686_2047488567341843840.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.21660998791509897,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "2047488567341843840",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_orig",
+   "gaia_type": "RRc",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 801,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2762.661403999664
+    },
+    "r": {
+     "n_epochs": 814,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2768.624483282678
+    }
+   },
+   "joint": {
+    "n_epochs": 1615,
+    "T_days": 2768.658763729967
+   },
+   "grid": {
+    "g": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661403999664,
+     "pts_per_rayleigh": 5.000250837833648
+    },
+    "r": {
+     "df": 7.22334585379948e-05,
+     "i_min": 13844,
+     "n_freq": 55377,
+     "T_days": 2768.624483282678,
+     "pts_per_rayleigh": 5.000316974581388
+    },
+    "joint": {
+     "df": 7.239032865209208e-05,
+     "i_min": 13814,
+     "n_freq": 55257,
+     "T_days": 2762.661403999664,
+     "pts_per_rayleigh": 4.989419491114763
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2047862641808092032",
+   "field": 686,
+   "ra": 296.04087362976037,
+   "dec": 36.1154684976544,
+   "type": "RRab",
+   "oids": {
+    "g": "1727107100042031",
+    "r": "1727207100046663"
+   },
+   "lc_file": "lc/gaia_f686_2047862641808092032.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.4366360350487394,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2047862641808092032",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 57,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1972.7163749188185
+    },
+    "r": {
+     "n_epochs": 63,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1973.7875190596096
+    }
+   },
+   "joint": {
+    "n_epochs": 120,
+    "T_days": 2001.710890864022
+   },
+   "grid": {
+    "g": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.7163749188185,
+     "pts_per_rayleigh": 5.000211954141621
+    },
+    "r": {
+     "df": 0.0001013273887931908,
+     "i_min": 9869,
+     "n_freq": 39477,
+     "T_days": 1973.7875190596096,
+     "pts_per_rayleigh": 5.000031616727409
+    },
+    "joint": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.7163749188185,
+     "pts_per_rayleigh": 4.927784549217438
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f686_2071709708991604736",
+   "field": 686,
+   "ra": 298.2597914647057,
+   "dec": 36.29498685280595,
+   "type": "RRab",
+   "oids": {
+    "g": "1727106100031464",
+    "r": "1727206100032494"
+   },
+   "lc_file": "lc/gaia_f686_2071709708991604736.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.5457993852760762,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "2071709708991604736",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 56,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1972.716713824775
+    },
+    "r": {
+     "n_epochs": 58,
+     "n_dropped_nonfinite": 0,
+     "T_days": 1973.787836171221
+    }
+   },
+   "joint": {
+    "n_epochs": 114,
+    "T_days": 2001.711245664861
+   },
+   "grid": {
+    "g": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.716713824775,
+     "pts_per_rayleigh": 5.0002110951223795
+    },
+    "r": {
+     "df": 0.0001013273887931908,
+     "i_min": 9869,
+     "n_freq": 39477,
+     "T_days": 1973.787836171221,
+     "pts_per_rayleigh": 5.00003081341509
+    },
+    "joint": {
+     "df": 0.00010137875101378751,
+     "i_min": 9864,
+     "n_freq": 39457,
+     "T_days": 1972.716713824775,
+     "pts_per_rayleigh": 4.92778367577373
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f786_ZTFJ092726.30+561921.4",
+   "field": 786,
+   "ra": 141.85962,
+   "dec": 56.32263,
+   "type": "RRab",
+   "oids": {
+    "g": "786112200001543",
+    "r": "786212200002517"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092726.30+561921.4.npz",
+   "dual_truth": false,
+   "chen_period": 0.4958493,
+   "gaia_period": 0.4958604297916843,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1024983504126028800",
+   "gaia_xmatch_sep_arcsec": 0.11,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 801,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.1567915193737
+    },
+    "r": {
+     "n_epochs": 1119,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.259704554919
+    }
+   },
+   "joint": {
+    "n_epochs": 1920,
+    "T_days": 2766.1917132399976
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.1567915193737,
+     "pts_per_rayleigh": 5.000078102009183
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259704554919,
+     "pts_per_rayleigh": 5.0002549658341024
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259704554919,
+     "pts_per_rayleigh": 4.973263398250383
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f786_ZTFJ092825.79+535045.1",
+   "field": 786,
+   "ra": 142.10747,
+   "dec": 53.84587,
+   "type": "RRc",
+   "oids": {
+    "g": "786108300000057",
+    "r": "786208300000207"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092825.79+535045.1.npz",
+   "dual_truth": false,
+   "chen_period": 0.3965502,
+   "gaia_period": 0.3965259664089503,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "1020048926004348672",
+   "gaia_xmatch_sep_arcsec": 0.117,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 684,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.905306339264
+    },
+    "r": {
+     "n_epochs": 963,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.0459527452476
+    }
+   },
+   "joint": {
+    "n_epochs": 1647,
+    "T_days": 2619.9779411004856
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.905306339264,
+     "pts_per_rayleigh": 5.000180857688983
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0459527452476,
+     "pts_per_rayleigh": 5.000295670897072
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0459527452476,
+     "pts_per_rayleigh": 4.971797584879134
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f786_ZTFJ092904.98+521752.3",
+   "field": 786,
+   "ra": 142.27076,
+   "dec": 52.29788,
+   "type": "RRc",
+   "oids": {
+    "g": "786104200002384",
+    "r": "786204200004433"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092904.98+521752.3.npz",
+   "dual_truth": false,
+   "chen_period": 0.3303055,
+   "gaia_period": 0.33020753874887093,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "1019617887382649216",
+   "gaia_xmatch_sep_arcsec": 0.089,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 781,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.90522751119
+    },
+    "r": {
+     "n_epochs": 1151,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.0458816713654
+    }
+   },
+   "joint": {
+    "n_epochs": 1932,
+    "T_days": 2619.977858558297
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.90522751119,
+     "pts_per_rayleigh": 5.000181008250059
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0458816713654,
+     "pts_per_rayleigh": 5.000295807320937
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0458816713654,
+     "pts_per_rayleigh": 4.971797741515211
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f786_ZTFJ092917.04+543107.4",
+   "field": 786,
+   "ra": 142.32104,
+   "dec": 54.51875,
+   "type": "RRc",
+   "oids": {
+    "g": "786108200001047",
+    "r": "786208200001978"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092917.04+543107.4.npz",
+   "dual_truth": false,
+   "chen_period": 0.365325,
+   "gaia_period": 0.3653221707921257,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "1024574691958695552",
+   "gaia_xmatch_sep_arcsec": 0.124,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 794,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.90534618916
+    },
+    "r": {
+     "n_epochs": 1128,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.0459862891585
+    }
+   },
+   "joint": {
+    "n_epochs": 1922,
+    "T_days": 2619.977982456796
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.90534618916,
+     "pts_per_rayleigh": 5.000180781575962
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0459862891585,
+     "pts_per_rayleigh": 5.000295606510695
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0459862891585,
+     "pts_per_rayleigh": 4.971797506399389
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f786_ZTFJ093554.74+521319.0",
+   "field": 786,
+   "ra": 143.97812,
+   "dec": 52.22196,
+   "type": "RRc",
+   "oids": {
+    "g": "786104100002842",
+    "r": "786204100004999"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ093554.74+521319.0.npz",
+   "dual_truth": false,
+   "chen_period": 0.2600097,
+   "gaia_period": 0.26001034003433915,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "1018906945739962240",
+   "gaia_xmatch_sep_arcsec": 0.018,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 780,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.9052534634247
+    },
+    "r": {
+     "n_epochs": 1147,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.0458907778375
+    }
+   },
+   "joint": {
+    "n_epochs": 1927,
+    "T_days": 2619.977883512154
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.9052534634247,
+     "pts_per_rayleigh": 5.000180958681469
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0458907778375,
+     "pts_per_rayleigh": 5.000295789841377
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0458907778375,
+     "pts_per_rayleigh": 4.971797694161555
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f786_ZTFJ093728.14+563556.5",
+   "field": 786,
+   "ra": 144.36725,
+   "dec": 56.59905,
+   "type": "RRab",
+   "oids": {
+    "g": "786111200000693",
+    "r": "786211200001165"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ093728.14+563556.5.npz",
+   "dual_truth": false,
+   "chen_period": 0.5285593,
+   "gaia_period": 0.5285410336052525,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1025222441746548864",
+   "gaia_xmatch_sep_arcsec": 0.014,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 175,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2206.007355922833
+    },
+    "r": {
+     "n_epochs": 390,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2283.962422700133
+    }
+   },
+   "joint": {
+    "n_epochs": 565,
+    "T_days": 2298.894455750473
+   },
+   "grid": {
+    "g": {
+     "df": 9.065361254645998e-05,
+     "i_min": 11031,
+     "n_freq": 44125,
+     "T_days": 2206.007355922833,
+     "pts_per_rayleigh": 5.000436635164996
+    },
+    "r": {
+     "df": 8.756567425569177e-05,
+     "i_min": 11420,
+     "n_freq": 45681,
+     "T_days": 2283.962422700133,
+     "pts_per_rayleigh": 5.00008226339342
+    },
+    "joint": {
+     "df": 9.065361254645998e-05,
+     "i_min": 11031,
+     "n_freq": 44125,
+     "T_days": 2206.007355922833,
+     "pts_per_rayleigh": 4.798393407060062
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f786_ZTFJ094009.43+572734.0",
+   "field": 786,
+   "ra": 145.0393,
+   "dec": 57.45945,
+   "type": "RRc",
+   "oids": {
+    "g": "786115300001624",
+    "r": "786215300002528"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094009.43+572734.0.npz",
+   "dual_truth": true,
+   "chen_period": 0.2859976,
+   "gaia_period": 0.285996284991387,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "1025464471743348480",
+   "gaia_xmatch_sep_arcsec": 0.006,
+   "role": "science",
+   "gaia_type": "RRc",
+   "chen_per_from_control_entry": 0.2859976,
+   "also_manifest_id": "gaia_f786_1025464471743348480",
+   "bands": {
+    "g": {
+     "n_epochs": 803,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.1566580077633
+    },
+    "r": {
+     "n_epochs": 1114,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.259532848373
+    }
+   },
+   "joint": {
+    "n_epochs": 1917,
+    "T_days": 2766.191579652019
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.1566580077633,
+     "pts_per_rayleigh": 5.000078343343483
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259532848373,
+     "pts_per_rayleigh": 5.000255277900812
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259532848373,
+     "pts_per_rayleigh": 4.973263638424712
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f786_ZTFJ094015.37+523328.6",
+   "field": 786,
+   "ra": 145.06406,
+   "dec": 52.55797,
+   "type": "RRab",
+   "oids": {
+    "g": "786103200001471",
+    "r": "786203200002808"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094015.37+523328.6.npz",
+   "dual_truth": false,
+   "chen_period": 0.5592252,
+   "gaia_period": 0.5592269286257653,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1020363940381749120",
+   "gaia_xmatch_sep_arcsec": 0.062,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 747,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.9052908867598
+    },
+    "r": {
+     "n_epochs": 1158,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.045915233437
+    }
+   },
+   "joint": {
+    "n_epochs": 1905,
+    "T_days": 2619.9779212526046
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.9052908867598,
+     "pts_per_rayleigh": 5.000180887203158
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.045915233437,
+     "pts_per_rayleigh": 5.000295742899698
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.045915233437,
+     "pts_per_rayleigh": 4.971797622543439
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f786_ZTFJ094215.74+522324.9",
+   "field": 786,
+   "ra": 145.5656,
+   "dec": 52.39026,
+   "type": "RRab",
+   "oids": {
+    "g": "786103200002260",
+    "r": "786203200004240"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094215.74+522324.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.6315477,
+   "gaia_period": 0.6315007159673308,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1020191145257220352",
+   "gaia_xmatch_sep_arcsec": 0.006,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 747,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.9052921873517
+    },
+    "r": {
+     "n_epochs": 1157,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.045912184287
+    }
+   },
+   "joint": {
+    "n_epochs": 1904,
+    "T_days": 2619.9779219594784
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.9052921873517,
+     "pts_per_rayleigh": 5.000180884719037
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.045912184287,
+     "pts_per_rayleigh": 5.000295748752435
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.045912184287,
+     "pts_per_rayleigh": 4.9717976212020405
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f786_ZTFJ094400.22+553444.9",
+   "field": 786,
+   "ra": 146.00094,
+   "dec": 55.57914,
+   "type": "RRc",
+   "oids": {
+    "g": "786111400001545",
+    "r": "786211400002993"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094400.22+553444.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.3179592,
+   "gaia_period": 0.31795234790387766,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "1022051720794001024",
+   "gaia_xmatch_sep_arcsec": 0.017,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 340,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.9054676657543
+    },
+    "r": {
+     "n_epochs": 598,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2603.071349991951
+    }
+   },
+   "joint": {
+    "n_epochs": 938,
+    "T_days": 2618.003389108926
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.9054676657543,
+     "pts_per_rayleigh": 5.000180549556531
+    },
+    "r": {
+     "df": 7.682851874615857e-05,
+     "i_min": 13016,
+     "n_freq": 52065,
+     "T_days": 2603.071349991951,
+     "pts_per_rayleigh": 5.000247111951137
+    },
+    "joint": {
+     "df": 7.682851874615857e-05,
+     "i_min": 13016,
+     "n_freq": 52065,
+     "T_days": 2603.071349991951,
+     "pts_per_rayleigh": 4.9717277120982555
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f786_ZTFJ094954.90+514422.2",
+   "field": 786,
+   "ra": 147.47877,
+   "dec": 51.73952,
+   "type": "RRab",
+   "oids": {
+    "g": "786103400001690",
+    "r": "786203400002274"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094954.90+514422.2.npz",
+   "dual_truth": true,
+   "chen_period": 0.572051,
+   "gaia_period": 0.5720895761044757,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "827975312763354752",
+   "gaia_xmatch_sep_arcsec": 0.115,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.572051,
+   "also_manifest_id": "gaia_f786_827975312763354752",
+   "bands": {
+    "g": {
+     "n_epochs": 749,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.905299884267
+    },
+    "r": {
+     "n_epochs": 1116,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.0459025609307
+    }
+   },
+   "joint": {
+    "n_epochs": 1865,
+    "T_days": 2619.9779274435714
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.905299884267,
+     "pts_per_rayleigh": 5.000180870017982
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0459025609307,
+     "pts_per_rayleigh": 5.000295767224135
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.0459025609307,
+     "pts_per_rayleigh": 4.971797610795159
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f786_ZTFJ095443.72+570927.4",
+   "field": 786,
+   "ra": 148.68217,
+   "dec": 57.15762,
+   "type": "RRab",
+   "oids": {
+    "g": "786114300003525",
+    "r": "786214300005717"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ095443.72+570927.4.npz",
+   "dual_truth": true,
+   "chen_period": 0.6979211,
+   "gaia_period": 0.6978420694543642,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1046279635606572800",
+   "gaia_xmatch_sep_arcsec": 0.005,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.6979211,
+   "also_manifest_id": "gaia_f786_1046279635606572800",
+   "bands": {
+    "g": {
+     "n_epochs": 762,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.156336781103
+    },
+    "r": {
+     "n_epochs": 1066,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.259181010537
+    }
+   },
+   "joint": {
+    "n_epochs": 1828,
+    "T_days": 2766.19125838764
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.156336781103,
+     "pts_per_rayleigh": 5.000078923989791
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259181010537,
+     "pts_per_rayleigh": 5.000255917345838
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259181010537,
+     "pts_per_rayleigh": 4.97326421601762
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f786_ZTFJ095742.96+540607.3",
+   "field": 786,
+   "ra": 149.42902,
+   "dec": 54.10204,
+   "type": "RRab",
+   "oids": {
+    "g": "786106100003760",
+    "r": "786206100005802"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ095742.96+540607.3.npz",
+   "dual_truth": false,
+   "chen_period": 0.5312701,
+   "gaia_period": 0.5312593008851705,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1020806150214291200",
+   "gaia_xmatch_sep_arcsec": 0.007,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 572,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.155894445721
+    },
+    "r": {
+     "n_epochs": 1110,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.258754569106
+    }
+   },
+   "joint": {
+    "n_epochs": 1682,
+    "T_days": 2766.190816129092
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.155894445721,
+     "pts_per_rayleigh": 5.000079723551314
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258754569106,
+     "pts_per_rayleigh": 5.000256692378824
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258754569106,
+     "pts_per_rayleigh": 4.973265011143031
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f786_ZTFJ095811.75+580604.2",
+   "field": 786,
+   "ra": 149.54899,
+   "dec": 58.10118,
+   "type": "RRab",
+   "oids": {
+    "g": "786114100002620",
+    "r": "786214100003805"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ095811.75+580604.2.npz",
+   "dual_truth": false,
+   "chen_period": 0.6122179,
+   "gaia_period": 0.6122106481173273,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1046417830474160768",
+   "gaia_xmatch_sep_arcsec": 0.015,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 764,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.1563927070238
+    },
+    "r": {
+     "n_epochs": 1106,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.2592210480943
+    }
+   },
+   "joint": {
+    "n_epochs": 1870,
+    "T_days": 2766.1913142683916
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.1563927070238,
+     "pts_per_rayleigh": 5.00007882289861
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.2592210480943,
+     "pts_per_rayleigh": 5.000255844579872
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.2592210480943,
+     "pts_per_rayleigh": 4.973264115551054
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f786_ZTFJ100104.86+575118.7",
+   "field": 786,
+   "ra": 150.27029,
+   "dec": 57.85522,
+   "type": "RRc",
+   "oids": {
+    "g": "786114100003888",
+    "r": "786214100005642"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100104.86+575118.7.npz",
+   "dual_truth": false,
+   "chen_period": 0.360847,
+   "gaia_period": 0.36084959985669535,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "1046231974354041728",
+   "gaia_xmatch_sep_arcsec": 0.114,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 764,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.156308325939
+    },
+    "r": {
+     "n_epochs": 1103,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.259131865576
+    }
+   },
+   "joint": {
+    "n_epochs": 1867,
+    "T_days": 2766.1912298845127
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.156308325939,
+     "pts_per_rayleigh": 5.000078975425087
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259131865576,
+     "pts_per_rayleigh": 5.0002560066639905
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.259131865576,
+     "pts_per_rayleigh": 4.973264267262661
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRc"
+  },
+  {
+   "uid": "chen_f786_ZTFJ100616.80+531608.6",
+   "field": 786,
+   "ra": 151.57001,
+   "dec": 53.26907,
+   "type": "RRab",
+   "oids": {
+    "g": "786105300003510",
+    "r": "786205300005537"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100616.80+531608.6.npz",
+   "dual_truth": true,
+   "chen_period": 0.6997384,
+   "gaia_period": 0.6997526801045284,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "852322825233930112",
+   "gaia_xmatch_sep_arcsec": 0.049,
+   "role": "science",
+   "gaia_type": "RRab",
+   "chen_per_from_control_entry": 0.6997384,
+   "also_manifest_id": "gaia_f786_852322825233930112",
+   "bands": {
+    "g": {
+     "n_epochs": 788,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.155617160257
+    },
+    "r": {
+     "n_epochs": 1063,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.258460105397
+    }
+   },
+   "joint": {
+    "n_epochs": 1851,
+    "T_days": 2766.190538830124
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.155617160257,
+     "pts_per_rayleigh": 5.000080224770197
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258460105397,
+     "pts_per_rayleigh": 5.000257227549966
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258460105397,
+     "pts_per_rayleigh": 4.973265509691934
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "chen_f786_ZTFJ100744.26+570027.9",
+   "field": 786,
+   "ra": 151.93442,
+   "dec": 57.00775,
+   "type": "RRab",
+   "oids": {
+    "g": "786113300003845",
+    "r": "786213300006226"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100744.26+570027.9.npz",
+   "dual_truth": false,
+   "chen_period": 0.5628897,
+   "gaia_period": 0.5628989211335106,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1045699299625577472",
+   "gaia_xmatch_sep_arcsec": 0.023,
+   "role": "science",
+   "bands": {
+    "g": {
+     "n_epochs": 739,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.1560765895993
+    },
+    "r": {
+     "n_epochs": 1075,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.258890389465
+    }
+   },
+   "joint": {
+    "n_epochs": 1814,
+    "T_days": 2766.190998145845
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.1560765895993,
+     "pts_per_rayleigh": 5.000079394309621
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258890389465,
+     "pts_per_rayleigh": 5.00025644553304
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258890389465,
+     "pts_per_rayleigh": 4.973264683899703
+    }
+   },
+   "primary_band": "r",
+   "gaia_type": "RRab"
+  },
+  {
+   "uid": "chen_f786_ZTFJ100903.45+513745.5",
+   "field": 786,
+   "ra": 152.26441,
+   "dec": 51.62931,
+   "type": "RRc",
+   "oids": {
+    "g": "786101400001918",
+    "r": "786201400003106"
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100903.45+513745.5.npz",
+   "dual_truth": true,
+   "chen_period": 0.2601242,
+   "gaia_period": 0.2601141406459415,
+   "gaia_period_source": "gaia_dr3_p1_o",
+   "gaia_source_id": "851200021999040640",
+   "gaia_xmatch_sep_arcsec": 0.008,
+   "role": "science",
+   "gaia_type": "RRc",
+   "chen_per_from_control_entry": 0.2601242,
+   "also_manifest_id": "gaia_f786_851200021999040640",
+   "bands": {
+    "g": {
+     "n_epochs": 785,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2766.1553522925824
+    },
+    "r": {
+     "n_epochs": 1089,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2751.258197210729
+    }
+   },
+   "joint": {
+    "n_epochs": 1874,
+    "T_days": 2766.1902739899233
+   },
+   "grid": {
+    "g": {
+     "df": 7.230135203528306e-05,
+     "i_min": 13831,
+     "n_freq": 55325,
+     "T_days": 2766.1553522925824,
+     "pts_per_rayleigh": 5.0000807035428805
+    },
+    "r": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258197210729,
+     "pts_per_rayleigh": 5.0002577053462565
+    },
+    "joint": {
+     "df": 7.269026677327906e-05,
+     "i_min": 13757,
+     "n_freq": 55029,
+     "T_days": 2751.258197210729,
+     "pts_per_rayleigh": 4.973265985841621
+    }
+   },
+   "primary_band": "r"
+  },
+  {
+   "uid": "gaia_f786_1020098816344918656",
+   "field": 786,
+   "ra": 145.55708497200644,
+   "dec": 51.910054680569054,
+   "type": "RRab",
+   "oids": {
+    "g": "786103300000706",
+    "r": "786203300014050"
+   },
+   "lc_file": "lc/gaia_f786_1020098816344918656.npz",
+   "dual_truth": false,
+   "chen_period": null,
+   "gaia_period": 0.6648564984691379,
+   "gaia_period_source": "gaia_dr3_pf",
+   "gaia_source_id": "1020098816344918656",
+   "gaia_xmatch_sep_arcsec": null,
+   "role": "control_antijoin",
+   "gaia_type": "RRab",
+   "also_manifest_id": null,
+   "bands": {
+    "g": {
+     "n_epochs": 471,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2617.9052680335008
+    },
+    "r": {
+     "n_epochs": 802,
+     "n_dropped_nonfinite": 0,
+     "T_days": 2605.045890512876
+    }
+   },
+   "joint": {
+    "n_epochs": 1273,
+    "T_days": 2619.9778966880403
+   },
+   "grid": {
+    "g": {
+     "df": 7.639419404125286e-05,
+     "i_min": 13090,
+     "n_freq": 52361,
+     "T_days": 2617.9052680335008,
+     "pts_per_rayleigh": 5.000180930852724
+    },
+    "r": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.045890512876,
+     "pts_per_rayleigh": 5.000295790349961
+    },
+    "joint": {
+     "df": 7.676953784738216e-05,
+     "i_min": 13026,
+     "n_freq": 52105,
+     "T_days": 2605.045890512876,
+     "pts_per_rayleigh": 4.971797669158351
+    }
+   },
+   "primary_band": "r"
+  }
+ ]
+}
