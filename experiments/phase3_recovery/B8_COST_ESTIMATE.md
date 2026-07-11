@@ -214,3 +214,74 @@ empty**. Containers boot and execute the fixed script structure end-to-end.
 orphans) + $0.04 (micro-test) ≈ **$9.10 of the $25 cap; $15.90 remains.** Nothing
 scientific measured yet; the canary pair is still the next gate (est. $2–3), now
 unblocked.
+
+## B8-closure canary pair — measured (2026-07-11)
+
+Both canary pods launched 13:14 UTC via the fixed launcher (commit `620df98`) and
+**booted first attempt** — START beacons ~2.5 min after create (boot attempts 1/2
+used per job; the `& ;` fix is production-verified). Neither job posted a RESULT;
+both were killed in-protocol. Supervised end to end in foreground; account holds
+zero b8c pods after teardown (GET /pods survivor = John's external `cuvarbase-dev`,
+untouched).
+
+| job | pod / flavor | wall | billed | outcome |
+|---|---|---|---|---|
+| e2-jitter-0 | `3b4hxssly4oemn` cpu5c/32 SECURE ($1.12/h) | 8 394 s (2h20m) | **$2.61** / 74.6 core-hr | INCOMPLETE — killed at the 2h15m deadline (+5 min poll latency); driver burned ≥73.3 core-hr, no RESULT |
+| g-refine-sesar-0 | `813dcqknmnhg3z` cpu5c/16 SECURE ($0.56/h) | 5 251 s (1h28m) | **$0.82** / 23.3 core-hr | killed early by supervisor: on 16 vCPU the est-45-core-hr job needs 2.8 h wall — mathematically outside the 2h15m deadline; PROG quota (4) already exhausted |
+| **canary pair total** | | | **$3.43** | (≈$4.0 at the June effective $0.041/core-hr) |
+
+### What was measured (PROG-beacon salvage + timestamps)
+
+**e2 (arm a): the B8E-2 assignment fix DELIVERED; the job estimate still fails
+its gate by ≥7.3×.** The only cell to complete inside the PROG window, N=4
+(3 EM iterations), timed: `em=992.6 s (62.2%) | eval=142.5+142.2=284.7 s (17.8%) |
+gls=35.3 s (2.2%) | assign=141.9+141.5=283.4 s (17.8%)` — accounted cell wall
+1 596 s × 32 vCPU = **14.2 core-hr for ONE of five N-cells**.
+
+- **assignment_accuracy share = 17.8%** of accounted wall, vs the June ~87%
+  serial baseline (local 2-worker smoke: 23%). Parallelization confirmed.
+- **Job total ≥73 core-hr** (floor: driver killed at 2h17m with no RESULT) vs the
+  10 core-hr estimate — **≥7.3×, gate FAILED**. 5 equal cells project 71 core-hr
+  + startup, yet 73.3 were burned without finishing: later cells run *slower*
+  (larger N and/or more EM iterations). Central if-completed estimate
+  **~90 core-hr/job** (floor 73).
+- Why the ~13× assumed speedup did not appear: the E-step (`em`, full-grid NFFT
+  refits per iteration) now dominates at 62% — the C4 scan speedup does not touch
+  this code path, and removing the serial assign bottleneck removed a smaller
+  absolute share than the June decomposition implied. vs the June-measured
+  134.6 core-hr e-canary: measured floor = 0.54×, central ≈ 0.67× — a real ~1.5×
+  improvement, nowhere near estimate.
+
+**g-refine (arm b): refine overhead UNMEASURED.** The pod landed on 16 vCPU
+(the 32-vCPU cpu5c pool was exhausted by the e2 create 2 s earlier), which made
+the est-45-core-hr job deadline-infeasible from the start. Salvage: greedy
+ordering (dense, 64 sel-src × 2000 sel-freq) = 1 627 s × 16 = **7.2 core-hr**;
+no N-sweep cell line before the PROG quota. The 45 core-hr table estimate and
+the ×1.4 `--refine` factor remain unvalidated (23.3 core-hr burned is consistent
+with, but does not confirm, 45). **Placement lesson: g-refine jobs must pin
+32 vCPU** (or the deadline must be ≥3.5 h).
+
+### Extrapolation (measured canary + launcher job table, ×1.5 safety)
+
+Remaining cap after this canary: $15.90 − $3.43 = **$12.47**.
+
+| | jobs | core-hr | $ @0.041 | ×1.5 |
+|---|---|---|---|---|
+| arm (a) e2, measured floor 73/job | 12 (incl. jitter-0 rerun) | 876 | $35.9 | $53.9 |
+| arm (a) e2, central 90/job | 12 | 1 080 | $44.3 | $66.4 |
+| arm (b) g-refine, table est (unvalidated) | 4 (incl. sesar-0 rerun) | 203 | $8.3 | $12.5 |
+| **batch (a central + b)** | 16 | 1 283 | **$52.6** | **$78.9** |
+
+**The batch does NOT fit: $52.6 (no safety) / $78.9 (×1.5) vs $12.47 remaining —
+and arm (a) alone at its measured floor is ~3× over the remainder. Even arm (b)
+alone ×1.5 consumes the entire remainder.**
+
+**Recommendation: do NOT release the batch.** Decision options for the supervisor:
+(i) re-defer arm (e2) — it fails the within-~2× gate at ≥7.3× and needs either an
+E-step algorithmic cut (the 62% `em` share) or a scope cut (sources/grid/seeds)
+before pods make sense; (ii) if arm (b) is wanted alone, first validate with ONE
+g-refine canary pinned to 32 vCPU (~1.4 h, ~$1.6–1.9 at table est, deadline-feasible)
+— arm (b) at table value then costs ~$8.3 more, which fits the remainder only
+without the ×1.5 margin and only if arm (a) is dropped.
+
+**Ledger:** $9.10 + $3.43 = **$12.53 of the $25 cap; $12.47 remains.**
