@@ -1,0 +1,2603 @@
+{
+ "created_utc": "2026-07-11T04:40:12Z",
+ "spec": {
+  "science_catalog": "Chen+2020 VizieR J/ApJS/249/18/table2",
+  "control_catalog": "Gaia DR3 SOS gaiadr3.vari_rrlyrae",
+  "field_half_width_deg": 3.43,
+  "field_centers": {
+   "486": [
+    274.351,
+    4.55
+   ],
+   "686": [
+    298.269,
+    33.35
+   ],
+   "786": [
+    147.601,
+    54.95
+   ]
+  },
+  "xmatch_radius_arcsec": 1.0,
+  "min_good_epochs_per_band": 40,
+  "catflags_cut": "catflags==0 (BAD_CATFLAGS_MASK=65535)",
+  "ztf_release": "ztf_objects_dr23 (LC API default collection)",
+  "selection_rule": "deterministic brightest-first by catalog rmag (Chen) / phot_g_mean_mag (Gaia), ties by RA; balanced RRab/RRc per field where available; failures promote next alternate",
+  "chen_id_column": "ID"
+ },
+ "sanity_686": {
+  "stars": [
+   {
+    "ra": 295.43147,
+    "dec": 35.54831,
+    "rmag": 13.8,
+    "same_star_gr": true,
+    "g": {
+     "oid": "686116400035763",
+     "sep_arcsec": 0.187,
+     "ngoodobsrel": 711,
+     "medianmag": 14.4497824,
+     "in_field": true
+    },
+    "r": {
+     "oid": "686216400038399",
+     "sep_arcsec": 0.009,
+     "ngoodobsrel": 969,
+     "medianmag": 13.8407822,
+     "in_field": true
+    }
+   },
+   {
+    "ra": 294.996,
+    "dec": 33.59889,
+    "rmag": 13.964,
+    "same_star_gr": true,
+    "g": {
+     "oid": "686112400069316",
+     "sep_arcsec": 0.016,
+     "ngoodobsrel": 722,
+     "medianmag": 14.4652729,
+     "in_field": true
+    },
+    "r": {
+     "oid": "686212400132483",
+     "sep_arcsec": 0.045,
+     "ngoodobsrel": 932,
+     "medianmag": 13.9375286,
+     "in_field": true
+    }
+   }
+  ],
+  "passed": true
+ },
+ "targets": {
+  "science": {
+   "486": 22,
+   "686": 18,
+   "786": 18
+  },
+  "control": {
+   "486": 5,
+   "686": 5,
+   "786": 5
+  }
+ },
+ "counts": {
+  "science": 58,
+  "control": 15,
+  "rejected": 5,
+  "n_failed_promoted": 5,
+  "per_field": {
+   "486": {
+    "science": 22,
+    "RRab": 11,
+    "RRc": 11,
+    "control": 5
+   },
+   "686": {
+    "science": 18,
+    "RRab": 9,
+    "RRc": 9,
+    "control": 5
+   },
+   "786": {
+    "science": 18,
+    "RRab": 10,
+    "RRc": 8,
+    "control": 5
+   }
+  }
+ },
+ "http": {
+  "requests": 28,
+  "bytes": 629581,
+  "cache_hits": 204
+ },
+ "lc_bytes_on_disk": 2995204,
+ "wall_time_s": 280.7,
+ "data_dir": "/Users/johnhoffman/.ftperiodogram_data/phase4_rrl_sample",
+ "stars": [
+  {
+   "star_id": "chen_f486_ZTFJ181511.71+064702.4",
+   "field": 486,
+   "ra": 273.79881,
+   "dec": 6.78402,
+   "type": "RRab",
+   "period_truth_days": 0.6145806,
+   "bands": {
+    "g": {
+     "oid": "486115400029983",
+     "sep_arcsec": 0.15,
+     "ngoodobs": 478,
+     "ngoodobsrel_dr23": 407,
+     "medianmag": 13.6179399,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486215400035016",
+     "sep_arcsec": 0.126,
+     "ngoodobs": 1028,
+     "ngoodobsrel_dr23": 915,
+     "medianmag": 13.2050524,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181511.71+064702.4.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181511.71+064702.4",
+   "gmag": 13.594,
+   "rmag": 13.119
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181029.87+035039.2",
+   "field": 486,
+   "ra": 272.6245,
+   "dec": 3.84424,
+   "type": "RRab",
+   "period_truth_days": 0.7010193,
+   "bands": {
+    "g": {
+     "oid": "486107200033761",
+     "sep_arcsec": 0.174,
+     "ngoodobs": 460,
+     "ngoodobsrel_dr23": 399,
+     "medianmag": 14.1293945,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486207200036231",
+     "sep_arcsec": 0.158,
+     "ngoodobs": 1013,
+     "ngoodobsrel_dr23": 914,
+     "medianmag": 13.7670021,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181029.87+035039.2.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181029.87+035039.2",
+   "gmag": 14.079,
+   "rmag": 13.693
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181624.38+013246.2",
+   "field": 486,
+   "ra": 274.10162,
+   "dec": 1.54618,
+   "type": "RRab",
+   "period_truth_days": 0.4520293,
+   "bands": {
+    "g": {
+     "oid": "486103400005810",
+     "sep_arcsec": 0.06,
+     "ngoodobs": 437,
+     "ngoodobsrel_dr23": 381,
+     "medianmag": 15.0337963,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486203400008345",
+     "sep_arcsec": 0.015,
+     "ngoodobs": 1007,
+     "ngoodobsrel_dr23": 907,
+     "medianmag": 14.0533543,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181624.38+013246.2.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181624.38+013246.2",
+   "gmag": 14.857,
+   "rmag": 13.904
+  },
+  {
+   "star_id": "chen_f486_ZTFJ182236.75+061049.7",
+   "field": 486,
+   "ra": 275.65316,
+   "dec": 6.18048,
+   "type": "RRab",
+   "period_truth_days": 0.4332018,
+   "bands": {
+    "g": {
+     "oid": "486110100009806",
+     "sep_arcsec": 0.015,
+     "ngoodobs": 478,
+     "ngoodobsrel_dr23": 407,
+     "medianmag": 14.9721317,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486210100056283",
+     "sep_arcsec": 0.026,
+     "ngoodobs": 1012,
+     "ngoodobsrel_dr23": 902,
+     "medianmag": 14.4145918,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182236.75+061049.7.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ182236.75+061049.7",
+   "gmag": 14.705,
+   "rmag": 14.262
+  },
+  {
+   "star_id": "chen_f486_ZTFJ180708.63+013433.4",
+   "field": 486,
+   "ra": 271.78598,
+   "dec": 1.57595,
+   "type": "RRab",
+   "period_truth_days": 0.7950996,
+   "bands": {
+    "g": {
+     "oid": "486104400004619",
+     "sep_arcsec": 0.018,
+     "ngoodobs": 433,
+     "ngoodobsrel_dr23": 376,
+     "medianmag": 14.8737202,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486204400006724",
+     "sep_arcsec": 0.026,
+     "ngoodobs": 903,
+     "ngoodobsrel_dr23": 829,
+     "medianmag": 14.302742,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180708.63+013433.4.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ180708.63+013433.4",
+   "gmag": 14.81,
+   "rmag": 14.299
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181122.94+034339.3",
+   "field": 486,
+   "ra": 272.84561,
+   "dec": 3.72759,
+   "type": "RRab",
+   "period_truth_days": 0.5650783,
+   "bands": {
+    "g": {
+     "oid": "486107200040005",
+     "sep_arcsec": 0.005,
+     "ngoodobs": 460,
+     "ngoodobsrel_dr23": 399,
+     "medianmag": 15.2588634,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486207200042933",
+     "sep_arcsec": 0.169,
+     "ngoodobs": 1012,
+     "ngoodobsrel_dr23": 914,
+     "medianmag": 14.4235878,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181122.94+034339.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181122.94+034339.3",
+   "gmag": 15.191,
+   "rmag": 14.414
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181547.86+061841.2",
+   "field": 486,
+   "ra": 273.94942,
+   "dec": 6.31146,
+   "type": "RRab",
+   "period_truth_days": 0.7726473,
+   "bands": {
+    "g": {
+     "oid": "486111100003248",
+     "sep_arcsec": 0.015,
+     "ngoodobs": 475,
+     "ngoodobsrel_dr23": 403,
+     "medianmag": 14.9354677,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486211100004150",
+     "sep_arcsec": 0.016,
+     "ngoodobs": 982,
+     "ngoodobsrel_dr23": 871,
+     "medianmag": 14.4274235,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181547.86+061841.2.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181547.86+061841.2",
+   "gmag": 14.924,
+   "rmag": 14.443
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181112.81+065353.3",
+   "field": 486,
+   "ra": 272.80339,
+   "dec": 6.89816,
+   "type": "RRab",
+   "period_truth_days": 0.8125219,
+   "bands": {
+    "g": {
+     "oid": "486115300023226",
+     "sep_arcsec": 0.019,
+     "ngoodobs": 476,
+     "ngoodobsrel_dr23": 406,
+     "medianmag": 15.0084171,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486215300027834",
+     "sep_arcsec": 0.052,
+     "ngoodobs": 1035,
+     "ngoodobsrel_dr23": 924,
+     "medianmag": 14.4677372,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181112.81+065353.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181112.81+065353.3",
+   "gmag": 14.91,
+   "rmag": 14.444
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181244.45+041935.6",
+   "field": 486,
+   "ra": 273.18522,
+   "dec": 4.32658,
+   "type": "RRab",
+   "period_truth_days": 0.5220891,
+   "bands": {
+    "g": {
+     "oid": "486107200007593",
+     "sep_arcsec": 0.014,
+     "ngoodobs": 460,
+     "ngoodobsrel_dr23": 399,
+     "medianmag": 14.8598309,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486207200073470",
+     "sep_arcsec": 0.011,
+     "ngoodobs": 1013,
+     "ngoodobsrel_dr23": 914,
+     "medianmag": 14.5063362,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181244.45+041935.6.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181244.45+041935.6",
+   "gmag": 14.689,
+   "rmag": 14.448
+  },
+  {
+   "star_id": "chen_f486_ZTFJ182802.45+054037.9",
+   "field": 486,
+   "ra": 277.01025,
+   "dec": 5.67722,
+   "type": "RRab",
+   "period_truth_days": 0.5315145,
+   "bands": {
+    "g": {
+     "oid": "486109200037425",
+     "sep_arcsec": 0.1,
+     "ngoodobs": 477,
+     "ngoodobsrel_dr23": 405,
+     "medianmag": 15.270421,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486209200041106",
+     "sep_arcsec": 0.075,
+     "ngoodobs": 990,
+     "ngoodobsrel_dr23": 882,
+     "medianmag": 14.4939117,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182802.45+054037.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ182802.45+054037.9",
+   "gmag": 15.089,
+   "rmag": 14.502
+  },
+  {
+   "star_id": "chen_f486_ZTFJ180605.79+055454.2",
+   "field": 486,
+   "ra": 271.52414,
+   "dec": 5.91507,
+   "type": "RRab",
+   "period_truth_days": 0.6573202,
+   "bands": {
+    "g": {
+     "oid": "486112200017795",
+     "sep_arcsec": 0.016,
+     "ngoodobs": 469,
+     "ngoodobsrel_dr23": 401,
+     "medianmag": 15.0517168,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486212200070702",
+     "sep_arcsec": 0.02,
+     "ngoodobs": 986,
+     "ngoodobsrel_dr23": 885,
+     "medianmag": 14.5358715,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180605.79+055454.2.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ180605.79+055454.2",
+   "gmag": 15.023,
+   "rmag": 14.564
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181046.84+015052.4",
+   "field": 486,
+   "ra": 272.69517,
+   "dec": 1.84789,
+   "type": "RRc",
+   "period_truth_days": 0.2474538,
+   "bands": {
+    "g": {
+     "oid": "486103200035523",
+     "sep_arcsec": 0.118,
+     "ngoodobs": 456,
+     "ngoodobsrel_dr23": 395,
+     "medianmag": 14.3294983,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486203200042836",
+     "sep_arcsec": 0.132,
+     "ngoodobs": 1017,
+     "ngoodobsrel_dr23": 914,
+     "medianmag": 13.8528156,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181046.84+015052.4.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181046.84+015052.4",
+   "gmag": 14.323,
+   "rmag": 13.87
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181921.70+032211.3",
+   "field": 486,
+   "ra": 274.84045,
+   "dec": 3.36981,
+   "type": "RRc",
+   "period_truth_days": 0.3617904,
+   "bands": {
+    "g": {
+     "oid": "486106300011883",
+     "sep_arcsec": 0.014,
+     "ngoodobs": 465,
+     "ngoodobsrel_dr23": 395,
+     "medianmag": 14.3958187,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486206300013723",
+     "sep_arcsec": 0.045,
+     "ngoodobs": 1004,
+     "ngoodobsrel_dr23": 900,
+     "medianmag": 13.9268227,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181921.70+032211.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181921.70+032211.3",
+   "gmag": 14.435,
+   "rmag": 14.023
+  },
+  {
+   "star_id": "chen_f486_ZTFJ182758.45+055314.9",
+   "field": 486,
+   "ra": 276.99356,
+   "dec": 5.88749,
+   "type": "RRc",
+   "period_truth_days": 0.3923737,
+   "bands": {
+    "g": {
+     "oid": "486109200025611",
+     "sep_arcsec": 0.018,
+     "ngoodobs": 477,
+     "ngoodobsrel_dr23": 405,
+     "medianmag": 14.922884,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486209200028334",
+     "sep_arcsec": 0.02,
+     "ngoodobs": 991,
+     "ngoodobsrel_dr23": 883,
+     "medianmag": 14.4965582,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182758.45+055314.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ182758.45+055314.9",
+   "gmag": 14.94,
+   "rmag": 14.452
+  },
+  {
+   "star_id": "chen_f486_ZTFJ183020.78+041109.5",
+   "field": 486,
+   "ra": 277.58659,
+   "dec": 4.18598,
+   "type": "RRc",
+   "period_truth_days": 0.2554271,
+   "bands": {
+    "g": {
+     "oid": "486105100012531",
+     "sep_arcsec": 0.034,
+     "ngoodobs": 475,
+     "ngoodobsrel_dr23": 404,
+     "medianmag": 15.114295,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486205100016611",
+     "sep_arcsec": 0.014,
+     "ngoodobs": 1010,
+     "ngoodobsrel_dr23": 900,
+     "medianmag": 14.3860531,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ183020.78+041109.5.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ183020.78+041109.5",
+   "gmag": 15.133,
+   "rmag": 14.469
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181815.87+075007.7",
+   "field": 486,
+   "ra": 274.56615,
+   "dec": 7.83549,
+   "type": "RRc",
+   "period_truth_days": 0.3360044,
+   "bands": {
+    "g": {
+     "oid": "486114200048483",
+     "sep_arcsec": 0.023,
+     "ngoodobs": 479,
+     "ngoodobsrel_dr23": 407,
+     "medianmag": 14.884285,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486214200025032",
+     "sep_arcsec": 0.01,
+     "ngoodobs": 1023,
+     "ngoodobsrel_dr23": 911,
+     "medianmag": 14.5229321,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181815.87+075007.7.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181815.87+075007.7",
+   "gmag": 14.872,
+   "rmag": 14.62
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181020.06+060208.2",
+   "field": 486,
+   "ra": 272.58362,
+   "dec": 6.03563,
+   "type": "RRc",
+   "period_truth_days": 0.3273953,
+   "bands": {
+    "g": {
+     "oid": "486111200015578",
+     "sep_arcsec": 0.019,
+     "ngoodobs": 232,
+     "ngoodobsrel_dr23": 170,
+     "medianmag": 14.9761124,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486211200081814",
+     "sep_arcsec": 0.008,
+     "ngoodobs": 676,
+     "ngoodobsrel_dr23": 597,
+     "medianmag": 14.7663727,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181020.06+060208.2.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181020.06+060208.2",
+   "gmag": 14.967,
+   "rmag": 14.719
+  },
+  {
+   "star_id": "chen_f486_ZTFJ182202.62+020906.8",
+   "field": 486,
+   "ra": 275.51094,
+   "dec": 2.15189,
+   "type": "RRc",
+   "period_truth_days": 0.2261538,
+   "bands": {
+    "g": {
+     "oid": "486102100016862",
+     "sep_arcsec": 0.022,
+     "ngoodobs": 456,
+     "ngoodobsrel_dr23": 387,
+     "medianmag": 15.6932497,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486202100106196",
+     "sep_arcsec": 0.012,
+     "ngoodobs": 1025,
+     "ngoodobsrel_dr23": 913,
+     "medianmag": 14.8431482,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182202.62+020906.8.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ182202.62+020906.8",
+   "gmag": 15.675,
+   "rmag": 14.818
+  },
+  {
+   "star_id": "chen_f486_ZTFJ182731.82+074345.6",
+   "field": 486,
+   "ra": 276.88261,
+   "dec": 7.72936,
+   "type": "RRc",
+   "period_truth_days": 0.2680869,
+   "bands": {
+    "g": {
+     "oid": "486113200029524",
+     "sep_arcsec": 0.018,
+     "ngoodobs": 479,
+     "ngoodobsrel_dr23": 407,
+     "medianmag": 15.0796995,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486213200031894",
+     "sep_arcsec": 0.022,
+     "ngoodobs": 1018,
+     "ngoodobsrel_dr23": 903,
+     "medianmag": 14.7817574,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ182731.82+074345.6.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ182731.82+074345.6",
+   "gmag": 15.058,
+   "rmag": 14.867
+  },
+  {
+   "star_id": "chen_f486_ZTFJ181645.21+075749.8",
+   "field": 486,
+   "ra": 274.18839,
+   "dec": 7.96385,
+   "type": "RRc",
+   "period_truth_days": 0.2816771,
+   "bands": {
+    "g": {
+     "oid": "486115100012687",
+     "sep_arcsec": 0.01,
+     "ngoodobs": 479,
+     "ngoodobsrel_dr23": 408,
+     "medianmag": 15.4108,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486215100016986",
+     "sep_arcsec": 0.024,
+     "ngoodobs": 1032,
+     "ngoodobsrel_dr23": 919,
+     "medianmag": 14.9430437,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ181645.21+075749.8.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ181645.21+075749.8",
+   "gmag": 15.439,
+   "rmag": 14.972
+  },
+  {
+   "star_id": "chen_f486_ZTFJ180706.39+024803.4",
+   "field": 486,
+   "ra": 271.77665,
+   "dec": 2.80097,
+   "type": "RRc",
+   "period_truth_days": 0.3282091,
+   "bands": {
+    "g": {
+     "oid": "486108400054926",
+     "sep_arcsec": 0.016,
+     "ngoodobs": 76,
+     "ngoodobsrel_dr23": 72,
+     "medianmag": 15.203351,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486208400065388",
+     "sep_arcsec": 0.025,
+     "ngoodobs": 178,
+     "ngoodobsrel_dr23": 166,
+     "medianmag": 15.0160694,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180706.39+024803.4.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ180706.39+024803.4",
+   "gmag": 15.224,
+   "rmag": 15.035
+  },
+  {
+   "star_id": "chen_f486_ZTFJ180625.92+054646.1",
+   "field": 486,
+   "ra": 271.60802,
+   "dec": 5.7795,
+   "type": "RRc",
+   "period_truth_days": 0.3610577,
+   "bands": {
+    "g": {
+     "oid": "486112100025437",
+     "sep_arcsec": 0.033,
+     "ngoodobs": 459,
+     "ngoodobsrel_dr23": 389,
+     "medianmag": 15.4824533,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486212100030644",
+     "sep_arcsec": 0.008,
+     "ngoodobs": 988,
+     "ngoodobsrel_dr23": 881,
+     "medianmag": 14.9821959,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f486_ZTFJ180625.92+054646.1.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ180625.92+054646.1",
+   "gmag": 15.446,
+   "rmag": 15.066
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194143.55+353253.9",
+   "field": 686,
+   "ra": 295.43147,
+   "dec": 35.54831,
+   "type": "RRab",
+   "period_truth_days": 0.6455768,
+   "bands": {
+    "g": {
+     "oid": "686116400035763",
+     "sep_arcsec": 0.187,
+     "ngoodobs": 791,
+     "ngoodobsrel_dr23": 711,
+     "medianmag": 14.4497824,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686216400038399",
+     "sep_arcsec": 0.009,
+     "ngoodobs": 1049,
+     "ngoodobsrel_dr23": 969,
+     "medianmag": 13.8407822,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194143.55+353253.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194143.55+353253.9",
+   "gmag": 14.378,
+   "rmag": 13.8
+  },
+  {
+   "star_id": "chen_f686_ZTFJ193959.03+333556.0",
+   "field": 686,
+   "ra": 294.996,
+   "dec": 33.59889,
+   "type": "RRab",
+   "period_truth_days": 0.6508062,
+   "bands": {
+    "g": {
+     "oid": "686112400069316",
+     "sep_arcsec": 0.016,
+     "ngoodobs": 800,
+     "ngoodobsrel_dr23": 722,
+     "medianmag": 14.4652729,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686212400132483",
+     "sep_arcsec": 0.045,
+     "ngoodobs": 1004,
+     "ngoodobsrel_dr23": 932,
+     "medianmag": 13.9375286,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193959.03+333556.0.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ193959.03+333556.0",
+   "gmag": 14.462,
+   "rmag": 13.964
+  },
+  {
+   "star_id": "chen_f686_ZTFJ195144.35+305335.1",
+   "field": 686,
+   "ra": 297.9348,
+   "dec": 30.8931,
+   "type": "RRab",
+   "period_truth_days": 0.5530223,
+   "bands": {
+    "g": {
+     "oid": "686103100067151",
+     "sep_arcsec": 0.042,
+     "ngoodobs": 758,
+     "ngoodobsrel_dr23": 697,
+     "medianmag": 14.8873482,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686203100025402",
+     "sep_arcsec": 0.014,
+     "ngoodobs": 997,
+     "ngoodobsrel_dr23": 932,
+     "medianmag": 14.0309772,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ195144.35+305335.1.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ195144.35+305335.1",
+   "gmag": 14.842,
+   "rmag": 14.063
+  },
+  {
+   "star_id": "chen_f686_ZTFJ193938.90+333216.6",
+   "field": 686,
+   "ra": 294.91211,
+   "dec": 33.53796,
+   "type": "RRab",
+   "period_truth_days": 0.5160509,
+   "bands": {
+    "g": {
+     "oid": "686112300041722",
+     "sep_arcsec": 0.012,
+     "ngoodobs": 791,
+     "ngoodobsrel_dr23": 714,
+     "medianmag": 14.9802494,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686212300044448",
+     "sep_arcsec": 0.068,
+     "ngoodobs": 1010,
+     "ngoodobsrel_dr23": 934,
+     "medianmag": 14.5058947,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193938.90+333216.6.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ193938.90+333216.6",
+   "gmag": 14.864,
+   "rmag": 14.574
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194248.05+333430.0",
+   "field": 686,
+   "ra": 295.70023,
+   "dec": 33.575,
+   "type": "RRab",
+   "period_truth_days": 0.4825131,
+   "bands": {
+    "g": {
+     "oid": "686112400042800",
+     "sep_arcsec": 0.012,
+     "ngoodobs": 806,
+     "ngoodobsrel_dr23": 728,
+     "medianmag": 15.7548618,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686212400041794",
+     "sep_arcsec": 0.034,
+     "ngoodobs": 1014,
+     "ngoodobsrel_dr23": 941,
+     "medianmag": 15.1749983,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194248.05+333430.0.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194248.05+333430.0",
+   "gmag": 15.625,
+   "rmag": 15.203
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194702.33+311521.0",
+   "field": 686,
+   "ra": 296.75972,
+   "dec": 31.25585,
+   "type": "RRab",
+   "period_truth_days": 0.6590951,
+   "bands": {
+    "g": {
+     "oid": "686103200005849",
+     "sep_arcsec": 0.028,
+     "ngoodobs": 768,
+     "ngoodobsrel_dr23": 705,
+     "medianmag": 16.6125069,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686203200166615",
+     "sep_arcsec": 0.017,
+     "ngoodobs": 1025,
+     "ngoodobsrel_dr23": 959,
+     "medianmag": 15.5603428,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194702.33+311521.0.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194702.33+311521.0",
+   "gmag": 16.564,
+   "rmag": 15.56
+  },
+  {
+   "star_id": "chen_f686_ZTFJ200017.37+343215.1",
+   "field": 686,
+   "ra": 300.0724,
+   "dec": 34.53753,
+   "type": "RRab",
+   "period_truth_days": 0.4961557,
+   "bands": {
+    "g": {
+     "oid": "686110100016089",
+     "sep_arcsec": 0.037,
+     "ngoodobs": 805,
+     "ngoodobsrel_dr23": 726,
+     "medianmag": 16.6934757,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686210100030740",
+     "sep_arcsec": 0.008,
+     "ngoodobs": 1064,
+     "ngoodobsrel_dr23": 983,
+     "medianmag": 15.626935,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ200017.37+343215.1.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ200017.37+343215.1",
+   "gmag": 16.684,
+   "rmag": 15.565
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194212.82+344833.3",
+   "field": 686,
+   "ra": 295.55344,
+   "dec": 34.80927,
+   "type": "RRab",
+   "period_truth_days": 0.6402505,
+   "bands": {
+    "g": {
+     "oid": "686112100019104",
+     "sep_arcsec": 0.019,
+     "ngoodobs": 806,
+     "ngoodobsrel_dr23": 730,
+     "medianmag": 16.5542698,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686212100020417",
+     "sep_arcsec": 0.026,
+     "ngoodobs": 1033,
+     "ngoodobsrel_dr23": 956,
+     "medianmag": 16.0126572,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194212.82+344833.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194212.82+344833.3",
+   "gmag": 16.515,
+   "rmag": 16.001
+  },
+  {
+   "star_id": "chen_f686_ZTFJ200034.85+303459.6",
+   "field": 686,
+   "ra": 300.14522,
+   "dec": 30.58323,
+   "type": "RRab",
+   "period_truth_days": 0.5760541,
+   "bands": {
+    "g": {
+     "oid": "686102100095654",
+     "sep_arcsec": 0.016,
+     "ngoodobs": 794,
+     "ngoodobsrel_dr23": 716,
+     "medianmag": 17.3533363,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686202100136672",
+     "sep_arcsec": 0.072,
+     "ngoodobs": 1032,
+     "ngoodobsrel_dr23": 955,
+     "medianmag": 16.1483307,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ200034.85+303459.6.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ200034.85+303459.6",
+   "gmag": 17.25,
+   "rmag": 16.08
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194304.41+344437.1",
+   "field": 686,
+   "ra": 295.76838,
+   "dec": 34.74365,
+   "type": "RRc",
+   "period_truth_days": 0.3174614,
+   "bands": {
+    "g": {
+     "oid": "686112100057039",
+     "sep_arcsec": 0.017,
+     "ngoodobs": 806,
+     "ngoodobsrel_dr23": 730,
+     "medianmag": 14.4380226,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686212100024778",
+     "sep_arcsec": 0.024,
+     "ngoodobs": 1031,
+     "ngoodobsrel_dr23": 954,
+     "medianmag": 14.1582928,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194304.41+344437.1.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194304.41+344437.1",
+   "gmag": 14.45,
+   "rmag": 14.167
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194003.35+301707.8",
+   "field": 686,
+   "ra": 295.01398,
+   "dec": 30.28551,
+   "type": "RRc",
+   "period_truth_days": 0.3568413,
+   "bands": {
+    "g": {
+     "oid": "686104300009168",
+     "sep_arcsec": 0.033,
+     "ngoodobs": 737,
+     "ngoodobsrel_dr23": 672,
+     "medianmag": 14.5482235,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686204300093348",
+     "sep_arcsec": 0.009,
+     "ngoodobs": 911,
+     "ngoodobsrel_dr23": 852,
+     "medianmag": 14.2618942,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194003.35+301707.8.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194003.35+301707.8",
+   "gmag": 14.564,
+   "rmag": 14.223
+  },
+  {
+   "star_id": "chen_f686_ZTFJ193825.40+352053.3",
+   "field": 686,
+   "ra": 294.60584,
+   "dec": 35.34815,
+   "type": "RRc",
+   "period_truth_days": 0.3186458,
+   "bands": {
+    "g": {
+     "oid": "686116300043491",
+     "sep_arcsec": 0.089,
+     "ngoodobs": 740,
+     "ngoodobsrel_dr23": 663,
+     "medianmag": 15.1417751,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686216300049358",
+     "sep_arcsec": 0.076,
+     "ngoodobs": 980,
+     "ngoodobsrel_dr23": 901,
+     "medianmag": 14.8568211,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193825.40+352053.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ193825.40+352053.3",
+   "gmag": 15.137,
+   "rmag": 14.91
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194708.10+363849.5",
+   "field": 686,
+   "ra": 296.78376,
+   "dec": 36.6471,
+   "type": "RRc",
+   "period_truth_days": 0.222421,
+   "bands": {
+    "g": {
+     "oid": "686115200022180",
+     "sep_arcsec": 0.026,
+     "ngoodobs": 789,
+     "ngoodobsrel_dr23": 710,
+     "medianmag": 15.8525944,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686215200027032",
+     "sep_arcsec": 0.006,
+     "ngoodobs": 1043,
+     "ngoodobsrel_dr23": 960,
+     "medianmag": 15.3172569,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194708.10+363849.5.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194708.10+363849.5",
+   "gmag": 15.835,
+   "rmag": 15.3
+  },
+  {
+   "star_id": "chen_f686_ZTFJ200132.73+340521.1",
+   "field": 686,
+   "ra": 300.38639,
+   "dec": 34.08921,
+   "type": "RRc",
+   "period_truth_days": 0.3234694,
+   "bands": {
+    "g": {
+     "oid": "686110400011034",
+     "sep_arcsec": 0.034,
+     "ngoodobs": 806,
+     "ngoodobsrel_dr23": 728,
+     "medianmag": 16.5665131,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686210400012377",
+     "sep_arcsec": 0.006,
+     "ngoodobs": 955,
+     "ngoodobsrel_dr23": 892,
+     "medianmag": 15.6612158,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ200132.73+340521.1.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ200132.73+340521.1",
+   "gmag": 16.558,
+   "rmag": 15.592
+  },
+  {
+   "star_id": "chen_f686_ZTFJ194813.09+322759.9",
+   "field": 686,
+   "ra": 297.05456,
+   "dec": 32.46665,
+   "type": "RRc",
+   "period_truth_days": 0.384763,
+   "bands": {
+    "g": {
+     "oid": "686107200048006",
+     "sep_arcsec": 0.019,
+     "ngoodobs": 789,
+     "ngoodobsrel_dr23": 721,
+     "medianmag": 17.1647358,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686207200048989",
+     "sep_arcsec": 0.006,
+     "ngoodobs": 975,
+     "ngoodobsrel_dr23": 915,
+     "medianmag": 16.3970528,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ194813.09+322759.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ194813.09+322759.9",
+   "gmag": 17.183,
+   "rmag": 16.413
+  },
+  {
+   "star_id": "chen_f686_ZTFJ195904.82+363610.3",
+   "field": 686,
+   "ra": 299.77009,
+   "dec": 36.60287,
+   "type": "RRc",
+   "period_truth_days": 0.2862044,
+   "bands": {
+    "g": {
+     "oid": "686114100117279",
+     "sep_arcsec": 0.009,
+     "ngoodobs": 781,
+     "ngoodobsrel_dr23": 701,
+     "medianmag": 16.9687653,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686214100071939",
+     "sep_arcsec": 0.019,
+     "ngoodobs": 1005,
+     "ngoodobsrel_dr23": 927,
+     "medianmag": 16.4651222,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ195904.82+363610.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ195904.82+363610.3",
+   "gmag": 16.975,
+   "rmag": 16.473
+  },
+  {
+   "star_id": "chen_f686_ZTFJ195948.02+304951.8",
+   "field": 686,
+   "ra": 299.95011,
+   "dec": 30.83107,
+   "type": "RRc",
+   "period_truth_days": 0.2172908,
+   "bands": {
+    "g": {
+     "oid": "686102100026355",
+     "sep_arcsec": 0.029,
+     "ngoodobs": 795,
+     "ngoodobsrel_dr23": 717,
+     "medianmag": 17.5281105,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686202100027377",
+     "sep_arcsec": 0.007,
+     "ngoodobs": 1034,
+     "ngoodobsrel_dr23": 957,
+     "medianmag": 16.4953918,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ195948.02+304951.8.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ195948.02+304951.8",
+   "gmag": 17.52,
+   "rmag": 16.492
+  },
+  {
+   "star_id": "chen_f686_ZTFJ193829.95+345130.9",
+   "field": 686,
+   "ra": 294.62481,
+   "dec": 34.85861,
+   "type": "RRc",
+   "period_truth_days": 0.3166504,
+   "bands": {
+    "g": {
+     "oid": "686112200085362",
+     "sep_arcsec": 0.057,
+     "ngoodobs": 790,
+     "ngoodobsrel_dr23": 714,
+     "medianmag": 17.3432388,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686212200094795",
+     "sep_arcsec": 0.107,
+     "ngoodobs": 1013,
+     "ngoodobsrel_dr23": 937,
+     "medianmag": 17.0614471,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f686_ZTFJ193829.95+345130.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ193829.95+345130.9",
+   "gmag": 17.334,
+   "rmag": 17.094
+  },
+  {
+   "star_id": "chen_f786_ZTFJ094954.90+514422.2",
+   "field": 786,
+   "ra": 147.47877,
+   "dec": 51.73952,
+   "type": "RRab",
+   "period_truth_days": 0.572051,
+   "bands": {
+    "g": {
+     "oid": "786103400001690",
+     "sep_arcsec": 0.155,
+     "ngoodobs": 749,
+     "ngoodobsrel_dr23": 644,
+     "medianmag": 13.3357868,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786203400002274",
+     "sep_arcsec": 0.13,
+     "ngoodobs": 1116,
+     "ngoodobsrel_dr23": 972,
+     "medianmag": 13.1107521,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094954.90+514422.2.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ094954.90+514422.2",
+   "gmag": 13.271,
+   "rmag": 13.074
+  },
+  {
+   "star_id": "chen_f786_ZTFJ100616.80+531608.6",
+   "field": 786,
+   "ra": 151.57001,
+   "dec": 53.26907,
+   "type": "RRab",
+   "period_truth_days": 0.6997384,
+   "bands": {
+    "g": {
+     "oid": "786105300003510",
+     "sep_arcsec": 0.072,
+     "ngoodobs": 788,
+     "ngoodobsrel_dr23": 673,
+     "medianmag": 14.3727875,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786205300005537",
+     "sep_arcsec": 0.075,
+     "ngoodobs": 1063,
+     "ngoodobsrel_dr23": 969,
+     "medianmag": 14.1156721,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100616.80+531608.6.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ100616.80+531608.6",
+   "gmag": 14.276,
+   "rmag": 14.059
+  },
+  {
+   "star_id": "chen_f786_ZTFJ095443.72+570927.4",
+   "field": 786,
+   "ra": 148.68217,
+   "dec": 57.15762,
+   "type": "RRab",
+   "period_truth_days": 0.6979211,
+   "bands": {
+    "g": {
+     "oid": "786114300003525",
+     "sep_arcsec": 0.057,
+     "ngoodobs": 762,
+     "ngoodobsrel_dr23": 648,
+     "medianmag": 14.5523062,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786214300005717",
+     "sep_arcsec": 0.058,
+     "ngoodobs": 1066,
+     "ngoodobsrel_dr23": 953,
+     "medianmag": 14.2667217,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ095443.72+570927.4.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ095443.72+570927.4",
+   "gmag": 14.477,
+   "rmag": 14.242
+  },
+  {
+   "star_id": "chen_f786_ZTFJ095742.96+540607.3",
+   "field": 786,
+   "ra": 149.42902,
+   "dec": 54.10204,
+   "type": "RRab",
+   "period_truth_days": 0.5312701,
+   "bands": {
+    "g": {
+     "oid": "786106100003760",
+     "sep_arcsec": 0.103,
+     "ngoodobs": 572,
+     "ngoodobsrel_dr23": 482,
+     "medianmag": 14.8206215,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786206100005802",
+     "sep_arcsec": 0.093,
+     "ngoodobs": 1110,
+     "ngoodobsrel_dr23": 987,
+     "medianmag": 14.5737495,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ095742.96+540607.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ095742.96+540607.3",
+   "gmag": 14.611,
+   "rmag": 14.412
+  },
+  {
+   "star_id": "chen_f786_ZTFJ100744.26+570027.9",
+   "field": 786,
+   "ra": 151.93442,
+   "dec": 57.00775,
+   "type": "RRab",
+   "period_truth_days": 0.5628897,
+   "bands": {
+    "g": {
+     "oid": "786113300003845",
+     "sep_arcsec": 0.082,
+     "ngoodobs": 739,
+     "ngoodobsrel_dr23": 626,
+     "medianmag": 14.719142,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786213300006226",
+     "sep_arcsec": 0.037,
+     "ngoodobs": 1075,
+     "ngoodobsrel_dr23": 959,
+     "medianmag": 14.473711,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100744.26+570027.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ100744.26+570027.9",
+   "gmag": 14.555,
+   "rmag": 14.423
+  },
+  {
+   "star_id": "chen_f786_ZTFJ094015.37+523328.6",
+   "field": 786,
+   "ra": 145.06406,
+   "dec": 52.55797,
+   "type": "RRab",
+   "period_truth_days": 0.5592252,
+   "bands": {
+    "g": {
+     "oid": "786103200001471",
+     "sep_arcsec": 0.007,
+     "ngoodobs": 747,
+     "ngoodobsrel_dr23": 651,
+     "medianmag": 14.776844,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786203200002808",
+     "sep_arcsec": 0.087,
+     "ngoodobs": 1158,
+     "ngoodobsrel_dr23": 1002,
+     "medianmag": 14.5229626,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094015.37+523328.6.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ094015.37+523328.6",
+   "gmag": 14.645,
+   "rmag": 14.449
+  },
+  {
+   "star_id": "chen_f786_ZTFJ095811.75+580604.2",
+   "field": 786,
+   "ra": 149.54899,
+   "dec": 58.10118,
+   "type": "RRab",
+   "period_truth_days": 0.6122179,
+   "bands": {
+    "g": {
+     "oid": "786114100002620",
+     "sep_arcsec": 0.099,
+     "ngoodobs": 764,
+     "ngoodobsrel_dr23": 651,
+     "medianmag": 15.065114,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786214100003805",
+     "sep_arcsec": 0.068,
+     "ngoodobs": 1106,
+     "ngoodobsrel_dr23": 967,
+     "medianmag": 14.8158627,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ095811.75+580604.2.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ095811.75+580604.2",
+   "gmag": 14.98,
+   "rmag": 14.764
+  },
+  {
+   "star_id": "chen_f786_ZTFJ092726.30+561921.4",
+   "field": 786,
+   "ra": 141.85962,
+   "dec": 56.32263,
+   "type": "RRab",
+   "period_truth_days": 0.4958493,
+   "bands": {
+    "g": {
+     "oid": "786112200001543",
+     "sep_arcsec": 0.046,
+     "ngoodobs": 801,
+     "ngoodobsrel_dr23": 684,
+     "medianmag": 15.6368904,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786212200002517",
+     "sep_arcsec": 0.07,
+     "ngoodobs": 1119,
+     "ngoodobsrel_dr23": 969,
+     "medianmag": 15.2954187,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092726.30+561921.4.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ092726.30+561921.4",
+   "gmag": 15.293,
+   "rmag": 15.198
+  },
+  {
+   "star_id": "chen_f786_ZTFJ094215.74+522324.9",
+   "field": 786,
+   "ra": 145.5656,
+   "dec": 52.39026,
+   "type": "RRab",
+   "period_truth_days": 0.6315477,
+   "bands": {
+    "g": {
+     "oid": "786103200002260",
+     "sep_arcsec": 0.111,
+     "ngoodobs": 747,
+     "ngoodobsrel_dr23": 651,
+     "medianmag": 16.3548565,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786203200004240",
+     "sep_arcsec": 0.118,
+     "ngoodobs": 1157,
+     "ngoodobsrel_dr23": 1001,
+     "medianmag": 16.0979233,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094215.74+522324.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ094215.74+522324.9",
+   "gmag": 16.237,
+   "rmag": 16.027
+  },
+  {
+   "star_id": "chen_f786_ZTFJ093728.14+563556.5",
+   "field": 786,
+   "ra": 144.36725,
+   "dec": 56.59905,
+   "type": "RRab",
+   "period_truth_days": 0.5285593,
+   "bands": {
+    "g": {
+     "oid": "786111200000693",
+     "sep_arcsec": 0.091,
+     "ngoodobs": 175,
+     "ngoodobsrel_dr23": 166,
+     "medianmag": 16.9168282,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786211200001165",
+     "sep_arcsec": 0.103,
+     "ngoodobs": 390,
+     "ngoodobsrel_dr23": 376,
+     "medianmag": 16.744585,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ093728.14+563556.5.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ093728.14+563556.5",
+   "gmag": 16.708,
+   "rmag": 16.56
+  },
+  {
+   "star_id": "chen_f786_ZTFJ100903.45+513745.5",
+   "field": 786,
+   "ra": 152.26441,
+   "dec": 51.62931,
+   "type": "RRc",
+   "period_truth_days": 0.2601242,
+   "bands": {
+    "g": {
+     "oid": "786101400001918",
+     "sep_arcsec": 0.087,
+     "ngoodobs": 785,
+     "ngoodobsrel_dr23": 673,
+     "medianmag": 12.9618683,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786201400003106",
+     "sep_arcsec": 0.055,
+     "ngoodobs": 1089,
+     "ngoodobsrel_dr23": 975,
+     "medianmag": 12.9179907,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100903.45+513745.5.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ100903.45+513745.5",
+   "gmag": 12.943,
+   "rmag": 12.95
+  },
+  {
+   "star_id": "chen_f786_ZTFJ094009.43+572734.0",
+   "field": 786,
+   "ra": 145.0393,
+   "dec": 57.45945,
+   "type": "RRc",
+   "period_truth_days": 0.2859976,
+   "bands": {
+    "g": {
+     "oid": "786115300001624",
+     "sep_arcsec": 0.087,
+     "ngoodobs": 803,
+     "ngoodobsrel_dr23": 685,
+     "medianmag": 14.1224632,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786215300002528",
+     "sep_arcsec": 0.094,
+     "ngoodobs": 1114,
+     "ngoodobsrel_dr23": 986,
+     "medianmag": 14.0967464,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094009.43+572734.0.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ094009.43+572734.0",
+   "gmag": 14.129,
+   "rmag": 14.121
+  },
+  {
+   "star_id": "chen_f786_ZTFJ092904.98+521752.3",
+   "field": 786,
+   "ra": 142.27076,
+   "dec": 52.29788,
+   "type": "RRc",
+   "period_truth_days": 0.3303055,
+   "bands": {
+    "g": {
+     "oid": "786104200002384",
+     "sep_arcsec": 0.043,
+     "ngoodobs": 781,
+     "ngoodobsrel_dr23": 668,
+     "medianmag": 15.3129673,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786204200004433",
+     "sep_arcsec": 0.111,
+     "ngoodobs": 1151,
+     "ngoodobsrel_dr23": 997,
+     "medianmag": 15.2396259,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092904.98+521752.3.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ092904.98+521752.3",
+   "gmag": 15.353,
+   "rmag": 15.32
+  },
+  {
+   "star_id": "chen_f786_ZTFJ092917.04+543107.4",
+   "field": 786,
+   "ra": 142.32104,
+   "dec": 54.51875,
+   "type": "RRc",
+   "period_truth_days": 0.365325,
+   "bands": {
+    "g": {
+     "oid": "786108200001047",
+     "sep_arcsec": 0.044,
+     "ngoodobs": 794,
+     "ngoodobsrel_dr23": 683,
+     "medianmag": 17.051445,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786208200001978",
+     "sep_arcsec": 0.079,
+     "ngoodobs": 1128,
+     "ngoodobsrel_dr23": 984,
+     "medianmag": 16.9356861,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092917.04+543107.4.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ092917.04+543107.4",
+   "gmag": 17.075,
+   "rmag": 16.91
+  },
+  {
+   "star_id": "chen_f786_ZTFJ100104.86+575118.7",
+   "field": 786,
+   "ra": 150.27029,
+   "dec": 57.85522,
+   "type": "RRc",
+   "period_truth_days": 0.360847,
+   "bands": {
+    "g": {
+     "oid": "786114100003888",
+     "sep_arcsec": 0.018,
+     "ngoodobs": 764,
+     "ngoodobsrel_dr23": 651,
+     "medianmag": 17.5655251,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786214100005642",
+     "sep_arcsec": 0.055,
+     "ngoodobs": 1103,
+     "ngoodobsrel_dr23": 964,
+     "medianmag": 17.4533768,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ100104.86+575118.7.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ100104.86+575118.7",
+   "gmag": 17.563,
+   "rmag": 17.463
+  },
+  {
+   "star_id": "chen_f786_ZTFJ093554.74+521319.0",
+   "field": 786,
+   "ra": 143.97812,
+   "dec": 52.22196,
+   "type": "RRc",
+   "period_truth_days": 0.2600097,
+   "bands": {
+    "g": {
+     "oid": "786104100002842",
+     "sep_arcsec": 0.113,
+     "ngoodobs": 780,
+     "ngoodobsrel_dr23": 671,
+     "medianmag": 17.7058067,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786204100004999",
+     "sep_arcsec": 0.134,
+     "ngoodobs": 1147,
+     "ngoodobsrel_dr23": 997,
+     "medianmag": 17.7194443,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ093554.74+521319.0.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ093554.74+521319.0",
+   "gmag": 17.695,
+   "rmag": 17.716
+  },
+  {
+   "star_id": "chen_f786_ZTFJ094400.22+553444.9",
+   "field": 786,
+   "ra": 146.00094,
+   "dec": 55.57914,
+   "type": "RRc",
+   "period_truth_days": 0.3179592,
+   "bands": {
+    "g": {
+     "oid": "786111400001545",
+     "sep_arcsec": 0.12,
+     "ngoodobs": 340,
+     "ngoodobsrel_dr23": 267,
+     "medianmag": 17.7562408,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786211400002993",
+     "sep_arcsec": 0.078,
+     "ngoodobs": 598,
+     "ngoodobsrel_dr23": 526,
+     "medianmag": 17.720192,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ094400.22+553444.9.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ094400.22+553444.9",
+   "gmag": 17.771,
+   "rmag": 17.725
+  },
+  {
+   "star_id": "chen_f786_ZTFJ092825.79+535045.1",
+   "field": 786,
+   "ra": 142.10747,
+   "dec": 53.84587,
+   "type": "RRc",
+   "period_truth_days": 0.3965502,
+   "bands": {
+    "g": {
+     "oid": "786108300000057",
+     "sep_arcsec": 0.011,
+     "ngoodobs": 684,
+     "ngoodobsrel_dr23": 572,
+     "medianmag": 17.959671,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786208300000207",
+     "sep_arcsec": 0.095,
+     "ngoodobs": 963,
+     "ngoodobsrel_dr23": 828,
+     "medianmag": 17.8175545,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/chen_f786_ZTFJ092825.79+535045.1.npz",
+   "catalog": "chen2020",
+   "control": false,
+   "period_source": "chen2020_Per",
+   "catalog_id": "ZTFJ092825.79+535045.1",
+   "gmag": 17.956,
+   "rmag": 17.803
+  },
+  {
+   "star_id": "gaia_f486_4477807180531896960",
+   "field": 486,
+   "ra": 273.7988251684056,
+   "dec": 6.7840296742761135,
+   "type": "RRab",
+   "period_truth_days": 0.6145600232552472,
+   "bands": {
+    "g": {
+     "oid": "486115400029983",
+     "sep_arcsec": 0.095,
+     "ngoodobs": 478,
+     "ngoodobsrel_dr23": 407,
+     "medianmag": 13.6179399,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486215400035016",
+     "sep_arcsec": 0.066,
+     "ngoodobs": 1028,
+     "ngoodobsrel_dr23": 915,
+     "medianmag": 13.2050524,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4477807180531896960.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4477807180531896960",
+   "phot_g_mean_mag": 13.085066,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.064,
+   "chen_per": 0.6145806
+  },
+  {
+   "star_id": "gaia_f486_4470264397625862272",
+   "field": 486,
+   "ra": 272.62449522083466,
+   "dec": 3.844246250619857,
+   "type": "RRab",
+   "period_truth_days": 0.7009706573969701,
+   "bands": {
+    "g": {
+     "oid": "486107200033761",
+     "sep_arcsec": 0.146,
+     "ngoodobs": 460,
+     "ngoodobsrel_dr23": 399,
+     "medianmag": 14.1293945,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486207200036231",
+     "sep_arcsec": 0.131,
+     "ngoodobs": 1013,
+     "ngoodobsrel_dr23": 914,
+     "medianmag": 13.7670021,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4470264397625862272.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4470264397625862272",
+   "phot_g_mean_mag": 13.706702,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.028,
+   "chen_per": 0.7010193
+  },
+  {
+   "star_id": "gaia_f486_4276113459030573184",
+   "field": 486,
+   "ra": 272.69516819065984,
+   "dec": 1.8478905119895688,
+   "type": "RRc",
+   "period_truth_days": 0.2474528439193352,
+   "bands": {
+    "g": {
+     "oid": "486103200035523",
+     "sep_arcsec": 0.112,
+     "ngoodobs": 456,
+     "ngoodobsrel_dr23": 395,
+     "medianmag": 14.3294983,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486203200042836",
+     "sep_arcsec": 0.126,
+     "ngoodobs": 1017,
+     "ngoodobsrel_dr23": 914,
+     "medianmag": 13.8528156,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4276113459030573184.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_p1_o",
+   "catalog_id": "4276113459030573184",
+   "phot_g_mean_mag": 13.882131,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.007,
+   "chen_per": 0.2474538
+  },
+  {
+   "star_id": "gaia_f486_4277318523772610432",
+   "field": 486,
+   "ra": 274.10162056022807,
+   "dec": 1.5461767278183345,
+   "type": "RRab",
+   "period_truth_days": 0.45200840109402585,
+   "bands": {
+    "g": {
+     "oid": "486103400005810",
+     "sep_arcsec": 0.071,
+     "ngoodobs": 437,
+     "ngoodobsrel_dr23": 381,
+     "medianmag": 15.0337963,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486203400008345",
+     "sep_arcsec": 0.025,
+     "ngoodobs": 1007,
+     "ngoodobsrel_dr23": 907,
+     "medianmag": 14.0533543,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4277318523772610432.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "4277318523772610432",
+   "phot_g_mean_mag": 13.956812,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.012,
+   "chen_per": 0.4520293
+  },
+  {
+   "star_id": "gaia_f486_4278168961661626752",
+   "field": 486,
+   "ra": 274.8404668665409,
+   "dec": 3.3697889449787994,
+   "type": "RRc",
+   "period_truth_days": 0.36161719724716124,
+   "bands": {
+    "g": {
+     "oid": "486106300011883",
+     "sep_arcsec": 0.095,
+     "ngoodobs": 465,
+     "ngoodobsrel_dr23": 395,
+     "medianmag": 14.3958187,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "486206300013723",
+     "sep_arcsec": 0.057,
+     "ngoodobs": 1004,
+     "ngoodobsrel_dr23": 900,
+     "medianmag": 13.9268227,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f486_4278168961661626752.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_p1_o",
+   "catalog_id": "4278168961661626752",
+   "phot_g_mean_mag": 13.977606,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.097,
+   "chen_per": 0.3617904
+  },
+  {
+   "star_id": "gaia_f686_2047488567341843840",
+   "field": 686,
+   "ra": 296.97865126585094,
+   "dec": 34.694715857920144,
+   "type": "RRc",
+   "period_truth_days": 0.21660998791509897,
+   "bands": {
+    "g": {
+     "oid": "686111200029254",
+     "sep_arcsec": 0.119,
+     "ngoodobs": 801,
+     "ngoodobsrel_dr23": 723,
+     "medianmag": 13.1221619,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686211200028847",
+     "sep_arcsec": 0.134,
+     "ngoodobs": 814,
+     "ngoodobsrel_dr23": 744,
+     "medianmag": 12.8433533,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f686_2047488567341843840.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_p1_o",
+   "catalog_id": "2047488567341843840",
+   "phot_g_mean_mag": 12.827307,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null
+  },
+  {
+   "star_id": "gaia_f686_2047410467649416064",
+   "field": 686,
+   "ra": 294.92215297844814,
+   "dec": 35.17597131331111,
+   "type": "RRab",
+   "period_truth_days": 0.5955795079949058,
+   "bands": {
+    "g": {
+     "oid": "1727107300045413",
+     "sep_arcsec": 0.083,
+     "ngoodobs": 45,
+     "ngoodobsrel_dr23": 42,
+     "medianmag": 13.9723215,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1727207300047472",
+     "sep_arcsec": 0.134,
+     "ngoodobs": 64,
+     "ngoodobsrel_dr23": 54,
+     "medianmag": 13.5779057,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2047410467649416064.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2047410467649416064",
+   "phot_g_mean_mag": 13.6825695,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null
+  },
+  {
+   "star_id": "gaia_f686_2035406446387785088",
+   "field": 686,
+   "ra": 297.5512843328623,
+   "dec": 34.32402795159,
+   "type": "RRab",
+   "period_truth_days": 0.334337151558744,
+   "bands": {
+    "g": {
+     "oid": "1727102200037513",
+     "sep_arcsec": 0.08,
+     "ngoodobs": 56,
+     "ngoodobsrel_dr23": 53,
+     "medianmag": 14.4764309,
+     "oid_in_field": false
+    },
+    "r": {
+     "oid": "1727202200037678",
+     "sep_arcsec": 0.084,
+     "ngoodobs": 60,
+     "ngoodobsrel_dr23": 50,
+     "medianmag": 13.8271761,
+     "oid_in_field": false
+    }
+   },
+   "lc_file": "lc/gaia_f686_2035406446387785088.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2035406446387785088",
+   "phot_g_mean_mag": 13.77067,
+   "chen_overlap": false,
+   "chen_sep_arcsec": null,
+   "chen_per": null
+  },
+  {
+   "star_id": "gaia_f686_2046983650989326848",
+   "field": 686,
+   "ra": 294.99600549364163,
+   "dec": 33.598864151947254,
+   "type": "RRab",
+   "period_truth_days": 0.6507950392786517,
+   "bands": {
+    "g": {
+     "oid": "686112400069316",
+     "sep_arcsec": 0.088,
+     "ngoodobs": 800,
+     "ngoodobsrel_dr23": 722,
+     "medianmag": 14.4652729,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686212400132483",
+     "sep_arcsec": 0.126,
+     "ngoodobs": 1004,
+     "ngoodobsrel_dr23": 932,
+     "medianmag": 13.9375286,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f686_2046983650989326848.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2046983650989326848",
+   "phot_g_mean_mag": 14.01165,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.094,
+   "chen_per": 0.6508062
+  },
+  {
+   "star_id": "gaia_f686_2033498450132993280",
+   "field": 686,
+   "ra": 297.934799019627,
+   "dec": 30.893072016073706,
+   "type": "RRab",
+   "period_truth_days": 0.5530320351857785,
+   "bands": {
+    "g": {
+     "oid": "686103100067151",
+     "sep_arcsec": 0.075,
+     "ngoodobs": 758,
+     "ngoodobsrel_dr23": 697,
+     "medianmag": 14.8873482,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "686203100025402",
+     "sep_arcsec": 0.109,
+     "ngoodobs": 997,
+     "ngoodobsrel_dr23": 932,
+     "medianmag": 14.0309772,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f686_2033498450132993280.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "2033498450132993280",
+   "phot_g_mean_mag": 14.052379,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.101,
+   "chen_per": 0.5530223
+  },
+  {
+   "star_id": "gaia_f786_851200021999040640",
+   "field": 786,
+   "ra": 152.2644118597327,
+   "dec": 51.629312058820624,
+   "type": "RRc",
+   "period_truth_days": 0.2601141406459415,
+   "bands": {
+    "g": {
+     "oid": "786101400001918",
+     "sep_arcsec": 0.079,
+     "ngoodobs": 785,
+     "ngoodobsrel_dr23": 673,
+     "medianmag": 12.9618683,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786201400003106",
+     "sep_arcsec": 0.047,
+     "ngoodobs": 1089,
+     "ngoodobsrel_dr23": 975,
+     "medianmag": 12.9179907,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f786_851200021999040640.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_p1_o",
+   "catalog_id": "851200021999040640",
+   "phot_g_mean_mag": 12.82088,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.008,
+   "chen_per": 0.2601242
+  },
+  {
+   "star_id": "gaia_f786_827975312763354752",
+   "field": 786,
+   "ra": 147.47882056417268,
+   "dec": 51.739514113216316,
+   "type": "RRab",
+   "period_truth_days": 0.5720895761044757,
+   "bands": {
+    "g": {
+     "oid": "786103400001690",
+     "sep_arcsec": 0.087,
+     "ngoodobs": 749,
+     "ngoodobsrel_dr23": 644,
+     "medianmag": 13.3357868,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786203400002274",
+     "sep_arcsec": 0.075,
+     "ngoodobs": 1116,
+     "ngoodobsrel_dr23": 972,
+     "medianmag": 13.1107521,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f786_827975312763354752.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "827975312763354752",
+   "phot_g_mean_mag": 13.034557,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.115,
+   "chen_per": 0.572051
+  },
+  {
+   "star_id": "gaia_f786_1025464471743348480",
+   "field": 786,
+   "ra": 145.03929723345098,
+   "dec": 57.459449449474626,
+   "type": "RRc",
+   "period_truth_days": 0.285996284991387,
+   "bands": {
+    "g": {
+     "oid": "786115300001624",
+     "sep_arcsec": 0.09,
+     "ngoodobs": 803,
+     "ngoodobsrel_dr23": 685,
+     "medianmag": 14.1224632,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786215300002528",
+     "sep_arcsec": 0.094,
+     "ngoodobs": 1114,
+     "ngoodobsrel_dr23": 986,
+     "medianmag": 14.0967464,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f786_1025464471743348480.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_p1_o",
+   "catalog_id": "1025464471743348480",
+   "phot_g_mean_mag": 14.046517,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.006,
+   "chen_per": 0.2859976
+  },
+  {
+   "star_id": "gaia_f786_852322825233930112",
+   "field": 786,
+   "ra": 151.57000520768443,
+   "dec": 53.26905682806122,
+   "type": "RRab",
+   "period_truth_days": 0.6997526801045284,
+   "bands": {
+    "g": {
+     "oid": "786105300003510",
+     "sep_arcsec": 0.12,
+     "ngoodobs": 788,
+     "ngoodobsrel_dr23": 673,
+     "medianmag": 14.3727875,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786205300005537",
+     "sep_arcsec": 0.124,
+     "ngoodobs": 1063,
+     "ngoodobsrel_dr23": 969,
+     "medianmag": 14.1156721,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f786_852322825233930112.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "852322825233930112",
+   "phot_g_mean_mag": 14.070782,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.049,
+   "chen_per": 0.6997384
+  },
+  {
+   "star_id": "gaia_f786_1046279635606572800",
+   "field": 786,
+   "ra": 148.6821676842544,
+   "dec": 57.157620113332186,
+   "type": "RRab",
+   "period_truth_days": 0.6978420694543642,
+   "bands": {
+    "g": {
+     "oid": "786114300003525",
+     "sep_arcsec": 0.057,
+     "ngoodobs": 762,
+     "ngoodobsrel_dr23": 648,
+     "medianmag": 14.5523062,
+     "oid_in_field": true
+    },
+    "r": {
+     "oid": "786214300005717",
+     "sep_arcsec": 0.056,
+     "ngoodobs": 1066,
+     "ngoodobsrel_dr23": 953,
+     "medianmag": 14.2667217,
+     "oid_in_field": true
+    }
+   },
+   "lc_file": "lc/gaia_f786_1046279635606572800.npz",
+   "catalog": "gaia_dr3_sos",
+   "control": true,
+   "period_source": "gaia_dr3_pf",
+   "catalog_id": "1046279635606572800",
+   "phot_g_mean_mag": 14.271233,
+   "chen_overlap": true,
+   "chen_sep_arcsec": 0.005,
+   "chen_per": 0.6979211
+  }
+ ],
+ "rejects": [
+  {
+   "star_id": "chen_f686_ZTFJ195829.17+305926.3",
+   "field": 686,
+   "type": "RRc",
+   "ra": 299.62155,
+   "dec": 30.99066,
+   "reason": "prescreen ngoodobsrel g=0 r=0 < 40"
+  },
+  {
+   "star_id": "gaia_f486_4476637746831559680",
+   "field": 486,
+   "type": "any",
+   "ra": 275.76735545994075,
+   "dec": 5.415518332390941,
+   "reason": "no r match within 1.0 arcsec"
+  },
+  {
+   "star_id": "gaia_f486_4476806350068793344",
+   "field": 486,
+   "type": "any",
+   "ra": 276.18854761945465,
+   "dec": 6.092064920521062,
+   "reason": "prescreen ngoodobsrel g=45 r=39 < 40"
+  },
+  {
+   "star_id": "gaia_f686_2031118935151026048",
+   "field": 686,
+   "type": "any",
+   "ra": 301.03160417758295,
+   "dec": 32.685671452288815,
+   "reason": "no r match within 1.0 arcsec"
+  },
+  {
+   "star_id": "gaia_f786_828495278684213888",
+   "field": 786,
+   "type": "any",
+   "ra": 148.79055936742444,
+   "dec": 53.01407970073121,
+   "reason": "prescreen ngoodobsrel g=36 r=46 < 40"
+  }
+ ],
+ "problems": []
+}
