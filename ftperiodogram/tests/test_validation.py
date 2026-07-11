@@ -146,6 +146,26 @@ def test_assignment_accuracy_mechanism_metric():
         bare.assignment_accuracy(arch)
 
 
+def test_assignment_accuracy_njobs_parity():
+    """Parallel assignment_accuracy (spawn pool) is result-identical to serial.
+
+    Guards the B8-closure P2 change: the serial per-source loop was replaced by
+    one ``joint_em._estep`` fan-out; ``(rate, n_correct, n_subset, null)`` must
+    not move between ``n_jobs=1`` and ``n_jobs=2``."""
+    arch = [Template(c, s) for c, s in _ARCH]
+    population = _population(seed=1)
+    cad = SyntheticCadence(n_epochs={'g': 12, 'r': 12}, bands=['g', 'r'],
+                           baseline_days=60.0, random_state=2)
+    scorer = val.make_recovery_scorer(
+        cad, population, freqs=val.frequency_grid(1.0, 5.0, 300),
+        n_sources=8, random_state=0)
+    serial = scorer.assignment_accuracy(arch, return_counts=True, n_jobs=1)
+    parallel = scorer.assignment_accuracy(arch, return_counts=True, n_jobs=2)
+    assert serial == parallel
+    # default n_jobs comes from the scorer (n_jobs=1 here) -- same answer
+    assert scorer.assignment_accuracy(arch, return_counts=True) == serial
+
+
 def test_k_sweep_real_scorer_runs_and_is_reproducible():
     templates = _population(seed=1)
     cad = SyntheticCadence(n_epochs={'g': 20, 'r': 20}, bands=['g', 'r'],

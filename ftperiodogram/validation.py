@@ -423,7 +423,7 @@ class RecoveryScorer(object):
                 _parsm_col)
         return np.stack(cols, axis=1)                # (len(templates), n_sources)
 
-    def assignment_accuracy(self, vocab, *, return_counts=False):
+    def assignment_accuracy(self, vocab, *, return_counts=False, n_jobs=None):
         """Correct-template-assignment rate on the correct-period subset.
 
         Among the frozen sources whose period this ``vocab`` recovers (the FTP
@@ -441,8 +441,14 @@ class RecoveryScorer(object):
         predicting the subset's most common correct target.  Quote accuracies
         against this null (and with ``n_subset``), not against ``1/K``: targets
         are not uniform, so ``1/K`` overstates the skill.
+
+        ``n_jobs`` (default the scorer's, matching :meth:`score_estimator` /
+        :meth:`source_masks`) fans the per-source E-step over a ``spawn`` pool via
+        :func:`ftperiodogram.joint_em._estep` -- result-identical to the serial
+        loop (``n_jobs=1`` keeps the bit-identical serial reference path inside
+        ``_estep``); only the recovered-subset counting stays local.
         """
-        from .joint_em import _estep_one              # lazy: avoids an import cycle
+        from .joint_em import _estep                  # lazy: avoids an import cycle
         if getattr(self, '_truth', None) is None:
             raise ValueError("assignment_accuracy needs per-source truth shapes; "
                              "build via RecoveryScorer / make_recovery_scorer")
@@ -452,19 +458,20 @@ class RecoveryScorer(object):
         target = [int(np.argmin([_orbit_distance(tr, v) for v in vocab]))
                   for tr in self._truth]
         crit = self._crit()
+        n_jobs = self.n_jobs if n_jobs is None else int(n_jobs)
+        assign, freq_rec, _ = _estep(self._sources, vocab, self.freqs,
+                                     self.mode, H, n_jobs)
         n_correct, n_subset = 0, 0
         subset_targets = []
         for i, source in enumerate(self._sources):
-            assigned, freq_rec, _ = _estep_one(source, vocab, self.freqs,
-                                               self.mode, H)
             recovered = _rec.classify_recovery(
-                1.0 / freq_rec, self.p_true[i], baseline=source[5],
+                1.0 / freq_rec[i], self.p_true[i], baseline=source[5],
                 criterion=crit['criterion'], rtol=crit['rtol'],
                 delta_phi_max=crit['delta_phi_max'],
                 count_harmonics=crit['harmonic_aware']).recovered
             if recovered:
                 n_subset += 1
-                n_correct += int(assigned == target[i])
+                n_correct += int(int(assign[i]) == target[i])
                 subset_targets.append(target[i])
         rate = (n_correct / n_subset) if n_subset else 0.0
         null_rate = (max(np.bincount(subset_targets)) / n_subset
