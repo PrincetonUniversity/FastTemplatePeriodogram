@@ -23,6 +23,14 @@ on RunPod CPU pods) with the B8-closure deltas:
   wall limit (prevents the B8 ~$16 idle tail); a backgrounded PROG beacon posts
   a gzipped run.log tail every 15 min (max 4) so a wall-killed canary still
   yields the per-phase timer lines (fixes the B8 blind-canary failure mode);
+* watchdog v3 (BOOT): the 2026-07-11 canary pod billed 50 min with
+  ``uptimeInSeconds: 0`` -- the container NEVER started, and boot failures emit
+  NO beacon, so ``killstale`` only catches them after ``<hours>``.  ``bootwatch``
+  (run in a FOREGROUND poll loop, never a daemon) deletes any OWN pod with no
+  START beacon after ``BOOT_LIMIT_MIN`` minutes and relaunches the job ONCE on
+  a different CPU flavor (``MAX_BOOT_ATTEMPTS`` pod creates per job, then the
+  job is marked boot-dead).  Pods that land on a known-bad machine
+  (``BAD_MACHINES``) are deleted at create time and don't burn a boot attempt;
 * canary-first: ``canary`` launches ONLY e2-jitter-0 + g-refine-sesar-0
   (~$2-3); ``report`` compares measured core-hr against the estimates; the
   FULL batch (cap $25) is released only after a human-approved estimate.
@@ -34,6 +42,7 @@ on RunPod CPU pods) with the B8-closure deltas:
     .venv/bin/python fleet_b8_closure.py release    # launch every job without a pod yet
     .venv/bin/python fleet_b8_closure.py collect    # fetch results, extract, kill done pods
     .venv/bin/python fleet_b8_closure.py prog       # latest PROG log tail per running job
+    .venv/bin/python fleet_b8_closure.py bootwatch  # one boot-watchdog pass (poll from foreground)
     .venv/bin/python fleet_b8_closure.py killstale 12   # kill OWN pods past 12 h wall
     .venv/bin/python fleet_b8_closure.py teardown   # delete OWN pods; verify only cuvarbase-dev lives
 """
@@ -59,9 +68,19 @@ TGZ = ("https://github.com/PrincetonUniversity/FastTemplatePeriodogram/"
        "archive/refs/heads/dev.tar.gz")
 IMAGE = "python:3.11"
 RATE = 0.041                     # $/core-hr, measured on the 2026-06-02 fleet
-FALLBACKS = [("cpu5c", 32, "SECURE"), ("cpu3c", 32, "SECURE"), ("cpu5c", 16, "SECURE"),
-             ("cpu3c", 16, "SECURE"), ("cpu5g", 16, "SECURE"), ("cpu3g", 16, "SECURE"),
-             ("cpu5c", 32, "COMMUNITY"), ("cpu5c", 8, "SECURE")]
+# cpu3c deprioritized to the tail: the June fleet measured it slow AND the
+# 2026-07-11 canary boot failure was a cpu3c host (machine aehmymvwnx01).
+FALLBACKS = [("cpu5c", 32, "SECURE"), ("cpu5c", 16, "SECURE"), ("cpu5g", 16, "SECURE"),
+             ("cpu3g", 16, "SECURE"), ("cpu5c", 32, "COMMUNITY"), ("cpu5c", 8, "SECURE"),
+             ("cpu3c", 32, "SECURE"), ("cpu3c", 16, "SECURE")]
+
+# Boot watchdog (v3): boot failures bill but emit NO beacon (2026-07-11 canary:
+# 50 min at uptime 0 s, $0.81, zero science).  No START beacon within
+# BOOT_LIMIT_MIN of pod create => delete + relaunch on a different flavor;
+# at most MAX_BOOT_ATTEMPTS pod creates per job, then the job is boot-dead.
+BOOT_LIMIT_MIN = 20
+MAX_BOOT_ATTEMPTS = 2
+BAD_MACHINES = {"aehmymvwnx01"}  # host of the 2026-07-11 never-booted pod
 
 # The ONE pre-existing pod on the account (John's separate cuvarbase GPU
 # workstream).  NEVER stopped, deleted, or modified by this launcher.
@@ -232,20 +251,64 @@ def _bootstrap(tag, driver, token):
     return " ; ".join(lines)
 
 
-def _create(tag, driver, token):
+def _machine_id(pid):
+    """machineId of a live pod (GET /pods/<id>); '' if unparseable."""
+    m = re.search(r'"machineId"\s*:\s*"([^"]+)"', _runpod("GET", "/pods/%s" % pid) or "")
+    return m.group(1) if m else ""
+
+
+def _create(tag, driver, token, avoid=()):
+    """Create a pod, skipping flavors in ``avoid`` (boot-watchdog retries) and
+    deleting-and-continuing if the pod lands on a BAD_MACHINES host (a bad
+    host is RunPod's placement, not a boot attempt of ours)."""
     script = _bootstrap(tag, driver, token)
     last = ""
     for flav, vcpu, cloud in FALLBACKS:
+        if flav in avoid:
+            continue
         body = {"name": "b8c-%s" % tag, "computeType": "CPU",
                 "cpuFlavorIds": [flav], "vcpuCount": vcpu, "imageName": IMAGE,
                 "containerDiskInGb": 20, "ports": ["22/tcp"], "cloudType": cloud,
                 "dockerStartCmd": ["bash", "-c", script]}
         t = _runpod("POST", "/pods", body)
         m = re.search(r'"id":"([a-z0-9]+)"', t)
-        if m:
-            return m.group(1), "%s/%d/%s" % (flav, vcpu, cloud)
-        last = t
-    return None, last[:140]
+        if not m:
+            last = t
+            continue
+        pid = m.group(1)
+        mach = _machine_id(pid) or (re.search(
+            r'"machineId"\s*:\s*"([^"]+)"', t).group(1)
+            if re.search(r'"machineId"\s*:\s*"([^"]+)"', t) else "")
+        if mach in BAD_MACHINES:
+            print("  %s: pod %s landed on bad machine %s -- deleted, next flavor"
+                  % (tag, pid, mach))
+            _delete_pod(pid)
+            last = "bad machine %s" % mach
+            continue
+        return pid, "%s/%d/%s@%s" % (flav, vcpu, cloud, mach or "?")
+    return None, (last[:140] or "no fallback flavor available")
+
+
+def _launch(j, token):
+    """Create a pod for job ``j`` honoring the boot-attempt cap and the job's
+    avoid-flavor list; updates the job record in place.  Failed CREATEs (no
+    pod id returned -- nothing billed) do not consume a boot attempt."""
+    if j.get("boot_dead") or j.get("boot_attempts", 0) >= MAX_BOOT_ATTEMPTS:
+        j["boot_dead"] = True
+        print("launch %s: SKIP -- boot-attempt cap (%d) reached"
+              % (j["tag"], MAX_BOOT_ATTEMPTS))
+        return None
+    pid, info = _create(j["tag"], j["driver"], token,
+                        avoid=tuple(j.get("avoid_flavors") or ()))
+    j["pod"], j["info"] = pid, info
+    j["created"] = time.time() if pid else None
+    if pid:
+        j["boot_attempts"] = j.get("boot_attempts", 0) + 1
+        print("launch %s -> %s (%s) [boot attempt %d/%d]"
+              % (j["tag"], pid, info, j["boot_attempts"], MAX_BOOT_ATTEMPTS))
+    else:
+        print("launch %s -> FAIL (%s)" % (j["tag"], info))
+    return pid
 
 
 def _vcpu(info):
@@ -333,9 +396,7 @@ def canary():
     for j in st["jobs"]:
         if j["tag"] not in CANARY_TAGS or j.get("pod") or j["received"]:
             continue
-        pid, info = _create(j["tag"], j["driver"], st["token"])
-        j["pod"], j["info"], j["created"] = pid, info, time.time()
-        print("canary %s -> %s (%s)" % (j["tag"], pid or "FAIL", info))
+        _launch(j, st["token"])
         time.sleep(2)
     _save_state(st)
     print("token %s | webhook https://webhook.site/#!/%s"
@@ -346,12 +407,9 @@ def release():
     """Launch every job that has no pod yet (post-canary, or capacity retry)."""
     st = _load_state()
     for j in st["jobs"]:
-        if j.get("pod") or j["received"]:
+        if j.get("pod") or j["received"] or j.get("boot_dead"):
             continue
-        pid, info = _create(j["tag"], j["driver"], st["token"])
-        j["pod"], j["info"] = pid, info
-        j["created"] = time.time() if pid else None
-        print("launch %s -> %s (%s)" % (j["tag"], pid or "FAIL", info))
+        _launch(j, st["token"])
         time.sleep(2)
     _save_state(st)
     pending = sum(1 for j in st["jobs"] if not j.get("pod") and not j["received"])
@@ -505,6 +563,50 @@ def count():
     print(len({j["tag"] for j in st["jobs"]} & res))
 
 
+def bootwatch():
+    """ONE boot-watchdog pass (v3): any OWN pod with no START beacon after
+    BOOT_LIMIT_MIN minutes is DELETEd (boot failures bill but never beacon --
+    the 2026-07-11 lesson) and the job relaunched once on a different flavor,
+    up to MAX_BOOT_ATTEMPTS pod creates per job.  Call this repeatedly from a
+    FOREGROUND poll loop; it is deliberately not a daemon."""
+    st = _load_state()
+    try:
+        starts = {_headers(r).get("x-job", "") for r in _requests(st["token"])}
+    except Exception as e:
+        print("bootwatch: beacon fetch failed (%s) -- no action taken" % e)
+        return
+    now = time.time()
+    for j in st["jobs"]:
+        if not j["started"] and (j["tag"] + "-START") in starts:
+            j["started"] = True
+            print("bootwatch %s: START beacon seen -- boot OK" % j["tag"])
+        if (not j.get("pod") or j["received"] or j["started"]
+                or j.get("boot_dead") or j.get("killed")):
+            continue
+        age_min = (now - (j.get("created") or now)) / 60.0
+        if age_min <= BOOT_LIMIT_MIN:
+            print("bootwatch %s: pod %s booting, %.1f/%d min"
+                  % (j["tag"], j["pod"], age_min, BOOT_LIMIT_MIN))
+            continue
+        print("bootwatch %s: NO START after %.1f min -- deleting pod %s (%s)"
+              % (j["tag"], age_min, j["pod"], j.get("info")))
+        _delete_pod(j["pod"])
+        flav = (j.get("info") or "").split("/", 1)[0]
+        j.setdefault("history", []).append(
+            {"pod": j["pod"], "created": j.get("created"),
+             "info": (j.get("info") or "") + " BOOT-TIMEOUT@%.0fmin" % age_min})
+        if flav and flav not in j.setdefault("avoid_flavors", []):
+            j["avoid_flavors"].append(flav)
+        j["pod"], j["info"], j["created"] = None, "boot-timeout", None
+        if j.get("boot_attempts", 0) >= MAX_BOOT_ATTEMPTS:
+            j["boot_dead"] = True
+            print("bootwatch %s: %d boot attempts exhausted -- BOOT-DEAD, "
+                  "no more pods for this job" % (j["tag"], MAX_BOOT_ATTEMPTS))
+        else:
+            _launch(j, st["token"])
+    _save_state(st)
+
+
 def killstale():
     """Watchdog v2: terminate OWN pods past ``sys.argv[2]`` hours wall."""
     hours = float(sys.argv[2])
@@ -547,7 +649,8 @@ def teardown():
               "delete by id only if they are yours): %s"
               % (len(others), [p[0] for p in others]))
         sys.exit(1)
-    print("OK: only cuvarbase-dev (%s) remains" % CUVARBASE_POD)
+    print("OK: no foreign pods remain (cuvarbase-dev %s may or may not exist "
+          "-- external workstream, never ours to manage)" % CUVARBASE_POD)
 
 
 if __name__ == "__main__":
@@ -555,5 +658,5 @@ if __name__ == "__main__":
     # the protected cuvarbase-dev pod.  Use teardown/killstale (own pods only).
     {"mint": mint, "plan": plan, "canary": canary, "release": release,
      "collect": collect, "report": report, "count": count, "prog": prog,
-     "killstale": killstale, "teardown": teardown,
+     "bootwatch": bootwatch, "killstale": killstale, "teardown": teardown,
      "start_beacon": start_beacon}[sys.argv[1]]()
