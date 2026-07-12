@@ -350,3 +350,23 @@ marks the 8 arm-(c) flagged cells, writes ``SUMMARY_g-refine.md`` +
 
 **Ledger:** $12.53 + $3.21 = **$15.74 of the $25 cap; $9.26 remains.** Arm (b)
 still has zero refined cells; arms (a) and (b) both await re-scoping.
+
+### 2026-07-12 sharded-batch supervision run (per-N shards, ceiling $28)
+
+24-shard plan (4 jobs x N4 + 5 injected siblings each). All 4 N4 baseline
+shards (sesar-0, sesar-1, sesar-2, bv-0) were killed at their FIRST deadline
+(2.0 h sesar / 3.0 h bv) with no RESULT beacon, auto-retried once on a fresh
+pod per the fleet driver's one-retry policy, and ALL FOUR retries also hit
+their full deadline with no RESULT -- each job marked `FAILED: 2x deadline
+kills` by the driver. Zero g-refine `results.json`/per-source npz landed
+under `rerun_202606/raw/`; the 20 injected N8/N12/N16/N24/N40 shards never
+became launchable (gated on an N4 sibling result that never appeared).
+`finalize_b8_closure.py` was run per protocol and raised its
+`SystemExit('no g-refine results under ...')` guard (not the p_true-mismatch
+variant) -- `SUMMARY_g-refine.md` is therefore UNCHANGED (still the prior
+NO-DATA breadcrumb). Final `state.json['spend_usd']` = **$20.67** (within
+the $28 ceiling). Pod-by-pod: sesar-0-N4 attempt 1 $2.28 + attempt 2 $2.37;
+sesar-1-N4 $2.24 + $2.27; sesar-2-N4 $2.30 + $2.38; bv-0-N4 $3.46 + $3.37.
+Teardown confirmed zero `b8c-*` pods remain; `cuvarbase-dev` untouched.
+Supervisor disposition (re-estimate deadlines vs re-shard further) is
+John's/the supervisor's call, not this run's.
