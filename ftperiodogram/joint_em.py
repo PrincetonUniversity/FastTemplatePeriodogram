@@ -140,7 +140,14 @@ def _template_from_coeffs(z):
 #: pair, half-width ``_REFINE_HALF_WIDTH_RAYLEIGH`` Rayleigh widths (1/T, with T
 #: the source's observed time span); an argmax landing on a window edge expands
 #: that window once by ``_REFINE_EXPAND_FACTOR`` before falling back to the
-#: full grid.
+#: full grid.  This windowing is a HEURISTIC that *reduces but does not
+#: eliminate* the chance of missing a global peak: an interior local maximum
+#: inside a window is returned without triggering the edge-escape/fallback even
+#: when a strictly larger peak lies outside every window (RF-5, WP B8e-prep).
+#: Final-answer correctness therefore rests on the mandatory full-grid rescan of
+#: the last recorded E-step (RF-2), and refine is only verified equivalent to
+#: the exact E-step in ``mode='floating_offsets'`` (RF-4); it is refused
+#: elsewhere in :func:`build_joint_em_catalog`.
 _REFINE_TOP_K = 4
 _REFINE_HALF_WIDTH_RAYLEIGH = 3.0
 _REFINE_EXPAND_FACTOR = 3.0
@@ -848,6 +855,21 @@ def build_joint_em_catalog(init_templates, n_clusters, train_scorer, *,
     if val_signal not in ('power_margin', 'recovery'):
         raise ValueError("val_signal must be 'power_margin' or 'recovery'; "
                          "got %r" % (val_signal,))
+
+    # RF-4 (WP B8e-prep, 2026-07-13): ``estep_refine`` is only verified
+    # bitwise-equivalent to the exact full-grid E-step in
+    # ``mode='floating_offsets'``.  In 'shared_phase'/'independent'/'sesar' an
+    # M-step can move a (source, template) pair's global peak outside every
+    # warm-start window with an interior windowed argmax -- no edge-escape or
+    # fallback fires, the miss is silent, and the converged vocabulary diverges
+    # from the exact E-step (final |dpower| up to ~7e-3).  Refuse rather than
+    # return a wrong answer; see VERIFICATION.md WP B8e-prep.
+    if estep_refine and mode != 'floating_offsets':
+        raise ValueError(
+            "estep_refine=True is only verified for mode='floating_offsets' "
+            "(RF-4, VERIFICATION.md WP B8e-prep); got mode=%r, where the "
+            "warm-start refine can silently diverge from the exact E-step. "
+            "Use estep_refine=False in this mode." % (mode,))
 
     train_exec = _SumsExecutor(sources, freqs, mode, H, n_jobs=n_jobs,
                                cache_sums=cache_sums)

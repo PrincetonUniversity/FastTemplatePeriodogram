@@ -129,6 +129,23 @@ def test_refine_final_state_matches_full(shapes, freqs):
         assert np.allclose(a.s_n, b.s_n, rtol=0, atol=1e-12)
 
 
+def test_refine_refused_outside_floating_offsets(shapes, freqs):
+    """RF-4 (WP B8e-prep): estep_refine is only verified equivalent to the exact
+    E-step in mode='floating_offsets'; build_joint_em_catalog must REFUSE it in
+    the other modes rather than silently converge to a divergent vocabulary."""
+    for mode in ('shared_phase', 'independent'):
+        cad = SyntheticCadence(n_epochs={'g': 8, 'r': 8}, bands=['g', 'r'],
+                               baseline_days=BASELINE, random_state=11)
+        sc = make_recovery_scorer(cad, shapes, freqs=freqs, n_sources=4,
+                                  mode=mode, random_state=11)
+        with pytest.raises(ValueError, match='floating_offsets'):
+            build_joint_em_catalog(shapes, 2, sc, n_harmonics=H,
+                                   random_state=0, estep_refine=True)
+        # the exact path (refine off) must still run in these modes
+        build_joint_em_catalog(shapes, 2, sc, n_harmonics=H, random_state=0,
+                               max_iter=2, estep_refine=False)
+
+
 def test_refine_early_stop_reruns_full_grid(shapes, freqs):
     """An early stop on a windowed iteration re-runs that E-step full-grid
     (same input bank), so the last recorded E-step is never windowed and
