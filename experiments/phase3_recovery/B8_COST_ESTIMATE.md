@@ -370,3 +370,30 @@ sesar-1-N4 $2.24 + $2.27; sesar-2-N4 $2.30 + $2.38; bv-0-N4 $3.46 + $3.37.
 Teardown confirmed zero `b8c-*` pods remain; `cuvarbase-dev` untouched.
 Supervisor disposition (re-estimate deadlines vs re-shard further) is
 John's/the supervisor's call, not this run's.
+
+### 2026-07-13 CORRECTION — unrecorded E5 RunPod spend (~$21.90)
+
+**Money-accounting fix.** A prior (Fable) session launched the E5 sparse-FTP
+fleet on RunPod on 2026-07-11 and it FAILED exactly like the arm-b sharded
+batch above — 8 pods (`e5-0..7`) on `cpu3c/32/SECURE`, booted 16:31–16:32
+(START beacons received), ran to the 2.0 h STALE limit, killed with **zero
+result beacons received/merged**. `_fleet_e5/state.json`: all 8 jobs
+`started=True received=False killed=True`, `core_hr` total **534.1** ⇒
+**~$21.90** at $0.041/core-hr. Both `_fleet_e5/HANDOFF.md` and
+`RECOVERY_2026-07-11.md` wrongly recorded E5 as "$0.00 / never launched"
+(the HANDOFF predates the launch; the RECOVERY doc did not reconcile the
+later state.json). **Corrected total wrap-up RunPod spend = arm-b $20.67 +
+E5 ~$21.90 = ~$42.6.** No live pods remain (verified 2026-07-13).
+
+**Shared root cause (arm-b + E5).** The shard driver posts results ONLY after
+ALL tasks in a shard finish (per-task `deadline = now + 1e9`, i.e. infinite),
+so on a slow flavor (cpu3c after cpu5c exhaustion) a shard that does not
+complete inside the stale window loses EVERYTHING. Not thread
+oversubscription (locally disconfirmed: FTP is NFFT + a Python scan loop, not
+BLAS-bound — 4-way pinned 24.1 s vs unpinned 22.9 s). Any future RunPod use of
+this driver needs: per-task timeout (so a hung/slow task can't sink the shard)
++ streaming/partial result posting + right-sized workers/flavor + canary-first.
+
+**E5 disposition: DROPPED (John, 2026-07-13).** Not a submission gate (E4 met
+the HOLD-for-ZTF-demo gate); F4 ships from E4 + a sparse-N-panel deferral note.
+No further E5 compute, local or paid.
