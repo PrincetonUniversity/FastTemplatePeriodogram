@@ -1079,3 +1079,20 @@ COMPLETENESS GAPS a rigorous sign-off should note (factored honestly into the ve
 5) NO ARM-A-SCALE CLI CACHE ON/OFF BITWISE DIFF. The production CLI exposes no cache toggle; cache parity was verified at module level (with an nf=2000/4000 spot-check), not via the exact production CLI params in a single cache-on/off comparison. Low risk (the cache only skips a deterministic recompute).
 
 6) DIAG-LENGTH-COUPLING oracle did not complete a live run; its array-length relationships were derived from reading the append sites in joint_em.py and corroborated by the committed assert (test_estep_cache.py:198). Benign (refuted as a gating defect); recommend a one-line note in the F3 methods text that em_solve_fraction/edge_escapes/fallbacks length = n_iter (+1 iff final_full_grid_rerun, the trailing element being the mandatory rerun, not a distinct iteration), val_signal length = n_iter+1, and that solve_fraction is a WORK ratio that can exceed 1.0 for a fallback-heavy windowed iteration.
+
+### Disposition RESOLVED (2026-07-13, John)
+
+John chose the **prose-only Paper-1 finish**: the paid **arm-a joint/EM release
+is NOT run**, so the two surviving refine defects are moot for the paper (refine
+is default-off; arm-a would have used `floating_offsets`, where it is bitwise
+anyway). Escalation closed on the code side:
+- **RF-4** — `build_joint_em_catalog` now RAISES `ValueError` for
+  `estep_refine=True` outside `mode='floating_offsets'` (`joint_em.py`; new test
+  `test_refine_refused_outside_floating_offsets`; `test_estep_cache` 10/10).
+- **RF-5** — window-geometry comment corrected to "reduces but does not
+  eliminate" + points to the mandatory final full-grid rescan (RF-2) as the
+  correctness guarantee. No production docstring over-claimed (the over-claim
+  was in the verification brief/handoff, not the code).
+- **Sums-cache** (the unconditional gate) stands CONFIRMED bitwise and is
+  untouched. F3 will report joint/EM as the honest negative-result deferral
+  (Paper 2 = full joint), so no `--estep-refine` run is gated on this.
