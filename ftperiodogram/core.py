@@ -521,7 +521,10 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
        the true ``|MM|^2`` minimum by clamped Newton -- because narrow
        peaks of ``P`` hide inside deep ``|MM|`` dips (rank-deficient or
        phase-clustered sampling) where the uniform grid cannot bracket
-       them (see :data:`_SCAN_DIP_RTOL`);
+       them (see :data:`_SCAN_DIP_RTOL`); grid maxima that provably
+       cannot win the (possibly K.18-constrained) argmax under the
+       Bernstein polish-improvement bound are then dropped before the
+       polish (step 3c in the source);
     4. polish each candidate with up to ``n_newton`` Newton steps on
        ``dP/dtheta`` using analytic first and second derivatives (Horner
        on the k- and k^2-weighted coefficient rows; see
@@ -677,15 +680,18 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         P0 = np.concatenate([Pg[max_f, max_g], P_dip])
         Yfb = np.concatenate([Yv[max_f, max_g], Y_dip])
         Mfb = np.concatenate([Mv[max_f, max_g], M_dip])
+        isdip = np.concatenate([np.zeros(len(max_f), dtype=bool),
+                                np.ones(len(dip_f), dtype=bool)])
         order = np.argsort(fidx, kind='stable')
         fidx, theta0, P0 = fidx[order], theta0[order], P0[order]
-        Yfb, Mfb = Yfb[order], Mfb[order]
+        Yfb, Mfb, isdip = Yfb[order], Mfb[order], isdip[order]
     else:
         fidx = max_f
         theta0 = (2 * np.pi / M) * max_g
         P0 = Pg[max_f, max_g]
         Yfb = Yv[max_f, max_g]
         Mfb = Mv[max_f, max_g]
+        isdip = np.zeros(len(max_f), dtype=bool)
 
     if len(fidx) == 0:
         params_list = [flat_params] * nf
@@ -695,6 +701,35 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
                              positive_amplitude, params_list, powers,
                              best_phis)
         return params_list, powers, best_phis
+
+    # -- 3c: Bernstein candidate filter --------------------------------
+    # A bracketed grid local maximum can improve under polishing by at
+    # most ``gain * max|P|`` on the circle (the true peak lies within one
+    # grid step of the seed; second-derivative Bernstein bound
+    # ``(2H)^2 max|P|`` for the degree-<=2H trig structure away from |MM|
+    # dips), so a candidate whose grid value trails the row's best
+    # candidate by more than TWICE that bound (2x margin) provably cannot
+    # win the argmax and is dropped before the polish. Dip candidates are
+    # exempt (their near-pole structure voids the smooth Bernstein
+    # scale), and under the K.18 positive-amplitude constraint every
+    # positive-seed candidate within the bound of the best positive seed
+    # is also retained: the constrained winner need not be the global
+    # maximizer. (2026-07-18 efficiency hunt, skeptic-vetted.)
+    gain = (np.pi / M) ** 2 * (2.0 * H) ** 2 / 2.0
+    rowmax = np.full(nf, -np.inf)
+    np.maximum.at(rowmax, fidx, P0)
+    rowabs = np.where(np.isfinite(Pg), np.abs(Pg), 0.0).max(axis=1)
+    keep = isdip | (P0 >= (rowmax - 2.0 * gain * rowabs)[fidx])
+    if positive_amplitude:
+        with np.errstate(divide='ignore', invalid='ignore'):
+            th1g = np.real(np.exp(1j * theta0) ** H * Yfb / Mfb)
+        pos = th1g >= 0
+        rowmax_pos = np.full(nf, -np.inf)
+        np.maximum.at(rowmax_pos, fidx[pos], P0[pos])
+        keep |= pos & (P0 >= (rowmax_pos - 2.0 * gain * rowabs)[fidx])
+    if not np.all(keep):
+        fidx, theta0, P0 = fidx[keep], theta0[keep], P0[keep]
+        Yfb, Mfb = Yfb[keep], Mfb[keep]
 
     # -- 4: Newton polish on dP/dtheta ---------------------------------
     YMc = YM_coefs[fidx]                                    # (nc, 2H+1)
