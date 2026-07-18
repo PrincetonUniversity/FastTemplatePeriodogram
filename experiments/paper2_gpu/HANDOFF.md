@@ -67,7 +67,16 @@ cancellation — do it only if the science switches to fixed colors.
    regularized, RLL-only vocab); expensive work (H=8, unregularized, EW/DRW,
    fine grid) happens only at the handful of candidates per object.
 
-## 3. Cost estimate (revised)
+## 3. Cost estimate (revised) — **VOID per the 2026-07-18 audit**
+
+> **2026-07-18 audit (`audit_20260718/AUDIT_2026-07-18.md`):** this table's
+> anchors are nfreq=8000 and single-template; the real PS1 RRL grid is ~4–20×
+> larger and detection runs over K_vocab templates — neither multiplier is in
+> the chain, so do **not** quote $30–70. Countervailing: the audit measured
+> staging saving ~8.8× (not 5×), and the vetted efficiency hunt banked a
+> further ~2–2.5× SAFE CPU stack + SCIENCE-gated ~4× cascade + injection-
+> campaign localization. Rebuild bottom-up once Track-B #5 pins nfreq /
+> candidate count / vocab size.
 | Step | Factor | Status |
 |---|---|---|
 | Planning basis (per-freq scan, H=8, full grid) | $1–2k | prior session |
@@ -98,8 +107,16 @@ possible, synthetic first for shape.
    Plug into §3 for the final $.
 
 ## 4b. Next session — Track A: fused-kernel GPU optimization
-The cupy prototype (§1) is a **launch/memory-bound floor** (~38×/core), NOT the
-ceiling. `GPU_FEASIBILITY.md` roofline is ~200×/core with fused kernels. Targets,
+
+> **2026-07-18 audit re-ordering:** run the Stage-2 FP64 accuracy spike FIRST
+> on the pod (GPU_FEASIBILITY §8), and bake into the fused-kernel design: the
+> K.18 positive-amplitude filter (mandatory — see FINDINGS corrections),
+> candidate compaction, shared-memory coef staging, device sums-reuse across
+> K/subtypes, Chebyshev trig. Do-not-dos (vetted): CUDA graphs, H2D overlap;
+> Aberth wiring deprioritized pending the B4 real-cadence dip rate.
+
+The cupy prototype (§1) is a **launch/memory-bound floor** (honest ~20–30×/core,
+see FINDINGS corrections), NOT the ceiling. `GPU_FEASIBILITY.md` roofline is ~200×/core with fused kernels. Targets,
 in priority order (validate each bit-vs the frozen CPU scan; FP64 throughout;
 datacenter cards only):
 1. **Fuse the Newton-polish kernel** (Stage 3, ~77–90% of cost; the launch-bound

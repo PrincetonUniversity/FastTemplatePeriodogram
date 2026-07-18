@@ -1,5 +1,19 @@
 # GPU prototype — first measured FTP throughput (2026-07-18)
 
+> **CORRECTIONS (2026-07-18 adversarial audit — `audit_20260718/AUDIT_2026-07-18.md`):**
+> (1) The "max |ΔP| confined to ~4% deep-dip frequencies" attribution below is
+> **wrong**: the divergence is entirely the prototype's omitted K.18
+> positive-amplitude filter (31% of frequencies differ >1e-9; proto matches the
+> package with positive_amplitude=False to 6.1e-16 everywhere). Argmax/peak are
+> unaffected, but the off-peak spectrum is biased high — the production kernel
+> must implement K.18. (2) The "~38×/core" uses the proto-numpy B=256 baseline,
+> which is memory-bound at large B (proto CPU is fastest at B=1: 77.9 µs/LC/freq);
+> vs the best single-thread CPU floor (~78–81 µs) the honest multiple is
+> **~20–30×/core**. (3) The 12–14× batched claim holds at nfreq ≳ 5000 (the PS1
+> regime) but drops to ~9.7× at nfreq=2000 (setup amortization). (4) All cost
+> anchors below are nfreq=8000, single-template: the real PS1 grid is ~4–20×
+> larger and detection runs over K_vocab templates — do not quote the $ figures.
+
 xp-agnostic (numpy/CuPy) batched multiband `floating_offsets` FTP, batched over
 BOTH sources and frequencies (the Paper-2 throughput regime: many sparse griz
 light curves). `gpu_ftp_proto.py` runs unchanged on CPU (`xp=numpy`) or GPU
