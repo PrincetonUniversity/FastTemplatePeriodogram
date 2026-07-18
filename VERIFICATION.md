@@ -1146,3 +1146,37 @@ sums 2.39x. New CPU per-unit floors: 21.4 us/LC/f/T @H8 (K=4-amortized),
 BENCH.md, fixtures.py, golden.py, bench.py, output/}. Human sign-off
 delegated to adversarial multi-agent verification per the 2026-06-12
 standing delegation; verification run recorded in the same directory.
+
+### WP SAFE errata + FILTER-DIP-1 (same day, 2026-07-18)
+
+The 33-agent adversarial verification of the SAFE stack (5 lenses,
+2-refuter panels; full record in
+experiments/paper2_gpu/safe_stack/PARITY_REPORT.md rev 2) CONFIRMED:
+- **FILTER-DIP-1 (critical, item 2 as shipped):** the Bernstein
+  improvement bound is invalid near |MM| circle dips (P is rational;
+  curvature inflates beyond the smooth (2H)^2 scale), so the
+  unrestricted candidate filter could drop the argmax-winning candidate
+  on phase-clustered/rank-deficient cadences (silent deficits
+  1e-4..2.6e-3, incidence ~1e-4 of rows; reproduced by two independent
+  skeptics against brute-force ground truth). **FIXED:** filter now
+  applies only to dip-free rows (min|MM| >= _SCAN_DIP_RTOL max|MM|),
+  margin 2x -> 4x, stage-2 densify sized with 2x headroom. Revalidated
+  on the workflow's full adversarial ensemble: 684k rows, 0 regressions
+  vs min(pre-change scan, eigvals); named counterexamples resolved to
+  <= 1.1e-11 (corner regime) / 5.7e-14 (typical).
+- **Bench/doc corrections:** net speedups after the fix are catalog
+  2.88x @H4 / 3.53x @H8, single-template 1.2-1.6x (the earlier
+  "1.6-2.1x" range in the WP SAFE summary above was optimistic and is
+  superseded); B5 per-candidate CPU costs re-measured AT the real grids
+  (linear extrapolation from 8k was 9-16% optimistic): RRab H4
+  2.34 s/LC, RRc H2 1.13 s/LC, ~3.5 s/candidate. Bench JSONs now carry
+  a pkg_sha content hash (the 'before' arm's rev field could not attest
+  a files-only checkout).
+- **Coverage:** five mutant-killing regression tests added
+  (ftperiodogram/tests/test_safe_stack_regressions.py): trig-recurrence
+  accuracy on long grids (kills freq-cumprod), batched deferral
+  contract, stage-2 recheck escalation + angle-cap branch, mixed-H
+  modeler hoist keying, multi-chunk hoist staleness.
+- Refuted by the panels (no action): dense-grid nesting concern for
+  non-power-of-two M, K.18 max-merge unsoundness, trackA mirror-doc
+  staleness.

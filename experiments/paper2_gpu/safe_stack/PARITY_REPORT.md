@@ -25,3 +25,49 @@ Notes
   still raises downstream at the scan's coefficient check.
 - Full-suite and before/after bench results: see BENCH.md (same directory)
   and the VERIFICATION.md addendum.
+
+---
+
+## Rev 2 — FILTER-DIP-1 (found by adversarial verification, fixed same day)
+
+The 33-agent verification workflow (5 lenses x 2-refuter panels) run on
+the stack CONFIRMED a critical defect in item 2 as shipped: the
+Bernstein improvement bound assumes the smooth degree-2H trig scale, but
+P = Re(YM^2/MM) is RATIONAL — near a circle dip of |MM| its curvature
+inflates beyond (2H)^2, so the unrestricted filter could drop a
+candidate whose polish wins the argmax. Reproduced independently by two
+skeptics against brute-force dense-circle ground truth (exemplar: seed
+6002 clustered cadence, H=2, r=0.020 — shipped 0.131661 vs true
+0.131793, silent 1.3e-4 deficit; worst observed 2.6e-3; incidence
+~1e-4 of rows, phase-clustered/rank-deficient cadences only; the
+7-fixture golden harness lacked this cadence class). A second (major)
+confirmed finding: the stage-2 densified rescan was sized at the
+Bernstein equality, so accepted rows sat exactly at the recomputed gate
+in the same regime.
+
+**Fix** (uncommitted-at-verification, now in the same branch):
+1. Filter restricted to dip-free rows (min|MM| >= _SCAN_DIP_RTOL
+   max|MM| — exactly the rows with no dip candidates, where the smooth
+   Bernstein scale is the C2-validated regime); every candidate of a
+   dip-carrying row is polished. Dense rescan rows are all deep, so the
+   filter self-disables there.
+2. Margin raised 2x -> 4x on the eligible rows (headroom for the
+   residual <= 1/r^2 <= 4 curvature inflation at r ~ 0.5).
+3. Stage-2 M_need sized with 2x headroom.
+
+**Revalidation** (the workflow's own adversarial probes, rerun on the
+fix): probe_hunt 450k rows — 0 findings; probe_hunt2 234k rows (168,674
+deep-band) — 0 misses; probe_dense_attr — all previously-regressed rows
+now match eigvals (residuals ~1e-12); skeptic fresh-seed counterexamples
+(20002/22002/8002) — deficits <= 5.7e-14, per-case max 1.1e-11 (inside
+the corner-regime evaluation-noise bar). Suite: 209 targeted + full
+suite rerun. Bench deltas: see BENCH.md rev 2 (net 2.88x/3.53x catalog).
+
+Also actioned from the same verification run: bench provenance
+(pkg_sha content hash recorded per run; mb_catalog_h2 row added to
+bench.py), B5 real-grid anchors re-measured post-fix (superlinearity
+corrected, B5_RESULT.md updated), VERIFICATION.md speedup ranges
+corrected, and five coverage regression tests added
+(tests/test_safe_stack_regressions.py) for: trig-recurrence accuracy at
+long grids, the batched deferral contract, stage-2 recheck + angle-cap
+branches, mixed-H modeler hoist, multi-chunk hoist staleness.

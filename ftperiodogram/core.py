@@ -658,11 +658,15 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         if len(need):
             # Stage 2 -- densified rescan at the density the bound
             # prescribes (dtheta <= sqrt(2 r)/(2H); C3.5 escalation
-            # formula), gate RECOMPUTED from the densified measurement;
-            # failing rows (and rows needing more than
+            # formula) with a 2x sizing headroom -- the coarse-grid
+            # r_row only upper-bounds the true circle conditioning, and
+            # equality-sizing would leave accepted rows sitting exactly
+            # at the recomputed gate (adversarial verification,
+            # 2026-07-18) -- gate RECOMPUTED from the densified
+            # measurement; failing rows (and rows needing more than
             # _SCAN_DEEP_MAX_ANGLES angles) take the exact root path.
             with np.errstate(divide='ignore', over='ignore'):
-                M_need = (4.0 * np.pi * H) / np.sqrt(
+                M_need = 2.0 * (4.0 * np.pi * H) / np.sqrt(
                     np.maximum(2.0 * r_row[need], 1e-300))
             within = M_need <= _SCAN_DEEP_MAX_ANGLES
             eig_rows = list(need[~within])
@@ -825,31 +829,42 @@ def _scan_pass(YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M,
         best_phis = np.full(nf, 1.0 + 0.0j)
         return params_list, powers, best_phis, mm_min, mm_max
 
-    # -- 3c: Bernstein candidate filter --------------------------------
+    # -- 3c: Bernstein candidate filter (dip-free rows ONLY) -----------
     # A bracketed grid local maximum can improve under polishing by at
     # most ``gain * max|P|`` on the circle (the true peak lies within one
     # grid step of the seed; second-derivative Bernstein bound
-    # ``(2H)^2 max|P|`` for the degree-<=2H trig structure away from |MM|
-    # dips), so a candidate whose grid value trails the row's best
-    # candidate by more than TWICE that bound (2x margin) provably cannot
-    # win the argmax and is dropped before the polish. Dip candidates are
-    # exempt (their near-pole structure voids the smooth Bernstein
-    # scale), and under the K.18 positive-amplitude constraint every
-    # positive-seed candidate within the bound of the best positive seed
-    # is also retained: the constrained winner need not be the global
-    # maximizer. (2026-07-18 efficiency hunt, skeptic-vetted.)
+    # ``(2H)^2 max|P|`` for the degree-<=2H trig structure), so a
+    # candidate whose grid value trails the row's best candidate by more
+    # than the margin below provably cannot win the argmax and is dropped
+    # before the polish. VALIDITY DOMAIN (adversarial verification
+    # finding FILTER-DIP-1, 2026-07-18): P = Re(YM^2/MM) is RATIONAL,
+    # and near a circle dip of |MM| its curvature is amplified beyond
+    # the smooth (2H)^2 scale -- on phase-clustered/rank-deficient
+    # cadences the unrestricted filter dropped candidates whose polish
+    # won the argmax (silent power deficits up to ~2.6e-3). The filter
+    # therefore applies ONLY to rows with no deep dip
+    # (min|MM| >= _SCAN_DIP_RTOL max|MM| on this grid -- exactly the
+    # rows that carry no dip candidates); every candidate of a
+    # dip-carrying row is polished. The margin is 4x the smooth bound
+    # (headroom for the residual <= 1/r^2 <= 4 curvature inflation the
+    # dip-free condition still admits at r ~ 0.5). Under the K.18
+    # positive-amplitude constraint every positive-seed candidate within
+    # the margin of the best positive seed is also retained: the
+    # constrained winner need not be the global maximizer.
     gain = (np.pi / M) ** 2 * (2.0 * H) ** 2 / 2.0
+    dipfree = mm_min >= _SCAN_DIP_RTOL * mm_max
     rowmax = np.full(nf, -np.inf)
     np.maximum.at(rowmax, fidx, P0)
     rowabs = np.where(np.isfinite(Pg), np.abs(Pg), 0.0).max(axis=1)
-    keep = isdip | (P0 >= (rowmax - 2.0 * gain * rowabs)[fidx])
+    marg = 4.0 * gain * rowabs
+    keep = ~dipfree[fidx] | isdip | (P0 >= (rowmax - marg)[fidx])
     if positive_amplitude:
         with np.errstate(divide='ignore', invalid='ignore'):
             th1g = np.real(np.exp(1j * theta0) ** H * Yfb / Mfb)
         pos = th1g >= 0
         rowmax_pos = np.full(nf, -np.inf)
         np.maximum.at(rowmax_pos, fidx[pos], P0[pos])
-        keep |= pos & (P0 >= (rowmax_pos - 2.0 * gain * rowabs)[fidx])
+        keep |= pos & (P0 >= (rowmax_pos - marg)[fidx])
     if not np.all(keep):
         fidx, theta0, P0 = fidx[keep], theta0[keep], P0[keep]
         Yfb, Mfb = Yfb[keep], Mfb[keep]

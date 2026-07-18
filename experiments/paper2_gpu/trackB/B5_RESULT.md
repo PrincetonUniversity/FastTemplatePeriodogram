@@ -28,10 +28,13 @@ path amortizes much more, see below).
 
 ## 2. Per-candidate detection cost (staged H, K=4 both arms)
 
-CPU (post-SAFE-stack, single M5 P-core, measured safe_stack/BENCH.md):
-- RRab H4: 0.301 s per 8k freqs (K=4) x 48/8      = **1.81 s/LC**
-- RRc  H2: 0.162 s per 8k freqs (K=4) x 45.12/8   = **0.91 s/LC**
-- **Total ~2.7 s per candidate per M5 core** (~0.76 core-hours per 1000)
+CPU (post-SAFE-stack WITH the FILTER-DIP-1 correctness fix; single M5
+P-core; MEASURED AT THE REAL GRIDS, not extrapolated from 8k — the
+adversarial perf check showed ~9-16% superlinearity that linear scaling
+hides; safe_stack/BENCH.md rev 2):
+- RRab H4, nfreq=48,000, K=4: **2.34 s/LC**
+- RRc  H2, nfreq=45,120, K=4: **1.13 s/LC**
+- **Total ~3.5 s per candidate per M5 core** (~0.96 core-hours per 1000)
 
 GPU (A100, session-A measured 0.55-0.59 us/LC/f/T @H8; H4 bracketed
 0.28-0.33, H2 0.16-0.21 — H4 row is a session-B item):
@@ -43,16 +46,18 @@ GPU (A100, session-A measured 0.55-0.59 us/LC/f/T @H8; H4 bracketed
 
 | N_cand | A100 (25.3 h/M, $1.49/h) | cloud 64-vCPU CPU (a) |
 |---|---|---|
-| 0.3 M | ~8 h, **~$11** | ~14 h, ~$35 |
-| 1 M | ~25 h, **~$38** | ~47 h, ~$118 |
-| 3 M | ~76 h, **~$113** | ~142 h, ~$355 |
+| 0.3 M | ~8 h, **~$11** | ~9 h, ~$23 |
+| 1 M | ~25 h, **~$38** | ~30 h, ~$75 |
+| 3 M | ~76 h, **~$113** | ~90 h, ~$226 |
 
-(a) assumes cloud vCPU ~ 0.5x an M5 P-core and ~$2.5/h per 64-vCPU node;
-the playbook's CPU-only decision stands on budget-dial grounds, but note
-the SAFE stack narrowed GPU-vs-CPU to ~39x/core (was ~135x) — at these
-prices the A100 is now the cheaper scan engine and session-B H4 rows
-would firm its column. Injection campaign: ~$4-12 per 100k injections
-(same per-LC cost; alias-partner windowing, if validated, cuts 13-18x).
+(a) assumes cloud vCPU ~ 0.5x an M5 P-core and ~$2.5/h per 64-vCPU
+node, from the measured 3.5 s/candidate/M5-core. The SAFE stack (post
+correctness fix) puts the A100 at ~32x an M5 core @H8 — the GPU remains
+~2x cheaper per candidate at cloud prices, but both columns are now
+O($100) at 1-3M candidates, so the playbook's CPU-only simplicity
+argument survives. Session-B H4 GPU rows would firm the A100 column.
+Injection campaign: ~$4-12 per 100k injections (same per-LC cost;
+alias-partner windowing, if validated, cuts 13-18x).
 
 **The binding unknown is N_cand.** Everything above is exact per-unit;
 total cost is linear in the faint shortlist size after cuts (point

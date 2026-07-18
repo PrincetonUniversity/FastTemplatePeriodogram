@@ -67,15 +67,14 @@ def main():
         rows['mb_batched_h%d' % H] = _med(run, args.reps)
         print('mb_batched_h%d: %.3fs' % (H, rows['mb_batched_h%d' % H]))
 
-        if H in (4, 8):
-            cat = FastMultibandTemplatePeriodogram(templates=fx['vocab'],
-                                                   mode='floating_offsets')
-            cat.fit(fx['t'], fx['y'], fx['bands'], fx['dy'])
+        cat = FastMultibandTemplatePeriodogram(templates=fx['vocab'],
+                                               mode='floating_offsets')
+        cat.fit(fx['t'], fx['y'], fx['bands'], fx['dy'])
 
-            def runc(cat=cat, fx=fx):
-                cat.power(fx['freqs'], save_best_model=False, fast=True)
-            rows['mb_catalog_h%d' % H] = _med(runc, args.reps)
-            print('mb_catalog_h%d: %.3fs' % (H, rows['mb_catalog_h%d' % H]))
+        def runc(cat=cat, fx=fx):
+            cat.power(fx['freqs'], save_best_model=False, fast=True)
+        rows['mb_catalog_h%d' % H] = _med(runc, args.reps)
+        print('mb_catalog_h%d: %.3fs' % (H, rows['mb_catalog_h%d' % H]))
 
         if H == 4:
             def rund(ftp=ftp, fx=fx):
@@ -96,8 +95,16 @@ def main():
     rev = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'],
                          capture_output=True, text=True,
                          cwd=_HERE).stdout.strip()
-    out = dict(tag=args.tag, rev=rev, nfreq=args.nfreq, reps=args.reps,
-               rows=rows)
+    # provenance: HEAD alone cannot attest a files-only checkout (the
+    # 'before' arm restores an old ftperiodogram/ without moving HEAD),
+    # so also record a content hash of the measured package source
+    import hashlib
+    import ftperiodogram
+    h = hashlib.sha256()
+    for p in sorted(Path(ftperiodogram.__file__).parent.glob('*.py')):
+        h.update(p.read_bytes())
+    out = dict(tag=args.tag, rev=rev, pkg_sha=h.hexdigest()[:12],
+               nfreq=args.nfreq, reps=args.reps, rows=rows)
     path = _HERE / 'output' / ('bench_%s.json' % args.tag)
     path.write_text(json.dumps(out, indent=1))
     print('saved', path.name)
