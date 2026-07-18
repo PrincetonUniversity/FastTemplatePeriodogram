@@ -315,3 +315,77 @@ def fast_summations_batched(t, y, w, freqs, nh, chunk_size=4096, sigma=2,
                                           i0, min(i0 + chunk_size, nf))
 
     return _chunks()
+
+
+def _direct_stacked_sums_chunk(t, y_cos_u, w, freqs_chunk, nh):
+    r"""Vectorized direct summations for a chunk of frequencies, returned as a
+    stacked ``Summations``. ``y_cos_u = w * (y - ybar)`` is the centered,
+    weighted data vector (the NFFT path's ``u``), passed in so it is computed
+    once for the whole grid.
+
+    Produces the *same* ``Summations`` fields as :func:`_batched_sums_from_nfft`
+    (uncentered product-to-sum covariance form ``E[xy] - E[x]E[y]``), so it is a
+    drop-in for the NFFT batched path, differing only by the NFFT gridding error
+    (direct is exact). Uses ``einsum`` for the reductions.
+    """
+    fr = np.asarray(freqs_chunk, dtype=float)
+    ph = 2.0 * np.pi * np.outer(fr, np.asarray(t, dtype=float))   # (m, N)
+    mh = np.arange(1, 2 * nh + 1)                                 # harmonics 1..2H
+    ang = mh[None, :, None] * ph[:, None, :]                      # (m, 2H, N)
+    cosA = np.cos(ang)
+    sinA = np.sin(ang)
+    w = np.asarray(w, dtype=float)
+    C = np.einsum('mhn,n->mh', cosA, w)                          # (m, 2H)
+    S = np.einsum('mhn,n->mh', sinA, w)
+    YC = np.einsum('mhn,n->mh', cosA[:, :nh, :], y_cos_u)        # (m, H)
+    YS = np.einsum('mhn,n->mh', sinA[:, :nh, :], y_cos_u)
+
+    k = np.arange(nh)
+    j = k[:, np.newaxis]
+    diag = np.arange(nh)
+
+    Sn = np.sign(k - j) * S[:, np.abs(k - j) - 1]                # (m, H, H)
+    Sn[:, diag, diag] = 0
+    Cn = C[:, np.abs(k - j) - 1]
+    Cn[:, diag, diag] = 1
+
+    Sp = S[:, j + k + 1]
+    Cp = C[:, j + k + 1]
+
+    Cj, Ck = C[:, :nh, np.newaxis], C[:, np.newaxis, :nh]
+    Sj, Sk = S[:, :nh, np.newaxis], S[:, np.newaxis, :nh]
+
+    CC = 0.5 * (Cn + Cp) - Cj * Ck
+    CS = 0.5 * (Sn + Sp) - Cj * Sk
+    SS = 0.5 * (Cn - Cp) - Sj * Sk
+
+    return Summations(C=C[:, :nh], S=S[:, :nh], YC=YC, YS=YS,
+                      CC=CC, CS=CS, SS=SS)
+
+
+def direct_summations_batched(t, y, w, freqs, nh, chunk_size=4096):
+    r"""Batched (stacked-array) direct summations, yielding one stacked
+    ``Summations`` per chunk -- the exact, NFFT-free counterpart of
+    :func:`fast_summations_batched`.
+
+    For the sparse regime (few tens of samples per band) this is faster than
+    the adjoint NFFT (whose oversampled grid must span ``[0, 2H f_max]``
+    regardless of how few samples there are), is exact to float64 (no gridding
+    error), and computes only the requested ``[f_min, f_max]`` band. Above
+    ~30 samples per band the NFFT wins; use :func:`fast_summations_batched`
+    there. The two produce numerically-equivalent sums (agreeing to the NFFT
+    truncation tolerance).
+    """
+    _validate_chunk_size(chunk_size)
+    freqs = np.asarray(freqs, dtype=float)
+    nf = len(freqs)
+    w = np.asarray(w, dtype=float)
+    ybar = np.dot(w, np.asarray(y, dtype=float))
+    u = w * (np.asarray(y, dtype=float) - ybar)
+
+    def _chunks():
+        for i0 in range(0, nf, chunk_size):
+            yield _direct_stacked_sums_chunk(t, u, w,
+                                             freqs[i0:i0 + chunk_size], nh)
+
+    return _chunks()

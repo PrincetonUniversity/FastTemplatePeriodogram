@@ -40,8 +40,11 @@ import numpy as np
 import numpy.polynomial as pol
 
 from .template import Template
-from .utils import weights, ModelFitParams
-from .summations import fast_summations, direct_summations
+from .utils import weights, ModelFitParams, Summations
+from .summations import (fast_summations, direct_summations,
+                         direct_summations_single_freq,
+                         _nfft_grid_coefficients, _batched_sums_from_nfft,
+                         _direct_stacked_sums_chunk, _validate_chunk_size)
 from .modeler import TemplateModel
 from . import core as pdg
 
@@ -835,6 +838,238 @@ def solve_over_frequencies(template_dict, per_band_sumlists, stats, nfreq,
     return powers, params_list
 
 
+# ----------------------------------------------------------------------
+# Batched (vectorized-over-frequency) solve. The per-frequency
+# solve_over_frequencies re-implements a Python loop over frequencies, one
+# tiny FFT / Horner / numpy.polynomial object per frequency; the batched path
+# below assembles the per-band YM/MM/AC coefficients for whole frequency
+# chunks (core.batched_YM_MM_from_sums), combines the bands with the SAME
+# linear W_k-weighting (which commutes with batching exactly), and maximizes
+# each chunk at once (core.scan_polish_from_coefs). It is a drop-in for the
+# scan-method shared-amplitude modes (floating_offsets / sesar / independent)
+# and returns identical powers to solve_over_frequencies (to float64 round-off;
+# ~machine epsilon where the combined MM' is well conditioned). Since the
+# recovery/detection use returns only the power spectrum (best model saved at
+# a single frequency), the per-frequency MultibandModelFitParams objects are
+# not materialized here -- reconstruction at the peak reuses the per-frequency
+# path on one frequency.
+# ----------------------------------------------------------------------
+# Modes whose scan solve is a single (band-combined) YM/MM scan and so batch
+# through core.scan_polish_from_coefs verbatim. Restricted to the Paper-2
+# target (floating_offsets): its combined MM' = sum_k W_k MM_k is well
+# conditioned on the unit circle (few deep dips), so the batched np.trace
+# assembly matches the per-frequency reference to ~machine epsilon, and the
+# rare deep-dip frequencies are DEFERRED to the per-frequency reference below.
+# `sesar`/`independent`/`shared_phase` keep the (correct) per-frequency scan:
+# sesar's between-band-variance cancellation amplifies assembly-order ulps
+# catastrophically at deep dips (SESAR-DIP-1), and independent/shared_phase
+# need per-band deep-dip handling.
+_BATCHED_SCAN_MODES = ('floating_offsets',)
+
+# Deferral threshold for the batched floating_offsets path: at frequencies whose
+# combined |MM'| conditioning (min/max on the unit circle) falls below this, the
+# power is recomputed by the per-frequency reference so it bit-matches
+# solve_over_frequencies. floating_offsets' combined MM' = sum_k W_k MM_k has NO
+# between-band cancellation (unlike sesar; SESAR-DIP-1), so batched-vs-reference
+# divergence stays <= ~1e-12 even on adversarial phase-clumped data and is
+# ~machine-epsilon on well-conditioned griz -- measured max 9.6e-13 at
+# conditioning ~3e-5, 2.8e-16 on realistic K=4 griz. The 1e-4 threshold fires on
+# ~0% of well-conditioned griz frequencies (so the target runs fully batched)
+# while still deferring the deepest dips for a guaranteed reference match. Much
+# deeper than core._SCAN_EXACT_RTOL (0.15, the scan's own exact-root fallback),
+# because that fallback tolerates the batched-coefficient assembly whereas this
+# guarantees the PER-FREQUENCY assembly at extreme conditioning. Set to 3e-3:
+# batched-vs-reference divergence reaches ~1e-12 only near conditioning ~8e-4
+# (measured on adversarial K=2 phase-clumped H=8 fixtures), so 3e-3 leaves a
+# ~10x margin below the 1e-12 gate, while realistic griz (K>=3) has ~0% of
+# frequencies this ill-conditioned so the target never pays the deferral.
+_BATCHED_DEFER_RTOL = 3E-3
+
+
+def _prepare_band_transforms(t, y, bands, dy, freqs, H, mode, relative_offsets,
+                             fast=True, sigma=2, tol=1E-7):
+    """Per-band, frequency-independent transforms for the batched solve.
+
+    Returns ``(transforms, stats, freqs)`` where ``transforms`` maps each band
+    to a ``(kind, payload)`` pair: ``('nfft', (f_hat_u, f_hat_w, dnf))`` for the
+    adjoint-NFFT path or ``('direct', (t_k, y_k, w_k))`` for the exact direct
+    path. Template-independent -- reusable across a whole template catalog.
+    """
+    band_data, stats = _prepare_bands(t, y, bands, dy, mode,
+                                      relative_offsets, H)
+    freqs = np.asarray(freqs, dtype=float)
+    transforms = OrderedDict()
+    for band, (t_k, y_k, w_k) in band_data.items():
+        if fast:
+            f_hat_u, f_hat_w, _nf, dnf = _nfft_grid_coefficients(
+                t_k, y_k, w_k, freqs, H, sigma=sigma, tol=tol)
+            transforms[band] = ('nfft', (f_hat_u, f_hat_w, dnf))
+        else:
+            transforms[band] = ('direct', (t_k, y_k, w_k))
+    return transforms, stats, freqs
+
+
+def _band_stacked_chunk(transform, H, i0, i1, freqs):
+    """Stacked ``Summations`` for one band over grid frequencies ``[i0, i1)``."""
+    kind, payload = transform
+    if kind == 'nfft':
+        f_hat_u, f_hat_w, dnf = payload
+        return _batched_sums_from_nfft(f_hat_u, f_hat_w, H, dnf, i0, i1)
+    t_k, y_k, w_k = payload
+    ybar_k = np.dot(w_k, y_k)
+    u_k = w_k * (y_k - ybar_k)
+    return _direct_stacked_sums_chunk(t_k, u_k, w_k, freqs[i0:i1], H)
+
+
+def _band_single_ref_sums(transform, H, gi, freqs):
+    """Per-frequency reference ``Summations`` at grid index ``gi``, computed the
+    same way the non-batched path would (so a deep-dip frequency deferred here
+    bit-matches :func:`solve_over_frequencies`): NFFT-extracted for ``'nfft'``
+    (identical to :func:`fast_summations` per frequency), or the centered
+    two-pass :func:`direct_summations_single_freq` for ``'direct'``."""
+    kind, payload = transform
+    if kind == 'nfft':
+        f_hat_u, f_hat_w, dnf = payload
+        stacked = _batched_sums_from_nfft(f_hat_u, f_hat_w, H, dnf, gi, gi + 1)
+        return Summations(*(getattr(stacked, f)[0] for f in stacked._fields))
+    t_k, y_k, w_k = payload
+    return direct_summations_single_freq(t_k, y_k, w_k, float(freqs[gi]), H)
+
+
+def _combine_stacked_shared_amp(template_dict, transforms, stats, i0, i1, freqs,
+                                mode):
+    r"""Band-combined stacked ``YM'``/``MM'``/``AC'`` for a frequency chunk.
+
+    Vectorized analog of :func:`combine_band_summations`: for
+    ``floating_offsets`` the combination is the ``W_k``-weighted average of the
+    per-band coefficients; for ``sesar`` the global-mean re-centering
+    corrections are added (assembled in the same centered ``MM'`` form as the
+    per-frequency path, so the SESAR-DIP-1 cancellation fix carries over).
+    Also returns the per-band ``AC_k`` stack (for offset reconstruction).
+    """
+    bands = stats.bands
+    H = stats.H
+    YM = MM = AC = None
+    AC_by_band = {}
+    Mbar_by_band = {}
+    Mbar_comb = None
+    for band in bands:
+        stacked = _band_stacked_chunk(transforms[band], H, i0, i1, freqs)
+        YM_k, MM_k, AC_k = pdg.batched_YM_MM_from_sums(
+            template_dict[band].c_n, template_dict[band].s_n, stacked)
+        AC_by_band[band] = AC_k
+        wk = stats.W[band]
+        YM = wk * YM_k if YM is None else YM + wk * YM_k
+        MM = wk * MM_k if MM is None else MM + wk * MM_k
+        AC_wk = wk * AC_k
+        AC = AC_wk if AC is None else AC + AC_wk
+
+    if mode == 'sesar':
+        # global-mean re-centering (thesis lines 76-78), batched. Mbar_k is the
+        # (phi**H-scaled) mean-template polynomial of band k: coefs
+        # [conj(AC_k)[::-1], 0, AC_k] -> shape (m, 2H+1).
+        nfc = i1 - i0
+        YM_corr = None
+        for band in bands:
+            AC_k = AC_by_band[band]
+            Mbar_k = np.concatenate(
+                (np.conj(AC_k)[:, ::-1],
+                 np.zeros((nfc, 1), dtype=np.complex128), AC_k), axis=1)
+            Mbar_by_band[band] = Mbar_k
+            wk = stats.W[band]
+            term = wk * ((stats.ybar[band] - stats.ybar_global) * Mbar_k)
+            YM_corr = term if YM_corr is None else YM_corr + term
+            wk_mbar = wk * Mbar_k
+            Mbar_comb = wk_mbar if Mbar_comb is None else Mbar_comb + wk_mbar
+        # MM' correction in CENTERED form: sum_k W_k (Mbar_k - Mbar_comb)^2,
+        # each square a per-row polynomial self-convolution (degree 4H).
+        MM_corr = None
+        for band in bands:
+            D_k = Mbar_by_band[band] - Mbar_comb            # (m, 2H+1)
+            sq = _batched_polysquare(D_k)                   # (m, 4H+1)
+            wk_sq = stats.W[band] * sq
+            MM_corr = wk_sq if MM_corr is None else MM_corr + wk_sq
+        YM = YM + YM_corr
+        MM = MM + MM_corr
+
+    return YM, MM, AC, AC_by_band
+
+
+def _batched_polysquare(coefs):
+    """Row-wise polynomial square: for coefs ``(m, n)`` return ``(m, 2n-1)``
+    with each row the self-convolution of that row (``np.convolve`` per row,
+    vectorized as a shifted outer-product accumulation)."""
+    m, n = coefs.shape
+    out = np.zeros((m, 2 * n - 1), dtype=coefs.dtype)
+    for s in range(n):
+        out[:, s:s + n] += coefs[:, s:s + 1] * coefs
+    return out
+
+
+def _batched_mbar_at(AC_k, phi):
+    """``2 Re(sum_n AC_k[:, n] phi^n)`` per frequency (offset reconstruction),
+    vectorized: ``AC_k`` is ``(nf, H)`` and ``phi`` is ``(nf,)``."""
+    acc = np.zeros(phi.shape, dtype=np.complex128)
+    for j in range(AC_k.shape[1] - 1, -1, -1):
+        acc = (acc + AC_k[:, j]) * phi
+    return 2.0 * np.real(acc)
+
+
+def multiband_power_spectrum_batched(template_dict, transforms, stats, freqs,
+                                     mode=DEFAULT_MODE, relative_offsets=None,
+                                     chunk_size=4096):
+    """Batched power spectrum for ``mode='floating_offsets'`` (the Paper-2
+    target), vectorized over frequency chunks.
+
+    Pairs with :func:`_prepare_band_transforms`. Returns just the power array
+    (the recovery/detection workload); the best-fit model at any single
+    frequency is reconstructed on demand by the per-frequency path.
+
+    Deep-|MM'|-dip frequencies -- where assembly-order round-off is amplified by
+    the near-singular phase optimization -- are DEFERRED to the per-frequency
+    reference (:func:`multiband_template_fit_from_sums`), so the batched powers
+    bit-match :func:`solve_over_frequencies` at exactly the frequencies where
+    the batched ``np.trace`` assembly would otherwise diverge from it. On
+    well-conditioned data (the griz target) the deferral fires on a few percent
+    of frequencies; the rest run fully batched.
+    """
+    if mode not in _BATCHED_SCAN_MODES:
+        raise ValueError("multiband_power_spectrum_batched supports mode in "
+                         "{0}; got {1!r}".format(_BATCHED_SCAN_MODES, mode))
+    _validate_chunk_size(chunk_size)
+    H = stats.H
+    bands = stats.bands
+    nfreq = len(freqs)
+    powers = np.zeros(nfreq)
+
+    YY = stats.YY_combined
+    if _is_flat(YY, stats.ybar_global):
+        return powers
+
+    n_ang = max(pdg._SCAN_MIN_ANGLES, pdg._SCAN_ANGLES_PER_H * H)
+    for i0 in range(0, nfreq, chunk_size):
+        i1 = min(i0 + chunk_size, nfreq)
+        YM, MM, AC, _ACb = _combine_stacked_shared_amp(
+            template_dict, transforms, stats, i0, i1, freqs, mode)
+        _pl, pw, _bp = pdg.scan_polish_from_coefs(
+            YM, MM, AC, H, stats.ybar_global, YY, positive_amplitude=True)
+        powers[i0:i1] = pw
+
+        # defer extreme-|MM'|-dip rows to the per-frequency reference
+        absM = np.abs(pdg._eval_polys_on_circle(MM, n_ang))
+        deep = np.where(np.min(absM, axis=1)
+                        < _BATCHED_DEFER_RTOL * np.max(absM, axis=1))[0]
+        for r in deep:
+            gi = i0 + int(r)
+            ref_sums = {b: _band_single_ref_sums(transforms[b], H, gi, freqs)
+                        for b in bands}
+            _mp, pr = multiband_template_fit_from_sums(
+                template_dict, ref_sums, stats, mode, relative_offsets,
+                method='scan')
+            powers[gi] = pr
+    return powers
+
+
 def multiband_template_periodogram(t, y, bands, template_dict, freqs, dy=None,
                                    mode=DEFAULT_MODE, relative_offsets=None,
                                    fast=True, method=DEFAULT_METHOD):
@@ -998,17 +1233,23 @@ class FastMultibandTemplatePeriodogram(object):
 
         return df * (nf0 + np.arange(Nf))
 
-    def _run(self, freqs, fast, method=DEFAULT_METHOD):
+    def _run(self, freqs, fast, method=DEFAULT_METHOD, powers_only=False):
         """Compute powers + best params over a frequency array, handling both a
         single template-set and a catalog (per-frequency max over sets).
 
         Returns ``(powers, params_list, winning_set)`` where ``winning_set`` is
-        an int array of winning set indices for a catalog, else ``None``.
+        an int array of winning set indices for a catalog, else ``None``. When
+        ``powers_only`` and the (mode, method) support it, the fast batched path
+        is used and ``params_list`` is returned as ``None`` (the caller
+        reconstructs the best-fit model at the single peak frequency on demand).
         """
         self._validate_mode()
         _validate_method(method)
         self._validate_templates()
         self._validate_data()
+
+        if powers_only and method == 'scan' and self.mode in _BATCHED_SCAN_MODES:
+            return self._run_batched(np.asarray(freqs, dtype=float), fast)
 
         if not self._is_catalog:
             powers, params = multiband_template_periodogram(
@@ -1040,6 +1281,55 @@ class FastMultibandTemplatePeriodogram(object):
         params = [param_sets[winning_set[i]][i] for i in range(len(winning_set))]
         return powers, params, winning_set
 
+    def _run_batched(self, freqs, fast):
+        """Fast batched power spectrum (scan method, shared-amplitude modes).
+
+        Returns ``(powers, None, winning_set)``; per-frequency params are not
+        materialized (see :func:`multiband_power_spectrum_batched`). For a
+        catalog the template-independent per-band transforms are computed once
+        and reused across every template-set.
+        """
+        if not self._is_catalog:
+            H = len(next(iter(self._template_dict.values())).c_n)
+            transforms, stats, freqs = _prepare_band_transforms(
+                self.t, self.y, self.bands, self.dy, freqs, H, self.mode,
+                self.relative_offsets, fast=fast)
+            powers = multiband_power_spectrum_batched(
+                self._template_dict, transforms, stats, freqs, mode=self.mode,
+                relative_offsets=self.relative_offsets)
+            return powers, None, None
+
+        nfreq = len(freqs)
+        H = len(next(iter(self._template_sets[0].values())).c_n)
+        transforms, stats, freqs = _prepare_band_transforms(
+            self.t, self.y, self.bands, self.dy, freqs, H, self.mode,
+            self.relative_offsets, fast=fast)
+        stack = [multiband_power_spectrum_batched(
+                    td, transforms, stats, freqs, mode=self.mode,
+                    relative_offsets=self.relative_offsets)
+                 for td in self._template_sets]
+        stack = np.array(stack)                       # (nsets, nfreq)
+        winning_set = np.argmax(stack, axis=0)
+        powers = stack[winning_set, np.arange(nfreq)]
+        return powers, None, winning_set
+
+    def _best_model_from_powers(self, freq, set_index):
+        """Reconstruct the best-fit :class:`MultibandTemplateModel` at a single
+        peak frequency via the per-frequency solve (used by the batched path,
+        which does not keep per-frequency params). ``set_index`` is ``None`` for
+        a single template-set."""
+        template_dict = (self._template_sets[set_index] if self._is_catalog
+                         else self._template_dict)
+        H = len(next(iter(template_dict.values())).c_n)
+        per_band_sumlists, stats = compute_band_summations(
+            self.t, self.y, self.bands, np.atleast_1d(float(freq)), H,
+            dy=self.dy, mode=self.mode,
+            relative_offsets=self.relative_offsets, fast=False)
+        _pw, pl = solve_over_frequencies(
+            template_dict, per_band_sumlists, stats, 1, self.mode,
+            self.relative_offsets, method='scan')
+        return self._make_model(freq, pl[0], set_index)
+
     def _make_model(self, freq, params, set_index):
         templates = (self._template_sets[set_index] if self._is_catalog
                      else self._template_dict)
@@ -1064,12 +1354,18 @@ class FastMultibandTemplatePeriodogram(object):
         Returns ``(frequency, power)``.
         """
         frequency = self.autofrequency(**kwargs)
-        powers, params, win = self._run(frequency, fast, method=method)
+        powers, params, win = self._run(frequency, fast, method=method,
+                                        powers_only=True)
 
         if save_best_model:
             i = int(np.argmax(powers))
-            self._save_best_model(self._make_model(
-                frequency[i], params[i], None if win is None else win[i]))
+            set_index = None if win is None else int(win[i])
+            if params is None:
+                self._save_best_model(
+                    self._best_model_from_powers(frequency[i], set_index))
+            else:
+                self._save_best_model(self._make_model(
+                    frequency[i], params[i], set_index))
 
         return frequency, powers
 
@@ -1083,12 +1379,18 @@ class FastMultibandTemplatePeriodogram(object):
         shape = frequency.shape
         frequency = np.atleast_1d(frequency.ravel())
 
-        powers, params, win = self._run(frequency, fast, method=method)
+        powers, params, win = self._run(frequency, fast, method=method,
+                                        powers_only=True)
 
         if save_best_model:
             i = int(np.argmax(powers))
-            self._save_best_model(self._make_model(
-                frequency[i], params[i], None if win is None else win[i]))
+            set_index = None if win is None else int(win[i])
+            if params is None:
+                self._save_best_model(
+                    self._best_model_from_powers(frequency[i], set_index))
+            else:
+                self._save_best_model(self._make_model(
+                    frequency[i], params[i], set_index))
 
         return powers.reshape(shape)
 
