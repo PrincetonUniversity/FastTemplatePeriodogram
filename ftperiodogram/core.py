@@ -511,16 +511,20 @@ def _exact_root_fallback(rows, YM_coefs, MM_coefs, AC, H, ybar, YY,
     :data:`_SCAN_EXACT_RTOL`) with the exact root-path solution, in place.
     This is verbatim :func:`roots_from_YM_MM` -- the reference 'eigvals'
     treatment -- so the scan is guaranteed-equal to the reference exactly
-    where the grid scan has no bracketing guarantee."""
+    where the grid scan has no bracketing guarantee. ``params_list`` may
+    be None (powers-only mode)."""
     for i in rows:
-        params_list[i], powers[i], best_phis[i] = roots_from_YM_MM(
+        p_i, powers[i], best_phis[i] = roots_from_YM_MM(
             pol.Polynomial(YM_coefs[i]), pol.Polynomial(MM_coefs[i]),
             AC[i], H, ybar, YY, positive_amplitude=positive_amplitude)
+        if params_list is not None:
+            params_list[i] = p_i
 
 
 def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
                            positive_amplitude=False, n_angles=None,
-                           n_newton=_SCAN_NEWTON_STEPS):
+                           n_newton=_SCAN_NEWTON_STEPS, powers_only=False,
+                           return_mm_circle=False):
     r"""Maximize the periodogram over phase by circle scan + Newton polish,
     vectorized over a stack of frequencies.
 
@@ -587,11 +591,25 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         which further steps change the power only at second order,
         ``<~ 1e-24``; the typical converged step count is ~3).
 
+    powers_only : bool, optional (default False)
+        Skip the per-frequency parameter reconstruction (``theta_2``,
+        ``mbar``, ``theta_3``, the ``ModelFitParams`` list -- a pure
+        Python tail the power-spectrum consumers discard) and return
+        ``None`` in place of ``params_list``. Powers and ``best_phis``
+        are unchanged bit-for-bit.
+    return_mm_circle : bool, optional (default False)
+        Also return the per-row circle ``min|MM|`` and ``max|MM|``
+        measured on the base scan grid (the values the scan already
+        computes for its own deep-dip triage), so callers that gate on
+        circle conditioning (e.g. the batched multiband deferral) need
+        not repeat the circle FFT.
+
     Returns
     -------
-    params_list : list of ModelFitParams, length nf
+    params_list : list of ModelFitParams, length nf (None if powers_only)
     powers : ndarray, shape (nf,)
     best_phis : ndarray of complex, shape (nf,)
+    mm_min, mm_max : ndarray, shape (nf,) -- only if ``return_mm_circle``
     """
     YM_coefs = np.atleast_2d(np.asarray(YM_coefs, dtype=np.complex128))
     MM_coefs = np.atleast_2d(np.asarray(MM_coefs, dtype=np.complex128))
@@ -613,10 +631,15 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     M = floor if n_angles is None else max(int(n_angles), floor)
 
     if nf == 0:
-        return [], np.zeros(0), np.zeros(0, dtype=np.complex128)
+        out = (None if powers_only else [], np.zeros(0),
+               np.zeros(0, dtype=np.complex128))
+        return (out + (np.zeros(0), np.zeros(0))) if return_mm_circle else out
 
-    params_list, powers, best_phis, r_row = _scan_pass(
-        YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M, n_newton)
+    params_list, powers, best_phis, mm_min, mm_max = _scan_pass(
+        YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M, n_newton,
+        powers_only=powers_only)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        r_row = mm_min / mm_max
 
     # -- deep-|MM|-dip triage: Bernstein gate + densified rescan -------
     # (see the _SCAN_EXACT_RTOL comment for the full contract.)
@@ -651,9 +674,12 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
                 per = max(1, _SCAN_DENSE_ROW_BUDGET // int(Md))
                 for b0 in range(0, len(rows), per):
                     rr = rows[b0:b0 + per]
-                    pl_d, pw_d, phi_d, r_d = _scan_pass(
+                    pl_d, pw_d, phi_d, mmn_d, mmx_d = _scan_pass(
                         YM_coefs[rr], MM_coefs[rr], AC[rr], H, ybar, YY,
-                        positive_amplitude, int(Md), n_newton)
+                        positive_amplitude, int(Md), n_newton,
+                        powers_only=powers_only)
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        r_d = mmn_d / mmx_d
                     gate_d = 0.5 * (4.0 * np.pi * H / Md) ** 2
                     for k, gi in enumerate(rr):
                         if not (r_d[k] > gate_d):
@@ -662,7 +688,8 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
                             # max-merge: both passes evaluate the true P
                             # at genuine phases, so each is a valid lower
                             # bound and the better one never overshoots
-                            params_list[gi] = pl_d[k]
+                            if params_list is not None:
+                                params_list[gi] = pl_d[k]
                             powers[gi] = pw_d[k]
                             best_phis[gi] = phi_d[k]
             if len(eig_rows):
@@ -671,19 +698,22 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
                                      positive_amplitude, params_list,
                                      powers, best_phis)
 
+    if return_mm_circle:
+        return params_list, powers, best_phis, mm_min, mm_max
     return params_list, powers, best_phis
 
 
 def _scan_pass(YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M,
-               n_newton):
+               n_newton, powers_only=False):
     r"""One scan+polish pass over a (validated) coefficient stack at grid
     density ``M``: steps 1-5 of :func:`scan_polish_from_coefs`, with NO
     exact-root fallback applied.
 
-    Returns ``(params_list, powers, best_phis, r_row)`` where ``r_row`` is
-    the per-row circle conditioning ``min|MM| / max|MM|`` measured on this
-    grid (NaN where ``max|MM| = 0``), consumed by the deep-dip triage in
-    the caller.
+    Returns ``(params_list, powers, best_phis, mm_min, mm_max)`` where
+    ``mm_min``/``mm_max`` are the per-row circle extrema of ``|MM|``
+    measured on this grid, consumed by the deep-dip triage in the caller
+    (and, via ``return_mm_circle``, by the batched multiband deferral).
+    ``params_list`` is None when ``powers_only``.
     """
     nf = YM_coefs.shape[0]
     flat_params = ModelFitParams(a=0.0, b=1.0, c=ybar, sgn=1.0)
@@ -719,8 +749,8 @@ def _scan_pass(YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M,
     # polish has no convergence guarantee are triaged by the caller from
     # the returned conditioning r_row (see _SCAN_EXACT_RTOL).
     absM = np.abs(Mv)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        r_row = np.min(absM, axis=1) / np.max(absM, axis=1)
+    mm_min = np.min(absM, axis=1)
+    mm_max = np.max(absM, axis=1)
     ismin = ((absM <= np.roll(absM, 1, axis=1)) &
              (absM <= np.roll(absM, -1, axis=1)) &
              (absM < _SCAN_DIP_RTOL * np.max(absM, axis=1, keepdims=True)))
@@ -790,10 +820,10 @@ def _scan_pass(YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M,
         isdip = np.zeros(len(max_f), dtype=bool)
 
     if len(fidx) == 0:
-        params_list = [flat_params] * nf
+        params_list = None if powers_only else [flat_params] * nf
         powers = np.zeros(nf)
         best_phis = np.full(nf, 1.0 + 0.0j)
-        return params_list, powers, best_phis, r_row
+        return params_list, powers, best_phis, mm_min, mm_max
 
     # -- 3c: Bernstein candidate filter --------------------------------
     # A bracketed grid local maximum can improve under polishing by at
@@ -890,10 +920,21 @@ def _scan_pass(YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M,
     rows, first = np.unique(fidx[hit], return_index=True)
     winner[rows] = hit[first]
 
-    # -- parameter reconstruction (core formulas, vectorized) ----------
     ok_rows = np.where(winner >= 0)[0]
     w_idx = winner[ok_rows]
     bphi = phi[w_idx]
+
+    powers = np.zeros(nf)
+    best_phis = np.full(nf, 1.0 + 0.0j)
+    powers[ok_rows] = Pc[w_idx]
+    best_phis[ok_rows] = bphi
+
+    if powers_only:
+        # the parameter tail below is a pure function of (bphi, th1, AC);
+        # power-spectrum consumers discard it (2026-07-18 hunt item 6)
+        return None, powers, best_phis, mm_min, mm_max
+
+    # -- parameter reconstruction (core formulas, vectorized) ----------
     theta_2 = np.imag(np.log(bphi)) % (2 * np.pi)
     # mbar = 2 Re(alpha_phi(best_phi)), alpha_phi = Polynomial([0, AC...])
     mb = np.zeros(len(ok_rows), dtype=np.complex128)
@@ -906,17 +947,12 @@ def _scan_pass(YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M,
     b_arr = np.cos(theta_2)
     sgn_arr = np.sign(np.sin(theta_2))
 
-    powers = np.zeros(nf)
-    best_phis = np.full(nf, 1.0 + 0.0j)
-    powers[ok_rows] = Pc[w_idx]
-    best_phis[ok_rows] = bphi
-
     params_list = [flat_params] * nf
     for k, i in enumerate(ok_rows):
         params_list[i] = ModelFitParams(a=theta_1[k], b=b_arr[k],
                                         c=theta_3[k], sgn=sgn_arr[k])
 
-    return params_list, powers, best_phis, r_row
+    return params_list, powers, best_phis, mm_min, mm_max
 
 
 def scan_polish_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):

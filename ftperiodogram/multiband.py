@@ -1054,19 +1054,20 @@ def multiband_power_spectrum_batched(template_dict, transforms, stats, freqs,
     if _is_flat(YY, stats.ybar_global):
         return powers
 
-    n_ang = max(pdg._SCAN_MIN_ANGLES, pdg._SCAN_ANGLES_PER_H * H)
     for i0 in range(0, nfreq, chunk_size):
         i1 = min(i0 + chunk_size, nfreq)
         YM, MM, AC, _ACb = _combine_stacked_shared_amp(
             template_dict, transforms, stats, i0, i1, freqs, mode)
-        _pl, pw, _bp = pdg.scan_polish_from_coefs(
-            YM, MM, AC, H, stats.ybar_global, YY, positive_amplitude=True)
+        _pl, pw, _bp, mm_min, mm_max = pdg.scan_polish_from_coefs(
+            YM, MM, AC, H, stats.ybar_global, YY, positive_amplitude=True,
+            powers_only=True, return_mm_circle=True)
         powers[i0:i1] = pw
 
-        # defer extreme-|MM'|-dip rows to the per-frequency reference
-        absM = np.abs(pdg._eval_polys_on_circle(MM, n_ang))
-        deep = np.where(np.min(absM, axis=1)
-                        < _BATCHED_DEFER_RTOL * np.max(absM, axis=1))[0]
+        # defer extreme-|MM'|-dip rows to the per-frequency reference;
+        # the circle extrema come from the scan's own base grid (the
+        # same max(128, 32H) angles this check previously re-evaluated),
+        # so the deferral decisions are bit-identical to recomputing
+        deep = np.where(mm_min < _BATCHED_DEFER_RTOL * mm_max)[0]
         for r in deep:
             gi = i0 + int(r)
             ref_sums = {b: _band_single_ref_sums(transforms[b], H, gi, freqs)
