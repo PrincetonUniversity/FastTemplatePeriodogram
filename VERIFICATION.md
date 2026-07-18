@@ -1096,3 +1096,53 @@ anyway). Escalation closed on the code side:
 - **Sums-cache** (the unconditional gate) stands CONFIRMED bitwise and is
   untouched. F3 will report joint/EM as the honest negative-result deferral
   (Paper 2 = full joint), so no `--estep-refine` run is gated on this.
+
+## WP SAFE-1..6 — 2026-07-18 SAFE CPU stack (paper2-fast-multiband, commits c6eb799..85f3993)
+
+The six SOLID+SAFE efficiency-hunt items of AUDIT_2026-07-18.md §2 were
+implemented one commit per item with a per-item numerical-parity gate:
+1. **Newton polish early-exit** (`_SCAN_NEWTON_XTOL = 1e-12` rad,
+   active-set compaction) — the WP C2 ">=6 Newton steps" spec is met as
+   "6 steps or convergence": a candidate whose applied (post-clamp)
+   update falls below xtol changes power only at second order (<~1e-24),
+   so remaining steps are provably sub-ulp. Amends the prose spec in
+   `core.py` (no test pinned a step count; verified by grep of tests/ and
+   this file). Parity max |dP| 1.2e-15, 0 argmax moves.
+2. **Bernstein candidate filter** (skeptic-vetted k18 arm; dip
+   candidates exempt; positive-seed protection under K.18). Drops ~42%
+   of polish candidates on griz H=8; zero additional power change on the
+   golden fixtures.
+3. **Bernstein-gated deep-dip triage** — `_scan_pass` + gate replaces
+   the verbatim per-row eigvals fallback: provably-bracketed rows stand
+   (r > (2H dtheta)^2/2, the C2 curvature bound), the rest get ONE
+   densified rescan at the C3.5-escalation density with the gate
+   recomputed from the densified (nested-grid) measurement and results
+   max-merged; only rows still failing (or needing > 2^20 angles) take
+   `roots_from_YM_MM` verbatim. Both mechanism-pin monkeypatch tests
+   (`_SCAN_EXACT_RTOL=0`, `_SCAN_DIP_RTOL=0`) remain load-bearing.
+   Cumulative parity vs pre-stack: max rel dP 2.4e-15, 0 argmax moves.
+4. **Fused trig recurrence** in `_direct_stacked_sums_chunk` (one exp on
+   the fundamental, per-harmonic `Zcur *= Z`, fused matvecs; the
+   freq-cumprod variant with ~1e-8 drift stays rejected). NFFT paths
+   bit-identical; direct-path batched-vs-reference on the adversarial
+   sparse fixture 1.79e-9 (pre: 1.93e-9 — no regression); deferred rows
+   still bit-match the per-frequency reference.
+5. **Sums hoist across catalogs** — `multiband_power_spectra_batched`
+   (chunk-outer/set-inner; per-band stacked sums + deferred-row ref sums
+   computed once per chunk) and per-distinct-H summations reuse in
+   `FastMultiTemplatePeriodogram.autopower` (verified bitwise against
+   the internal path). Bit-identical (max |dP| = 0.0).
+6. **Powers-only tail + deferral reads the scan's circle extrema** —
+   bit-identical (max |dP| = 0.0); deferral decisions bit-identical
+   (same grid, same comparison).
+
+**Suite:** 494 passed / 1 skipped / 2 xfailed / 0 failed both before and
+after the stack (full `pytest ftperiodogram/tests`, single-thread BLAS).
+**Bench (median-of-5, nfreq=8000, single M5 P-core):** production K=4
+catalog scans 3.43x @H4 / 4.10x @H8; single-template 1.6-2.1x; direct
+sums 2.39x. New CPU per-unit floors: 21.4 us/LC/f/T @H8 (K=4-amortized),
+9.4 @H4, 5.1 @H2.
+**Records:** experiments/paper2_gpu/safe_stack/{PARITY_REPORT.md,
+BENCH.md, fixtures.py, golden.py, bench.py, output/}. Human sign-off
+delegated to adversarial multi-agent verification per the 2026-06-12
+standing delegation; verification run recorded in the same directory.
