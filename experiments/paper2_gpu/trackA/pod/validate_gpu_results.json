@@ -1,0 +1,88 @@
+{
+ "results": [
+  {
+   "name": "RawModule compiles + all kernels resolve",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "stage-2 spike: GPU vs mirror on identical sums",
+   "ok": true,
+   "detail": "max rel=0.00e+00 (gate 1e-13)"
+  },
+  {
+   "name": "stage-1 on weight fixture vs package sums",
+   "ok": true,
+   "detail": "max|d|=1.13e-13"
+  },
+  {
+   "name": "f2 stage-3 GPU vs mirror pos=True (non-exact rows)",
+   "ok": true,
+   "detail": "max|dP|=1.94e-16 excl=22"
+  },
+  {
+   "name": "f2 stage-3 GPU vs mirror pos=False (non-exact rows)",
+   "ok": true,
+   "detail": "max|dP|=1.94e-16 excl=22"
+  },
+  {
+   "name": "f2 cond_r GPU vs mirror",
+   "ok": true,
+   "detail": "max rel=4.12e-16"
+  },
+  {
+   "name": "f2 K.18 filter active on GPU",
+   "ok": true,
+   "detail": "gpu 100 vs package 100 active rows"
+  },
+  {
+   "name": "f3 stage-3 GPU vs mirror pos=True (non-exact rows)",
+   "ok": true,
+   "detail": "max|dP|=0.00e+00 excl=240"
+  },
+  {
+   "name": "f3 cond_r GPU vs mirror",
+   "ok": true,
+   "detail": "max rel=1.23e-15"
+  },
+  {
+   "name": "F1 stage-1 GPU vs mirror (slice)",
+   "ok": true,
+   "detail": "max|d|=7.49e-16 (gate 1e-11)"
+  },
+  {
+   "name": "F1 chained stage-2 coefs vs mirror",
+   "ok": true,
+   "detail": "rel YM=1.9e-16 MM=3.4e-16 AC=2.4e-16"
+  },
+  {
+   "name": "F1 e2e powers GPU vs mirror (non-exact rows)",
+   "ok": true,
+   "detail": "max|dP|=3.33e-16 excl=43 rows (gate 1e-10)"
+  },
+  {
+   "name": "F1 cond_r GPU vs mirror",
+   "ok": true,
+   "detail": "max rel=6.34e-16"
+  },
+  {
+   "name": "F1 no real winner disagreements",
+   "ok": true,
+   "detail": "0 benign tie flips, 0 real"
+  },
+  {
+   "name": "F1 FLAT-flag agreement (non-exact rows)",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "gates": {
+  "s2_spike_rel": 1e-13,
+  "s1_abs": 1e-11,
+  "coef_chain_rel": 1e-11,
+  "s3_power": 1e-11,
+  "e2e_power": 1e-10,
+  "cond_rel": 1e-11,
+  "theta_flip": 1e-06
+ }
+}

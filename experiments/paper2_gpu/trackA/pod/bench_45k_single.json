@@ -1,0 +1,60 @@
+{
+ "device": "NVIDIA A100-SXM4-80GB",
+ "fmad": false,
+ "configs": [
+  {
+   "B": 512,
+   "H": 8,
+   "nfreq": 45000,
+   "K_templates": 1,
+   "reuse_sums": true,
+   "fmad": false,
+   "reps_done": 3,
+   "chunk": 1634,
+   "total_s_median": 13.521455574780703,
+   "total_s_min": 13.510239116847515,
+   "compute_s_median": 13.452729847282171,
+   "h2d_s_median": 0.00217413529753685,
+   "d2h_s_median": 0.0640596766024828,
+   "us_per_lc_freq_tmpl": 0.5868687315443014,
+   "lc_per_s": 37.8657458265771,
+   "frac_deferred": 0.0
+  },
+  {
+   "B": 512,
+   "H": 8,
+   "nfreq": 45000,
+   "K_templates": 4,
+   "reuse_sums": true,
+   "fmad": false,
+   "reps_done": 3,
+   "chunk": 1634,
+   "total_s_median": 51.032504703849554,
+   "total_s_min": 51.01712883450091,
+   "compute_s_median": 50.785635724663734,
+   "h2d_s_median": 0.0025315508246421814,
+   "d2h_s_median": 0.2434576451778412,
+   "us_per_lc_freq_tmpl": 0.5537381152761454,
+   "lc_per_s": 10.032821296372273,
+   "frac_deferred": 0.0
+  },
+  {
+   "B": 512,
+   "H": 8,
+   "nfreq": 45000,
+   "K_templates": 4,
+   "reuse_sums": false,
+   "fmad": false,
+   "reps_done": 3,
+   "chunk": 1634,
+   "total_s_median": 53.99426041729748,
+   "total_s_min": 53.98432437516749,
+   "compute_s_median": 53.75180848129094,
+   "h2d_s_median": 0.0016412418335676193,
+   "d2h_s_median": 0.24378097988665104,
+   "us_per_lc_freq_tmpl": 0.5858752215418563,
+   "lc_per_s": 9.482489361702171,
+   "frac_deferred": 0.0
+  }
+ ]
+}
