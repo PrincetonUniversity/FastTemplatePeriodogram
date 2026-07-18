@@ -400,16 +400,33 @@ _SCAN_MAX_CANDIDATES_PER_H = 4
 _SCAN_DIP_RTOL = 0.5
 # Below this depth the dip can host structures the clamped Newton polish is
 # NOT guaranteed to resolve (e.g. a zero of ym inside the dip displaces the
-# spike away from the |MM| minimum and breaks the seeded-Newton geometry);
-# such frequencies are handed to the exact root path (roots_from_YM_MM)
-# verbatim. A sub-grid-width spike needs mm_min <~ (pi^2/512) mm_max
+# spike away from the |MM| minimum and breaks the seeded-Newton geometry).
+# A sub-grid-width spike needs mm_min <~ (pi^2/512) mm_max
 # ~ 0.02 mm_max at M = 32H (Bernstein curvature bound), and the observed
 # polish-failure modes sit below ~0.1 mm_max; 0.15 adds margin while
-# keeping the fallback rare on well-conditioned data.
+# keeping the escalation rare on well-conditioned data. Since the
+# 2026-07-18 hunt (item 3), rows below this threshold are triaged by the
+# Bernstein bracketing gate rather than handed to the exact root path
+# verbatim: a flagged row whose measured circle conditioning
+# r = min|MM|/max|MM| exceeds (2H * dtheta)^2 / 2 at the CURRENT grid
+# step provably hosts no sub-grid spike (its scan result stands); a row
+# below the gate is rescanned once at the density the bound prescribes
+# (dtheta <= sqrt(2 r)/(2H), the C3.5 escalation formula) with the gate
+# RECOMPUTED from the densified measurement -- the dense grid nests the
+# base grid, so a dip deeper than coarse-measured fails the recheck --
+# and only rows failing that recheck (or needing more than
+# _SCAN_DEEP_MAX_ANGLES angles) reach the exact root path
+# (roots_from_YM_MM) verbatim. No recursion beyond the single rescan.
 _SCAN_EXACT_RTOL = 0.15
+# Memory budget (complex elements per array) for one densified-rescan
+# batch: rows are processed max(1, budget // M_dense) at a time, so the
+# largest transient the escalation allocates is ~a few hundred MB even
+# at the 2^20 angle cap.
+_SCAN_DENSE_ROW_BUDGET = 1 << 22
 # Cap for the escalated deep-dip scan density of the multiband shared_phase
-# maximizer (C3.5 / MB-DIP-1): at deep-dip frequencies the scan grid is
-# densified until the Bernstein bracketing bound
+# maximizer (C3.5 / MB-DIP-1) AND of the single-band Bernstein-gated
+# densified rescan (2026-07-18 hunt item 3): at deep-dip frequencies the
+# scan grid is densified until the Bernstein bracketing bound
 # dtheta <= sqrt(2 r_min)/(2H) (r_min = worst band's min|MM|/max|MM| on the
 # circle) is met, so no F spike a dip of that depth can host escapes the
 # grid; the cap bounds the FFT length when r_min is extreme. Below
@@ -535,7 +552,14 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
        seed angle if polishing did not improve) and take the argmax,
        applying the same positive-amplitude filter and the same
        ``theta_1``/``theta_2``/``theta_3`` reconstruction formulas as
-       :func:`roots_from_YM_MM`.
+       :func:`roots_from_YM_MM`;
+    6. triage rows whose circle conditioning ``min|MM|/max|MM|`` falls
+       below :data:`_SCAN_EXACT_RTOL` with the Bernstein bracketing gate:
+       rows the current grid provably brackets stand as scanned; the rest
+       are rescanned once at the density the bound prescribes (gate
+       recomputed there, results max-merged), and only rows still failing
+       -- or needing more than :data:`_SCAN_DEEP_MAX_ANGLES` angles --
+       take the exact root path (:func:`roots_from_YM_MM`) verbatim.
 
     Derivatives: with ``Y(theta) = YM(e^{i theta})``, ``Y1 = sum_k k y_k
     phi^k`` and ``Y2 = sum_k k^2 y_k phi^k`` (same for ``MM``),
@@ -588,9 +612,81 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     floor = max(_SCAN_MIN_ANGLES, _SCAN_ANGLES_PER_H * H)
     M = floor if n_angles is None else max(int(n_angles), floor)
 
-    flat_params = ModelFitParams(a=0.0, b=1.0, c=ybar, sgn=1.0)
     if nf == 0:
         return [], np.zeros(0), np.zeros(0, dtype=np.complex128)
+
+    params_list, powers, best_phis, r_row = _scan_pass(
+        YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M, n_newton)
+
+    # -- deep-|MM|-dip triage: Bernstein gate + densified rescan -------
+    # (see the _SCAN_EXACT_RTOL comment for the full contract.)
+    flagged = np.where(r_row < _SCAN_EXACT_RTOL)[0]
+    if len(flagged):
+        # Stage 1 -- bracketing gate at the base grid: a P spike narrower
+        # than the grid step REQUIRES min|MM| <= max|MM| (2H dtheta)^2 / 2
+        # on the circle (the C2 Bernstein curvature bound), so a flagged
+        # row whose measured conditioning exceeds that depth is already
+        # guaranteed-bracketed and its scan result stands (2026-07-18 hunt
+        # item 3, skeptic-vetted; B4 measured the flagged zone at up to
+        # 22% of rows on sparse real cadences, so the gate carries real
+        # weight there).
+        gate0 = 0.5 * (4.0 * np.pi * H / M) ** 2
+        need = flagged[r_row[flagged] <= gate0]
+        if len(need):
+            # Stage 2 -- densified rescan at the density the bound
+            # prescribes (dtheta <= sqrt(2 r)/(2H); C3.5 escalation
+            # formula), gate RECOMPUTED from the densified measurement;
+            # failing rows (and rows needing more than
+            # _SCAN_DEEP_MAX_ANGLES angles) take the exact root path.
+            with np.errstate(divide='ignore', over='ignore'):
+                M_need = (4.0 * np.pi * H) / np.sqrt(
+                    np.maximum(2.0 * r_row[need], 1e-300))
+            within = M_need <= _SCAN_DEEP_MAX_ANGLES
+            eig_rows = list(need[~within])
+            dense_rows = need[within]
+            M_dense = np.exp2(np.ceil(np.log2(
+                np.maximum(M_need[within], 2.0 * M)))).astype(np.int64)
+            for Md in np.unique(M_dense):
+                rows = dense_rows[M_dense == Md]
+                per = max(1, _SCAN_DENSE_ROW_BUDGET // int(Md))
+                for b0 in range(0, len(rows), per):
+                    rr = rows[b0:b0 + per]
+                    pl_d, pw_d, phi_d, r_d = _scan_pass(
+                        YM_coefs[rr], MM_coefs[rr], AC[rr], H, ybar, YY,
+                        positive_amplitude, int(Md), n_newton)
+                    gate_d = 0.5 * (4.0 * np.pi * H / Md) ** 2
+                    for k, gi in enumerate(rr):
+                        if not (r_d[k] > gate_d):
+                            eig_rows.append(gi)
+                        elif pw_d[k] >= powers[gi]:
+                            # max-merge: both passes evaluate the true P
+                            # at genuine phases, so each is a valid lower
+                            # bound and the better one never overshoots
+                            params_list[gi] = pl_d[k]
+                            powers[gi] = pw_d[k]
+                            best_phis[gi] = phi_d[k]
+            if len(eig_rows):
+                _exact_root_fallback(np.asarray(eig_rows, dtype=np.int64),
+                                     YM_coefs, MM_coefs, AC, H, ybar, YY,
+                                     positive_amplitude, params_list,
+                                     powers, best_phis)
+
+    return params_list, powers, best_phis
+
+
+def _scan_pass(YM_coefs, MM_coefs, AC, H, ybar, YY, positive_amplitude, M,
+               n_newton):
+    r"""One scan+polish pass over a (validated) coefficient stack at grid
+    density ``M``: steps 1-5 of :func:`scan_polish_from_coefs`, with NO
+    exact-root fallback applied.
+
+    Returns ``(params_list, powers, best_phis, r_row)`` where ``r_row`` is
+    the per-row circle conditioning ``min|MM| / max|MM|`` measured on this
+    grid (NaN where ``max|MM| = 0``), consumed by the deep-dip triage in
+    the caller.
+    """
+    nf = YM_coefs.shape[0]
+    flat_params = ModelFitParams(a=0.0, b=1.0, c=ybar, sgn=1.0)
 
     # -- 1-2: grid scan ------------------------------------------------
     Yv = _eval_polys_on_circle(YM_coefs, M)                 # (nf, M)
@@ -620,11 +716,11 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     # adversarial verification, probe:sweep/probe:oracle). Each deep dip is
     # refined to the true |MM|^2 minimum by clamped Newton and polished
     # from there. Frequencies whose dip is so deep that even the seeded
-    # polish has no convergence guarantee are recorded now and handed to
-    # the exact root path at the end (see _SCAN_EXACT_RTOL).
+    # polish has no convergence guarantee are triaged by the caller from
+    # the returned conditioning r_row (see _SCAN_EXACT_RTOL).
     absM = np.abs(Mv)
-    exact_rows = np.where(np.min(absM, axis=1) <
-                          _SCAN_EXACT_RTOL * np.max(absM, axis=1))[0]
+    with np.errstate(divide='ignore', invalid='ignore'):
+        r_row = np.min(absM, axis=1) / np.max(absM, axis=1)
     ismin = ((absM <= np.roll(absM, 1, axis=1)) &
              (absM <= np.roll(absM, -1, axis=1)) &
              (absM < _SCAN_DIP_RTOL * np.max(absM, axis=1, keepdims=True)))
@@ -697,10 +793,7 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         params_list = [flat_params] * nf
         powers = np.zeros(nf)
         best_phis = np.full(nf, 1.0 + 0.0j)
-        _exact_root_fallback(exact_rows, YM_coefs, MM_coefs, AC, H, ybar, YY,
-                             positive_amplitude, params_list, powers,
-                             best_phis)
-        return params_list, powers, best_phis
+        return params_list, powers, best_phis, r_row
 
     # -- 3c: Bernstein candidate filter --------------------------------
     # A bracketed grid local maximum can improve under polishing by at
@@ -823,10 +916,7 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         params_list[i] = ModelFitParams(a=theta_1[k], b=b_arr[k],
                                         c=theta_3[k], sgn=sgn_arr[k])
 
-    _exact_root_fallback(exact_rows, YM_coefs, MM_coefs, AC, H, ybar, YY,
-                         positive_amplitude, params_list, powers, best_phis)
-
-    return params_list, powers, best_phis
+    return params_list, powers, best_phis, r_row
 
 
 def scan_polish_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False):
@@ -1038,8 +1128,11 @@ def template_periodogram(t, y, dy, cn, sn, freqs,
         circle scan over ``max(128, 32 H)`` angles plus Newton polish of
         every bracketed maximum and every deep ``|MM|`` dip; frequencies
         where ``|MM|`` nearly vanishes on the circle (rank-deficient or
-        phase-clustered sampling) automatically fall back to the exact
-        root path, so the two methods agree to ~1e-12 on data with circle
+        phase-clustered sampling) are triaged by a Bernstein bracketing
+        gate -- provably-bracketed rows stand, the rest are rescanned
+        once at the density the bound prescribes, and only rows still
+        failing the (recomputed) gate fall back to the exact root
+        path -- so the two methods agree to ~1e-12 on data with circle
         conditioning ``min|MM|/max|MM|`` above ~1e-6, while 'scan' is much
         faster at high ``H`` on well-conditioned data. Below that the
         agreement degrades with conditioning (~3e-11 measured at ~1e-6,
