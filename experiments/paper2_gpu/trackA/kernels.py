@@ -794,11 +794,15 @@ def gpu_stage2(sums, cn, sn, Wk_rows, accum, out=None, H=None,
 
 def gpu_stage3(YM, MM, YY_rows, H, n_angles=None,
                n_newton=SCAN_NEWTON_STEPS, positive_amplitude=True,
-               kcap=None, dip_rtol=SCAN_DIP_RTOL, block=128, module=None):
+               kcap=None, dip_rtol=SCAN_DIP_RTOL, block=128, module=None,
+               row_chunk=1 << 18):
     """Run stage3_scan_polish on device coefficient stacks.
 
     Circle evaluation happens HERE (host wrapper, batched cuFFT):
-    Yv/Mv = M * cupy.fft.ifft(coefs, n=M) -- outside the kernel by design.
+    Yv/Mv = M * cupy.fft.ifft(coefs, n=M) -- outside the kernel by design
+    (a ZGEMM variant is a pod-tunable alternative). Rows are processed in
+    row_chunk slices to bound the (rows, M) circle-value buffers (~2 GB
+    at the default with M=256).
     Returns dict of device arrays power/theta/theta1/cond_r/status.
     """
     _require_cp()
@@ -812,9 +816,6 @@ def gpu_stage3(YM, MM, YY_rows, H, n_angles=None,
     nym, nmm = 2 * H + 1, 4 * H + 1
     ncmax = 2 * kcap
 
-    Yv = cp.ascontiguousarray(M * cp.fft.ifft(YM, n=M, axis=1))
-    Mv = cp.ascontiguousarray(M * cp.fft.ifft(MM, n=M, axis=1))
-
     power = cp.empty(nrow)
     theta = cp.empty(nrow)
     th1 = cp.empty(nrow)
@@ -826,14 +827,23 @@ def gpu_stage3(YM, MM, YY_rows, H, n_angles=None,
     smem = (2 * nym + 2 * nmm + 4 * ncmax) * 8        # cplx as double pairs
     smem += (2 * M + 5 * ncmax) * 8                   # doubles
     smem += (M + ncmax + 8) * 4                       # ints
-    kern((nrow,), (block,),
-         (YM, MM, Yv, Mv, YY_rows,
-          power, theta, th1, cond_r, status,
-          np.int32(nrow), np.int32(H), np.int32(M),
-          np.int32(n_newton), np.int32(kcap),
-          np.int32(1 if positive_amplitude else 0),
-          np.float64(dip_rtol)),
-         shared_mem=smem)
+
+    for r0 in range(0, nrow, row_chunk):
+        r1 = min(r0 + row_chunk, nrow)
+        nr = r1 - r0
+        YMs = cp.ascontiguousarray(YM[r0:r1])
+        MMs = cp.ascontiguousarray(MM[r0:r1])
+        Yv = cp.ascontiguousarray(M * cp.fft.ifft(YMs, n=M, axis=1))
+        Mv = cp.ascontiguousarray(M * cp.fft.ifft(MMs, n=M, axis=1))
+        kern((nr,), (block,),
+             (YMs, MMs, Yv, Mv, YY_rows[r0:r1],
+              power[r0:r1], theta[r0:r1], th1[r0:r1], cond_r[r0:r1],
+              status[r0:r1],
+              np.int32(nr), np.int32(H), np.int32(M),
+              np.int32(n_newton), np.int32(kcap),
+              np.int32(1 if positive_amplitude else 0),
+              np.float64(dip_rtol)),
+             shared_mem=smem)
     return dict(power=power, theta=theta, theta1=th1,
                 cond_r=cond_r, status=status)
 
