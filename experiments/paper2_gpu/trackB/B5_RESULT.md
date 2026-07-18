@@ -9,10 +9,16 @@ the faint-candidate count N_cand (CasJobs-blocked, see below).
 
 **Baseline T (literature, Sesar et al. 2017, arXiv:1611.08596):** PS1 3pi
 light curves span a **4.5-year period** (~1640 d) with **<~12 epochs in
-each of five bands** (grizy). The Track-B harness values (T=1600 d,
-N/band=8 griz at the faint end after censoring) are consistent;
-CasJobs-side verification of the faint-end N/band distribution remains a
-WP P0.2 item.
+each of five bands** (grizy). The grid formula below therefore uses
+T=1600 d (the lib.ps1_cadence default, consistent with the survey span).
+CORRECTION (2026-07-18 re-audit): the B1/B3/B6/B7 measurement-arm RUNS
+use b1's argparse default `--baseline-days 1300` (realized median
+~1200 d after seasonal windows), NOT 1600 — their paired comparisons
+are unaffected (arms share cadences), but their absolute recovery rates
+correspond to the shorter baseline, and B1_RESULT.md does not state its
+baseline. N/band=8 griz at the faint end matches the <~12/band survey
+figure after censoring; CasJobs-side verification of the faint-end
+N/band distribution remains a WP P0.2 item.
 
 **Frequency grids** (converged-grid formula df = 1/(os*H*T), os=3,
 T=1600 d, Bailey-box bands from the locked plan):
