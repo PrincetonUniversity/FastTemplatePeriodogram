@@ -702,7 +702,11 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
                 q2 = 2.0 * (np.abs(M1) ** 2 - np.real(np.conj(Mm) * M2))
                 step = q1 / q2
             step[~np.isfinite(step)] = 0.0
-            th = np.clip(th - step, dth0 - half_window, dth0 + half_window)
+            th_new = np.clip(th - step, dth0 - half_window, dth0 + half_window)
+            converged = np.all(np.abs(th_new - th) <= pdg._SCAN_NEWTON_XTOL)
+            th = th_new
+            if converged:
+                break
         dip_seeds.append(th)
 
     def _F_derivs(phi):
@@ -756,8 +760,12 @@ def _shared_phase_scan_fit(template_dict, per_band_sums, stats):
         with np.errstate(divide='ignore', invalid='ignore'):
             step = dF / d2F
         step[~np.isfinite(step)] = 0.0
-        theta = np.clip(theta - step,
-                        theta0 - half_window, theta0 + half_window)
+        theta_new = np.clip(theta - step,
+                            theta0 - half_window, theta0 + half_window)
+        converged = np.all(np.abs(theta_new - theta) <= pdg._SCAN_NEWTON_XTOL)
+        theta = theta_new
+        if converged:
+            break
 
     Fp = _F_at(np.exp(1j * theta))
     use_grid = ~np.isfinite(Fp) | (Fp < F0)

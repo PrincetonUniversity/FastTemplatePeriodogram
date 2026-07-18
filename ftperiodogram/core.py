@@ -372,7 +372,14 @@ def roots_from_YM_MM(YM, MM, AC, H, ybar, YY, positive_amplitude=False,
 _SCAN_MIN_ANGLES = 128
 _SCAN_ANGLES_PER_H = 32
 # >= 6 Newton steps per the WP C2 spec; 8 gives margin at no real cost.
+# The spec is satisfied as "n_newton steps OR convergence": a candidate
+# whose applied (post-clamp) update falls below _SCAN_NEWTON_XTOL is
+# converged -- its remaining steps would move theta by <~ xtol, changing
+# the power only at second order (~|d2P| xtol^2 / 2 <~ 1e-24 P), far
+# below float64 resolution -- and exits the polish loop early (the
+# 2026-07-18 efficiency audit measured the knee at ~3 steps).
 _SCAN_NEWTON_STEPS = 8
+_SCAN_NEWTON_XTOL = 1e-12
 # keep at most 4H bracketed maxima per frequency (> 3H - 1, the analytic
 # bound, so genuine maxima are never dropped; only degenerate plateaus --
 # e.g. an exactly constant periodogram -- are trimmed)
@@ -515,11 +522,12 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
        peaks of ``P`` hide inside deep ``|MM|`` dips (rank-deficient or
        phase-clustered sampling) where the uniform grid cannot bracket
        them (see :data:`_SCAN_DIP_RTOL`);
-    4. polish each candidate with ``n_newton`` Newton steps on
+    4. polish each candidate with up to ``n_newton`` Newton steps on
        ``dP/dtheta`` using analytic first and second derivatives (Horner
        on the k- and k^2-weighted coefficient rows; see
        :func:`_scan_dP_d2P`), each iterate clamped to ``+/- 2 pi / M``
-       around its seed;
+       around its seed; a candidate whose applied update falls below
+       :data:`_SCAN_NEWTON_XTOL` is converged and exits the loop early;
     5. evaluate the true ``P`` at the polished angles (falling back to the
        seed angle if polishing did not improve) and take the argmax,
        applying the same positive-amplitude filter and the same
@@ -546,7 +554,11 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     n_angles : int, optional
         Override the scan grid size ``M`` (default ``max(128, 32 H)``).
     n_newton : int, optional
-        Newton polish steps (default 8; the spec floor is 6).
+        Maximum Newton polish steps (default 8; the WP C2 spec floor of 6
+        is met as "6 steps or convergence": a candidate exits early once
+        its applied update falls below :data:`_SCAN_NEWTON_XTOL`, beyond
+        which further steps change the power only at second order,
+        ``<~ 1e-24``; the typical converged step count is ~3).
 
     Returns
     -------
@@ -632,18 +644,25 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
         MMd = MM_coefs[dip_f]
         dM1d, dM2d = MMd * kM, MMd * (kM * kM)
         th = dip_theta0.copy()
+        active = np.arange(th.shape[0])
         for _ in range(n_newton):
-            ph = np.exp(1j * th)
-            Mm = _horner_eval(MMd, ph)
-            M1 = _horner_eval(dM1d, ph)
-            M2 = _horner_eval(dM2d, ph)
+            ph = np.exp(1j * th[active])
+            Mm = _horner_eval(MMd[active], ph)
+            M1 = _horner_eval(dM1d[active], ph)
+            M2 = _horner_eval(dM2d[active], ph)
             with np.errstate(divide='ignore', invalid='ignore'):
                 q1 = 2.0 * np.real(1j * M1 * np.conj(Mm))
                 q2 = 2.0 * (np.abs(M1) ** 2 - np.real(np.conj(Mm) * M2))
                 step = q1 / q2
             step[~np.isfinite(step)] = 0.0
-            th = np.clip(th - step,
-                         dip_theta0 - half_window, dip_theta0 + half_window)
+            th_new = np.clip(th[active] - step,
+                             dip_theta0[active] - half_window,
+                             dip_theta0[active] + half_window)
+            moved = np.abs(th_new - th[active]) > _SCAN_NEWTON_XTOL
+            th[active] = th_new
+            active = active[moved]
+            if active.size == 0:
+                break
         dip_phi = np.exp(1j * th)
         Y_dip = _horner_eval(YM_coefs[dip_f], dip_phi)
         M_dip = _horner_eval(MMd, dip_phi)
@@ -684,20 +703,27 @@ def scan_polish_from_coefs(YM_coefs, MM_coefs, AC, H, ybar, YY,
     dM1c, dM2c = MMc * kM, MMc * (kM * kM)
 
     theta = theta0.copy()
+    active = np.arange(theta.shape[0])
     for _ in range(n_newton):
-        phi = np.exp(1j * theta)
-        Y = _horner_eval(YMc, phi)
-        Y1 = _horner_eval(dY1c, phi)
-        Y2 = _horner_eval(dY2c, phi)
-        Mm = _horner_eval(MMc, phi)
-        M1 = _horner_eval(dM1c, phi)
-        M2 = _horner_eval(dM2c, phi)
+        phi = np.exp(1j * theta[active])
+        Y = _horner_eval(YMc[active], phi)
+        Y1 = _horner_eval(dY1c[active], phi)
+        Y2 = _horner_eval(dY2c[active], phi)
+        Mm = _horner_eval(MMc[active], phi)
+        M1 = _horner_eval(dM1c[active], phi)
+        M2 = _horner_eval(dM2c[active], phi)
         with np.errstate(divide='ignore', invalid='ignore'):
             dP, d2P = _scan_dP_d2P(Y, Y1, Y2, Mm, M1, M2)
             step = dP / d2P
         step[~np.isfinite(step)] = 0.0
-        theta = np.clip(theta - step,
-                        theta0 - half_window, theta0 + half_window)
+        theta_new = np.clip(theta[active] - step,
+                            theta0[active] - half_window,
+                            theta0[active] + half_window)
+        moved = np.abs(theta_new - theta[active]) > _SCAN_NEWTON_XTOL
+        theta[active] = theta_new
+        active = active[moved]
+        if active.size == 0:
+            break
 
     # -- 5: evaluate true P at polished angles, seed fallback ----------
     phi = np.exp(1j * theta)
