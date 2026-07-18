@@ -1,0 +1,8 @@
+{
+ "s1_abs": 1e-10,
+ "s3_iso": 1e-12,
+ "power_nondef": 1e-12,
+ "s2_iso_rel": 1e-13,
+ "k18_min_frac": 0.05,
+ "nfreq": 400
+}
