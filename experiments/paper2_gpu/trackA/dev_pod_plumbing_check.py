@@ -144,4 +144,14 @@ import validate_gpu                                    # noqa: E402
 if __name__ == '__main__':
     print('=== pod plumbing check: validate_gpu.py driven by the numpy '
           'mirrors (expect ALL PASS, ~zero diffs) ===')
-    validate_gpu.main()
+    code = 0
+    try:
+        validate_gpu.main()
+    except SystemExit as exc:
+        code = int(exc.code or 0)
+    # the results json slot belongs to REAL pod runs -- do not leave a
+    # fake-local one lying around to be mistaken for pod output
+    fake_json = os.path.join(HERE, 'pod', 'validate_gpu_results.json')
+    if os.path.exists(fake_json):
+        os.unlink(fake_json)
+    sys.exit(code)
