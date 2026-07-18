@@ -945,7 +945,7 @@ def _band_single_ref_sums(transform, H, gi, freqs):
 
 
 def _combine_stacked_shared_amp(template_dict, transforms, stats, i0, i1, freqs,
-                                mode):
+                                mode, band_chunks=None):
     r"""Band-combined stacked ``YM'``/``MM'``/``AC'`` for a frequency chunk.
 
     Vectorized analog of :func:`combine_band_summations`: for
@@ -954,6 +954,11 @@ def _combine_stacked_shared_amp(template_dict, transforms, stats, i0, i1, freqs,
     corrections are added (assembled in the same centered ``MM'`` form as the
     per-frequency path, so the SESAR-DIP-1 cancellation fix carries over).
     Also returns the per-band ``AC_k`` stack (for offset reconstruction).
+
+    ``band_chunks``, if given, maps each band to its precomputed stacked
+    ``Summations`` for ``[i0, i1)`` (see
+    :func:`multiband_power_spectra_batched`, which hoists these
+    template-independent sums across a template catalog).
     """
     bands = stats.bands
     H = stats.H
@@ -962,7 +967,8 @@ def _combine_stacked_shared_amp(template_dict, transforms, stats, i0, i1, freqs,
     Mbar_by_band = {}
     Mbar_comb = None
     for band in bands:
-        stacked = _band_stacked_chunk(transforms[band], H, i0, i1, freqs)
+        stacked = (band_chunks[band] if band_chunks is not None else
+                   _band_stacked_chunk(transforms[band], H, i0, i1, freqs))
         YM_k, MM_k, AC_k = pdg.batched_YM_MM_from_sums(
             template_dict[band].c_n, template_dict[band].s_n, stacked)
         AC_by_band[band] = AC_k
@@ -1023,6 +1029,68 @@ def _batched_mbar_at(AC_k, phi):
     return 2.0 * np.real(acc)
 
 
+def multiband_power_spectra_batched(template_dicts, transforms, stats, freqs,
+                                    mode=DEFAULT_MODE, relative_offsets=None,
+                                    chunk_size=4096):
+    """Batched power spectra for a CATALOG of template-sets over shared
+    per-band transforms (``mode='floating_offsets'``), vectorized over
+    frequency chunks.
+
+    The per-band stacked ``Summations`` chunks are template-INDEPENDENT, so
+    they are computed ONCE per chunk and reused across every template-set
+    (2026-07-18 hunt item 5; bit-identical to the per-set recomputation by
+    construction), as are the per-frequency reference sums of any deferred
+    deep-dip row. The chunk-outer / set-inner loop order keeps the cache
+    footprint to a single chunk.
+
+    Returns an ``(nsets, nfreq)`` power array.
+    """
+    if mode not in _BATCHED_SCAN_MODES:
+        raise ValueError("multiband_power_spectra_batched supports mode in "
+                         "{0}; got {1!r}".format(_BATCHED_SCAN_MODES, mode))
+    _validate_chunk_size(chunk_size)
+    H = stats.H
+    bands = stats.bands
+    nfreq = len(freqs)
+    nsets = len(template_dicts)
+    powers = np.zeros((nsets, nfreq))
+
+    YY = stats.YY_combined
+    if _is_flat(YY, stats.ybar_global):
+        return powers
+
+    for i0 in range(0, nfreq, chunk_size):
+        i1 = min(i0 + chunk_size, nfreq)
+        band_chunks = {b: _band_stacked_chunk(transforms[b], H, i0, i1, freqs)
+                       for b in bands}
+        ref_cache = {}
+        for si, template_dict in enumerate(template_dicts):
+            YM, MM, AC, _ACb = _combine_stacked_shared_amp(
+                template_dict, transforms, stats, i0, i1, freqs, mode,
+                band_chunks=band_chunks)
+            _pl, pw, _bp, mm_min, mm_max = pdg.scan_polish_from_coefs(
+                YM, MM, AC, H, stats.ybar_global, YY, positive_amplitude=True,
+                powers_only=True, return_mm_circle=True)
+            powers[si, i0:i1] = pw
+
+            # defer extreme-|MM'|-dip rows to the per-frequency reference;
+            # the circle extrema come from the scan's own base grid (the
+            # same max(128, 32H) angles this check previously re-evaluated),
+            # so the deferral decisions are bit-identical to recomputing
+            deep = np.where(mm_min < _BATCHED_DEFER_RTOL * mm_max)[0]
+            for r in deep:
+                gi = i0 + int(r)
+                if gi not in ref_cache:
+                    ref_cache[gi] = {
+                        b: _band_single_ref_sums(transforms[b], H, gi, freqs)
+                        for b in bands}
+                _mp, pr = multiband_template_fit_from_sums(
+                    template_dict, ref_cache[gi], stats, mode,
+                    relative_offsets, method='scan')
+                powers[si, gi] = pr
+    return powers
+
+
 def multiband_power_spectrum_batched(template_dict, transforms, stats, freqs,
                                      mode=DEFAULT_MODE, relative_offsets=None,
                                      chunk_size=4096):
@@ -1040,43 +1108,14 @@ def multiband_power_spectrum_batched(template_dict, transforms, stats, freqs,
     the batched ``np.trace`` assembly would otherwise diverge from it. On
     well-conditioned data (the griz target) the deferral fires on a few percent
     of frequencies; the rest run fully batched.
+
+    The single-set special case of :func:`multiband_power_spectra_batched`
+    (which a template catalog should call directly, so the
+    template-independent per-band sums are hoisted across the sets).
     """
-    if mode not in _BATCHED_SCAN_MODES:
-        raise ValueError("multiband_power_spectrum_batched supports mode in "
-                         "{0}; got {1!r}".format(_BATCHED_SCAN_MODES, mode))
-    _validate_chunk_size(chunk_size)
-    H = stats.H
-    bands = stats.bands
-    nfreq = len(freqs)
-    powers = np.zeros(nfreq)
-
-    YY = stats.YY_combined
-    if _is_flat(YY, stats.ybar_global):
-        return powers
-
-    for i0 in range(0, nfreq, chunk_size):
-        i1 = min(i0 + chunk_size, nfreq)
-        YM, MM, AC, _ACb = _combine_stacked_shared_amp(
-            template_dict, transforms, stats, i0, i1, freqs, mode)
-        _pl, pw, _bp, mm_min, mm_max = pdg.scan_polish_from_coefs(
-            YM, MM, AC, H, stats.ybar_global, YY, positive_amplitude=True,
-            powers_only=True, return_mm_circle=True)
-        powers[i0:i1] = pw
-
-        # defer extreme-|MM'|-dip rows to the per-frequency reference;
-        # the circle extrema come from the scan's own base grid (the
-        # same max(128, 32H) angles this check previously re-evaluated),
-        # so the deferral decisions are bit-identical to recomputing
-        deep = np.where(mm_min < _BATCHED_DEFER_RTOL * mm_max)[0]
-        for r in deep:
-            gi = i0 + int(r)
-            ref_sums = {b: _band_single_ref_sums(transforms[b], H, gi, freqs)
-                        for b in bands}
-            _mp, pr = multiband_template_fit_from_sums(
-                template_dict, ref_sums, stats, mode, relative_offsets,
-                method='scan')
-            powers[gi] = pr
-    return powers
+    return multiband_power_spectra_batched(
+        [template_dict], transforms, stats, freqs, mode=mode,
+        relative_offsets=relative_offsets, chunk_size=chunk_size)[0]
 
 
 def multiband_template_periodogram(t, y, bands, template_dict, freqs, dy=None,
@@ -1313,11 +1352,11 @@ class FastMultibandTemplatePeriodogram(object):
         transforms, stats, freqs = _prepare_band_transforms(
             self.t, self.y, self.bands, self.dy, freqs, H, self.mode,
             self.relative_offsets, fast=fast)
-        stack = [multiband_power_spectrum_batched(
-                    td, transforms, stats, freqs, mode=self.mode,
-                    relative_offsets=self.relative_offsets)
-                 for td in self._template_sets]
-        stack = np.array(stack)                       # (nsets, nfreq)
+        # the template-independent per-band sums are hoisted across the
+        # catalog inside the plural spectra function (hunt item 5)
+        stack = multiband_power_spectra_batched(
+            self._template_sets, transforms, stats, freqs, mode=self.mode,
+            relative_offsets=self.relative_offsets)   # (nsets, nfreq)
         winning_set = np.argmax(stack, axis=0)
         powers = stack[winning_set, np.arange(nfreq)]
         return powers, None, winning_set

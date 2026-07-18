@@ -8,6 +8,7 @@ from scipy import optimize
 
 from .utils import weights, ModelFitParams
 from .template import Template
+from .summations import fast_summations, direct_summations
 from . import core as pdg
 
 
@@ -434,10 +435,29 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         """
         frequency = self.autofrequency(**kwargs)
 
-        results = [pdg.template_periodogram(self.t, self.y, self.dy, template.c_n,
-                                            template.s_n, frequency, fast=fast,
-                                            sigma=sigma, tol=tol, method=method)
-                   for template in self.templates]
+        # The summations are template-independent at fixed H: compute them
+        # once per distinct harmonic count and reuse across the whole
+        # template catalog (bit-identical to the per-template computation;
+        # 2026-07-18 hunt item 5). Mixed-H template lists get one set of
+        # sums per H -- NFFT sums at different H are not slices of one
+        # another (the oversampled grid size depends on H).
+        w = weights(self.dy)
+        sums_by_H = {}
+        results = []
+        for template in self.templates:
+            nh = len(template.c_n)
+            if nh not in sums_by_H:
+                if fast:
+                    sums_by_H[nh] = fast_summations(self.t, self.y, w,
+                                                    frequency, nh,
+                                                    sigma=sigma, tol=tol)
+                else:
+                    sums_by_H[nh] = direct_summations(self.t, self.y, w,
+                                                      frequency, nh)
+            results.append(pdg.template_periodogram(
+                self.t, self.y, self.dy, template.c_n, template.s_n,
+                frequency, summations=sums_by_H[nh], fast=fast, sigma=sigma,
+                tol=tol, method=method))
 
         p, bfpars = zip(*results)
         if save_best_model:
