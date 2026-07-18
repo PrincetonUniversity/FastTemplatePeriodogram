@@ -27,3 +27,32 @@ columns in the JSONs); single (mag, N) cell — the full completeness surface
 is the injection campaign's job. H8-grid convergence: os=3 with df ∝ 1/(H·T),
 per-H matched (audit reviewed the formula as sound; os-doubling spot-check
 queued with B5).
+
+---
+
+## CORRECTIONS (2026-07-18 both-sessions re-audit, panel-confirmed)
+
+1. **Alias crediting:** the "alias-credited (exact-or-harmonic)" label
+   was wrong — lib.score's default crediting ALSO accepts ±1,±2 c/d and
+   ±1/yr window beats. Recount from the raw JSONs: at RRc H4/H8, 13/31
+   credited recoveries (42%) are day-beats and 6 more are P/2; only
+   12/256 exact, 9/256 phase-coherent (vs the headline .121). RRab is
+   mildly affected (~5% beats). The "strict-exact" JSON column is also
+   not strict (rtol=0.01 admits year-beats; 3-7 "exact" sources per arm
+   fail phase coherence). RRc ABSOLUTE rates in the table are therefore
+   substantially alias-inflated; RRab conclusions stand.
+2. **Vocabulary confound in the H-lever:** each H re-clusters its own
+   medoid vocabulary; the RRc H2 vocab shares 0/4 stars with the H4/H8
+   vocab (RRab H4 shares 3/4 with H8, H2 shares 1/4). The "RRc H2 costs
+   ~2%" tradeoff surfaced to John conflates harmonic truncation with a
+   full template-set swap and SHOULD NOT BE QUOTED until re-measured
+   with a fixed vocabulary across H. The RRab H4-vs-H8 headline (3/4
+   shared) is only mildly affected.
+3. **Grid convergence is OPEN:** the promised os-doubling spot-check
+   never ran (and lib.py's converged_grid docstring falsely claimed it
+   had — now corrected). A 6-source probe found one H4 os=3 "recovery"
+   that vanishes at os=6; a 64-source flip-rate probe is queued.
+4. **Stats/config notes:** the RRab H4 one-sided 95% UB is ~4.1-4.2%
+   (not "~3%"); the run baseline was `--baseline-days 1300` (realized
+   median ~1200 d), not the 1600 d survey span — paired comparisons
+   unaffected, absolute rates correspond to the shorter baseline.

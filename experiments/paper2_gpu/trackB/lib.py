@@ -267,7 +267,10 @@ def converged_grid(f_lo, f_hi, H, baseline, oversample=4.0):
     The FTP peak half-width in frequency is ~1/(H*T) (higher harmonics sharpen
     the peak), so a converged grid needs df <= 1/(oversample * H * T). One grid
     built for the largest H in a sweep is therefore converged for every smaller H
-    as well; the H=8 convergence is checked explicitly by doubling ``oversample``.
+    as well. NB (2026-07-18 re-audit): an os-doubling convergence check was
+    PLANNED but has not been run at scale -- a 6-source probe found one H=4
+    os=3 recovery that vanished at os=6, so treat os=3 convergence as an open
+    item (64-source flip-rate probe queued), not a verified property.
     """
     df = 1.0 / (float(oversample) * float(H) * float(baseline))
     # the NFFT fast path requires freqs[0] to be an integer multiple of df

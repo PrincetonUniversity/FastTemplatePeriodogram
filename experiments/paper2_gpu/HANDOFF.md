@@ -3,17 +3,36 @@
 Canonical engine/compute handoff for the PS1 3π faint-RRL template search. Read
 this first. Science plan = `PAPER2_BRIEF.md` (parent dir); GPU feasibility =
 `GPU_FEASIBILITY.md` (this repo); this doc is the **compute engine + cost + next
-steps**. All work is on branch **`paper2-fast-multiband`** (off `dev`, 3 commits,
-NOT merged, `master` untouched). Remote: `origin` (PrincetonUniversity) — branch
-is LOCAL only, push before any cloud/remote session.
+steps**. All work is on branch **`paper2-fast-multiband`** (off `dev`, pushed to
+`origin` (PrincetonUniversity), `master` untouched).
 
 ---
 
-## 0. TL;DR
-- **Delivered (measured, bit-identical): batched multiband `floating_offsets` = 12–14× CPU** per object at H=8 (up to 36× at H=4), plus an exact NFFT-free direct-summation path (faster for sparse N), plus the **first-ever FTP GPU run** (~38×/core on an A100, launch-bound floor).
-- **Locked design** (this planning session): all bands always; **staged H** (H≈4 RRab / H≈2 RRc detection → H=8 refine at candidates); **purity by generative model-comparison at the candidate** (RRL vocab + EW + DRW + constant) + physical priors (dereddened color / instability strip / period box / Bailey / RRab asymmetry) — NOT a discriminative vocabulary, so the full-grid vocabulary stays RRL-only and small.
-- **Revised full-search cost: ~$30–70** (lossless) vs the ~$1–2k planning basis — ~20–40× cheaper. Confirmed part is the 12–14× batching; the rest is the H/staging lever (projected, measurable) + near-free purity.
-- **Next session = two tracks**: (A) fused-kernel GPU optimization, (B) the 5 measurements that convert "projected" → "confirmed" (§4).
+## 0. TL;DR (rewritten 2026-07-18 late — the original TL;DR predated the
+audit corrections and headlined numbers its own body had retracted;
+caught by the both-sessions re-audit)
+- **Delivered:** batched multiband `floating_offsets` (12–14× vs the old
+  per-frequency path at nfreq≳5k; grid-size dependent), the exact
+  NFFT-free direct-summation path, the **SAFE CPU stack**
+  (+2.9×@H4/3.5×@H8 more on K=4 catalog scans, adversarially verified,
+  FILTER-DIP-1 found-and-fixed same day), the validated A100 port
+  (0.55–0.59 µs/LC/f/T @H8 at 45k-freq scale ≈ **~45×/single M5 core**;
+  honest-baseline figure — never quote the retracted same-code 38×),
+  and measured Track-B levers: staged-H (B1, RRab H4 sound; RRc
+  numbers confounded — see B1_RESULT corrections), deferral ~0 on real
+  cadences post-gate (B4, corrected), cascade survival 100% at q≥1%
+  (B6), polish-free neutrality (B7), K=1 vocab flat/better (B3).
+- **Locked design**: all bands always; **staged H** (H≈4 RRab / H≈2 RRc
+  detection → H=8 refine at candidates); **purity by generative
+  model-comparison at the candidate** + physical priors — detection
+  vocabulary stays RRL-only and small (B3 says K=1 may suffice).
+- **Cost: see `trackB/B5_RESULT.md`** — quoted per-million candidates
+  (~$38/M A100, ~$75/M cloud-CPU; scenario rows $11–226), NOT a single
+  headline; N_cand is the open input (CasJobs blocked). The old "$30–70"
+  and "~$1–2k basis" figures are VOID (audit §1) — do not quote them.
+- **Next**: B1 fixed-vocab/alias-decomposed rerun + grid-convergence
+  probe; N_cand via CasJobs login / MAST API / S3 Parquet; adoption
+  decisions on the B3/B6/B7 levers (John); optional pod session B.
 
 ---
 

@@ -58,10 +58,13 @@ GPU (A100, session-A measured 0.55-0.59 us/LC/f/T @H8; H4 bracketed
 
 (a) assumes cloud vCPU ~ 0.5x an M5 P-core and ~$2.5/h per 64-vCPU
 node, from the measured 3.5 s/candidate/M5-core. The SAFE stack (post
-correctness fix) puts the A100 at ~32x an M5 core @H8 — the GPU remains
-~2x cheaper per candidate at cloud prices, but both columns are now
-O($100) at 1-3M candidates, so the playbook's CPU-only simplicity
-argument survives. Session-B H4 GPU rows would firm the A100 column.
+correctness fix) puts the A100 at **~45x an M5 core @H8**
+(24.9 us / 0.554 us; an earlier "~32x" here was an arithmetic error,
+caught by the 2026-07-18 re-audit) — the GPU remains ~2x cheaper per
+candidate at cloud prices, but both columns are now O($100) at 1-3M
+candidates, so the playbook's CPU-only simplicity argument survives.
+NB the GPU 45k-grid invariance was measured at H8 only; the H2/H4 GPU
+anchors are 8k-tier numbers (session-B item to firm them).
 Injection campaign: ~$4-12 per 100k injections (same per-LC cost;
 alias-partner windowing, if validated, cuts 13-18x).
 

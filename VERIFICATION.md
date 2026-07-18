@@ -1138,10 +1138,12 @@ implemented one commit per item with a per-item numerical-parity gate:
 
 **Suite:** 494 passed / 1 skipped / 2 xfailed / 0 failed both before and
 after the stack (full `pytest ftperiodogram/tests`, single-thread BLAS).
-**Bench (median-of-5, nfreq=8000, single M5 P-core):** production K=4
-catalog scans 3.43x @H4 / 4.10x @H8; single-template 1.6-2.1x; direct
-sums 2.39x. New CPU per-unit floors: 21.4 us/LC/f/T @H8 (K=4-amortized),
-9.4 @H4, 5.1 @H2.
+**Bench (median-of-5, nfreq=8000, single M5 P-core):** [SUPERSEDED by
+the FILTER-DIP-1 errata below — these were the PRE-fix numbers and the
+5.1 @H2 figure had no raw artifact at the time. Post-fix standing
+values (bench_after_fix.json): catalog 2.88x @H4 / 3.53x @H8;
+single-template 1.2-1.6x; direct sums 2.09x; CPU per-unit floors
+24.9 us/LC/f/T @H8 (K=4-amortized), 11.2 @H4, 5.5 @H2.]
 **Records:** experiments/paper2_gpu/safe_stack/{PARITY_REPORT.md,
 BENCH.md, fixtures.py, golden.py, bench.py, output/}. Human sign-off
 delegated to adversarial multi-agent verification per the 2026-06-12

@@ -25,3 +25,28 @@ Conclusions:
    measured at; implement it in the SAFE stack.
 Caveat: RRab template/band only; RRc (H2, wider band) shares the H2 columns'
 qualitative picture; real-PS1 cadences pending WP P0.2.
+
+---
+
+## CORRECTIONS (2026-07-18 both-sessions re-audit, panel-confirmed)
+
+1. **Cadence composition:** 43/99 cached "ZTF g/r" cadences retain only
+   ONE band after quality cuts, and that single-band (K=1,
+   rank-deficient at H>=4) subset drives every headline ztf_n8 number:
+   genuine 2-band rates are ~5-15x smaller (H2 scan-exact 3.5%/4.9%
+   mean/max, H4 0.38%/0.60%; H2 defer max 0.0025%). All 17 cadences
+   with nonzero H4/H8 deferral are single-band. The "mean 5.5% / max
+   22%" scan-exact zone quoted in conclusion 2 is a single-band-driven
+   mixture.
+2. **"defer exactly 0 at H4/H8" was wrong** — the raw JSON has 16 (H4)
+   / 15 (H8) ztf_n8 rows with nonzero deferral (all single-band; tiny
+   but nonzero).
+3. **Risk-retirement conflation:** conclusion 1 retired GPU risk #2
+   from the r<3e-3 deferral rate, but the code AT THE TIME sent every
+   r<0.15 row to host-side eigvals — host exposure was the scan-exact
+   column (1.9-8.1% PS1-like, up to 49% worst single-band), not the
+   deferral column. The retirement became true only AFTER the SAFE
+   stack's Bernstein gate: a probe of the post-fix triage on these same
+   cadences finds ZERO eigvals rows (all flagged rows resolve via
+   gate-pass or densified rescan). Aberth stays deprioritized — but on
+   the strength of the gate, not of this memo's original argument.
