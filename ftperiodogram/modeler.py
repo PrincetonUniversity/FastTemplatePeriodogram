@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import warnings
+from collections import Counter
 from functools import wraps
 
 import numpy as np
@@ -440,23 +441,31 @@ class FastMultiTemplatePeriodogram(FastTemplatePeriodogram):
         # template catalog (bit-identical to the per-template computation;
         # 2026-07-18 hunt item 5). Mixed-H template lists get one set of
         # sums per H -- NFFT sums at different H are not slices of one
-        # another (the oversampled grid size depends on H).
+        # another (the oversampled grid size depends on H). The hoist only
+        # engages where >= 2 templates share an H: for a lone template the
+        # internal streamed path (chunk-bounded batched sums) is faster
+        # and memory-lighter than materializing the per-frequency list
+        # (2026-07-18 adversarial verification).
         w = weights(self.dy)
+        h_counts = Counter(len(template.c_n) for template in self.templates)
         sums_by_H = {}
         results = []
         for template in self.templates:
             nh = len(template.c_n)
-            if nh not in sums_by_H:
-                if fast:
-                    sums_by_H[nh] = fast_summations(self.t, self.y, w,
-                                                    frequency, nh,
-                                                    sigma=sigma, tol=tol)
-                else:
-                    sums_by_H[nh] = direct_summations(self.t, self.y, w,
-                                                      frequency, nh)
+            sums = None
+            if h_counts[nh] > 1:
+                if nh not in sums_by_H:
+                    if fast:
+                        sums_by_H[nh] = fast_summations(self.t, self.y, w,
+                                                        frequency, nh,
+                                                        sigma=sigma, tol=tol)
+                    else:
+                        sums_by_H[nh] = direct_summations(self.t, self.y, w,
+                                                          frequency, nh)
+                sums = sums_by_H[nh]
             results.append(pdg.template_periodogram(
                 self.t, self.y, self.dy, template.c_n, template.s_n,
-                frequency, summations=sums_by_H[nh], fast=fast, sigma=sigma,
+                frequency, summations=sums, fast=fast, sigma=sigma,
                 tol=tol, method=method))
 
         p, bfpars = zip(*results)
