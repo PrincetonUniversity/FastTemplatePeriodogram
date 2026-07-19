@@ -54,10 +54,14 @@ queued with B5).
    but the panels REFUTED it as material: a de-confounded rerun with
    the swapped vocabulary reproduced the arm's results, consistent with
    B3's flat K-lever.)
-3. **Grid convergence is OPEN:** the promised os-doubling spot-check
-   never ran (and lib.py's converged_grid docstring falsely claimed it
-   had — now corrected). A 6-source probe found one H4 os=3 "recovery"
-   that vanishes at os=6; a 64-source flip-rate probe is queued.
+3. **Grid convergence — RESOLVED for H8, FAILS for H4** (64-source
+   probe, OS_DOUBLING_RESULT.md): H8 os=3 is converged (0/64 flips);
+   **H4 os=3 is NOT** — 3/64 (4.7%) os=3 recoveries are coarse-grid
+   artifacts that vanish at os=6, all spurious-high. So the RRab H4
+   absolute rate (.328) is ~4.7% grid-inflated (converged ~.31), and
+   the H4-vs-H8 "+0.008 lossless" headline is biased LOW (H8 converged,
+   H4 not) — the true staging loss is larger by up to the coarse
+   inflation. The fixed-vocab rerun must use os>=6 for H<=4 grids.
 4. **Stats/config notes:** the RRab H4 one-sided 95% UB is ~4.1-4.2%
    (not "~3%"); the run baseline was `--baseline-days 1300` (realized
    median ~1200 d), not the 1600 d survey span — paired comparisons
