@@ -283,11 +283,14 @@ class RealZTFCadence(Cadence):
             Keep only epochs with ``catflags <= catflags_max`` (0 = clean only).
         max_epochs_per_band : int or None
             If set, *evenly* thin each band to at most this many epochs across the
-            full baseline (``np.linspace`` index subset).  This preserves the real
-            seasonal-gap / clumping structure and full time span while capping the
-            per-band count -- the lever that makes scoring a dense full-survey ZTF
-            light curve tractable without distorting the cadence shape.  ``None``
-            keeps every recorded epoch.
+            full baseline (``np.linspace`` index subset).  This preserves the
+            seasonal-gap structure and full time span while capping the per-band
+            count.  NB (2026-07-18 re-audit): aggressive thinning does NOT
+            preserve intra-night clumping -- across the 99-cadence sample the
+            same-night (<0.5 d) consecutive-pair count drops from 27,549 (full)
+            to 97 (n=20) to 9 (n=8), so heavily-thinned cadences behave as
+            sparse quasi-random sampling, not as intra-night-structured data.
+            ``None`` keeps every recorded epoch.
         """
         home = (os.path.join(os.path.expanduser("~"), ".ftperiodogram_data",
                              "ztf_cadence_sample")

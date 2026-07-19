@@ -41,13 +41,19 @@ queued with B5).
    not strict (rtol=0.01 admits year-beats; 3-7 "exact" sources per arm
    fail phase coherence). RRc ABSOLUTE rates in the table are therefore
    substantially alias-inflated; RRab conclusions stand.
-2. **Vocabulary confound in the H-lever:** each H re-clusters its own
-   medoid vocabulary; the RRc H2 vocab shares 0/4 stars with the H4/H8
-   vocab (RRab H4 shares 3/4 with H8, H2 shares 1/4). The "RRc H2 costs
-   ~2%" tradeoff surfaced to John conflates harmonic truncation with a
-   full template-set swap and SHOULD NOT BE QUOTED until re-measured
-   with a fixed vocabulary across H. The RRab H4-vs-H8 headline (3/4
-   shared) is only mildly affected.
+2. **The RRc "H2 costs ~2%" figure is statistically null and must not
+   be quoted** (final panel verdict): the +0.020 +/- 0.015 paired loss
+   is a 10-vs-5 disagreement split (McNemar exact p = 0.30 — noise);
+   under strict frac_exact the sign REVERSES (H2 better by 0.004) and
+   under phase coherence it is exactly 0. The "(CI 0.5-3.5%)" was a
+   mislabeled +/-1-sigma interval; the true 95% CI is ~[-0.010, +0.049]
+   and includes 0. Net: there is NO measured RRc H2 penalty — "RRc
+   detection at H2" stands with no loss caveat. (A per-H vocabulary-
+   swap confound was also raised — each H re-clusters its own medoids,
+   RRc H2 sharing 0/4 stars with H8, undisclosed in the original doc —
+   but the panels REFUTED it as material: a de-confounded rerun with
+   the swapped vocabulary reproduced the arm's results, consistent with
+   B3's flat K-lever.)
 3. **Grid convergence is OPEN:** the promised os-doubling spot-check
    never ran (and lib.py's converged_grid docstring falsely claimed it
    had — now corrected). A 6-source probe found one H4 os=3 "recovery"

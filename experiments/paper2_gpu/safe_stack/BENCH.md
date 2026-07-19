@@ -24,14 +24,16 @@ bench_after_fix.json.
 | mb_direct_h4 (fast=False) | 0.167 | 0.080 | 2.09x |
 | mb_sparse2_h4 (deferral-heavy) | 0.109 | 0.081 | 1.35x |
 
-The pre-fix stack measured 3.43x/4.10x on the catalog rows; the
-correctness fix returns 8-19% of that (dip-carrying rows now polish all
-candidates; 4x margin keeps more candidates on dip-free rows; densified
-rescans sized 2x). Correct beats fast.
+The pre-fix stack measured 3.43x/4.10x on the catalog rows; the fix
+costs 6-19% per row (after_fix/after: sb rows 1.09-1.27x, mb rows
+1.06-1.19x — dip-carrying rows now polish all candidates; 4x margin
+keeps more candidates on dip-free rows; densified rescans sized 2x).
+Correct beats fast.
 
 Real-grid anchors (median of 3, single LC, K=4 catalog, post-fix) — the
-B5 per-candidate inputs; ~9% superlinear vs scaling the 8k rows, so B5
-uses THESE, not linear extrapolation:
+B5 per-candidate inputs; superlinear vs linearly scaling the 8k rows by
++9.0% (RRab H4: 2.341 vs 6.00x0.358 = 2.148) and +14.5% (RRc H2: 1.130
+vs 5.64x0.175 = 0.987), so B5 uses THESE, not linear extrapolation:
 - RRab H4, nfreq=48,000: **2.341 s/LC**
 - RRc H2, nfreq=45,120: **1.130 s/LC**
 

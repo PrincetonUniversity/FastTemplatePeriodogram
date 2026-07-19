@@ -50,3 +50,22 @@ qualitative picture; real-PS1 cadences pending WP P0.2.
    cadences finds ZERO eigvals rows (all flagged rows resolve via
    gate-pass or densified rescan). Aberth stays deprioritized — but on
    the strength of the gate, not of this memo's original argument.
+
+4. **The "griz ~10x fewer scan-exact rows than 2-band" claim is false**
+   (final panel verdict): the raw JSON gives 2.2x on means (8.14% vs
+   18.06% at H2), and against the GENUINE 2-band subset the direction
+   REVERSES — griz PS1-pair cadences have ~2.3x MORE scan-exact rows
+   than true 2-band ZTF at H2 (~5x at H4), because TTI same-night pairs
+   concentrate phase coverage into few distinct nights. The "K>=3 bands
+   condition MM' well" conclusion is unsupported by this data.
+5. **Thinning artifact:** linspace thinning to N/band destroys
+   intra-night clumping (27,549 same-night pairs across the 99 full
+   cadences -> 9 at n8), contrary to the loader docstring's
+   "preserves clumping" claim (docstring corrected). The ztf_n8 arm is
+   therefore a sparse-random stressor more than a "real intra-night
+   structure" one.
+6. **Uniform synthetic weights:** load_ztf_cadence exposes no
+   err_model, so the ZTF arms ran with a constant 0.0236-mag error at
+   flat mag 21 — uniform weights, not real ZTF photometric errors.
+   |MM| conditioning depends on weights, so real heteroscedastic
+   errors would shift the dip rates (direction unmeasured).
