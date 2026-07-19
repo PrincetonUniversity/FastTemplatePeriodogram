@@ -1,0 +1,3 @@
+seed=20002 row=20: cur=0.610422444 base=0.610422444 eig=0.610422444 deficit=1.776e-15; all reg rows this case: [] (max 5.240e-14)
+seed=22002 row=530: cur=0.399798850 base=0.399798850 eig=0.399798850 deficit=2.776e-16; all reg rows this case: [] (max 3.442e-15)
+seed=8002 row=367: cur=0.815620882 base=0.815620882 eig=0.815620882 deficit=5.729e-14; all reg rows this case: [] (max 1.131e-11)

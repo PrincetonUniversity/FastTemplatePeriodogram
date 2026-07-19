@@ -29,7 +29,7 @@ probe_dense_attr: previously-regressed rows all equal eigvals (e.g.
 0.608054473984 across eig/cur/newdense/olddense columns); skeptic
 counterexamples: deficits <= 5.7e-14 typical, <= 1.1e-11 corner-regime.
 
-The committed *.log files in this directory are a fresh rerun at or
+The committed *.out.txt files in this directory are a fresh rerun at or
 after fc73099 (same machine, single-thread pinned); pass criteria as
 above. If any log is missing, the rerun was interrupted — rerun the
 script; each is standalone (imports the repo package + core_base.py

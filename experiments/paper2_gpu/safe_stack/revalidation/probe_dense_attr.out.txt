@@ -1,0 +1,16 @@
+seed=38 row=282 r=2.203e-04 Md=2048 r_d=7.836e-05 gate_d=7.530e-05 pass=True
+   eig=0.454316882556 cur=0.454316882556 newdense=0.454316882556 olddense=0.454316882556 -> other
+seed=38 row=580 r=3.335e-04 Md=1024 r_d=3.334e-04 gate_d=3.012e-04 pass=True
+   eig=0.439842222148 cur=0.439842222148 newdense=0.439842222148 olddense=0.439842222148 -> other
+seed=38 row=144 r=2.138e-05 Md=4096 r_d=2.137e-05 gate_d=1.882e-05 pass=True
+   eig=0.460347203656 cur=0.460347203656 newdense=0.460347203656 olddense=0.460347203656 -> other
+seed=38 row=83 r=1.163e-05 Md=8192 r_d=1.040e-05 gate_d=4.706e-06 pass=True
+   eig=0.458650281157 cur=0.458650281157 newdense=0.458650281157 olddense=0.458650281157 -> other
+seed=38 row=429 r=2.807e-04 Md=2048 r_d=7.882e-05 gate_d=7.530e-05 pass=True
+   eig=0.459747025645 cur=0.459747025645 newdense=0.459747025645 olddense=0.459747025645 -> other
+seed=76 row=311 r=3.293e-04 Md=1024 r_d=3.292e-04 gate_d=3.012e-04 pass=True
+   eig=0.608054473984 cur=0.608054473984 newdense=0.608054473984 olddense=0.608054473984 -> other
+seed=76 row=73 r=6.527e-05 Md=4096 r_d=3.484e-05 gate_d=1.882e-05 pass=True
+   eig=0.607285841793 cur=0.607285841792 newdense=0.607285841792 olddense=0.607285841793 -> other
+seed=69 row=122 r=1.254e-04 Md=2048 r_d=1.189e-04 gate_d=7.530e-05 pass=True
+   eig=0.714662918564 cur=0.714662918564 newdense=0.714662918564 olddense=0.714662918564 -> other

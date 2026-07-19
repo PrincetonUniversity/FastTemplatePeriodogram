@@ -1,0 +1,3 @@
+rows scanned: 450000
+band counts: {'deep': 130790, 'gateband': 65178, 'mid': 199126, 'ok': 54906}
+findings: 0

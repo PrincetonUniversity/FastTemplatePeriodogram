@@ -1,0 +1,2 @@
+counts: {'rows': 234000, 'deep': 168674, 'gateband': 40750, 'mid': 24525, 'ok': 51}
+misses: 0
